@@ -2,6 +2,7 @@ use ndarray::{ArcArray, IxDyn};
 
 mod attribute;
 mod edges;
+mod input_types;
 mod opset;
 mod python_api;
 mod session;
@@ -12,6 +13,7 @@ pub use edges::Value;
 pub(crate) use edges::{
     channel, value_channel, DataType, Dispatchable, Dispatcher, EnumReceiver, ValueSender,
 };
+pub(crate) use input_types::{HomogeneousNumeric, HomogeneousNumericFixed};
 pub use opset::get_opset;
 pub use session::Session;
 

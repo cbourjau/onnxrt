@@ -11,19 +11,28 @@ use crate::utils::{
     co_broadcast, convert_negative_index, wrap_1_input, wrap_binary_input,
     zip_map_with_co_broadcast,
 };
-use crate::{channel, value_channel, ArcArrayD, DataType, Dispatchable, EnumReceiver, Session};
+use crate::{
+    channel, value_channel, ArcArrayD, DataType, Dispatchable, EnumReceiver,
+    HomogeneousNumericFixed, Session,
+};
 
 macro_rules! element_wise_numeric {
     ($fun:expr) => {
         Box::new(move |ctx: OpContext| -> SetupResult {
-            let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-            match a_ch {
-                EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                EnumReceiver::I32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                EnumReceiver::I64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                // Internal error. This should never happen.
-                _ => panic!(),
+            let chs = ctx.input_channels().try_into()?;
+            match chs {
+                HomogeneousNumericFixed::F32([a_ch]) => {
+                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
+                }
+                HomogeneousNumericFixed::F64([a_ch]) => {
+                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
+                }
+                HomogeneousNumericFixed::I32([a_ch]) => {
+                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
+                }
+                HomogeneousNumericFixed::I64([a_ch]) => {
+                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
+                }
             }
         })
     };
@@ -48,22 +57,12 @@ macro_rules! element_wise_float {
 macro_rules! binary_numeric {
     ($fun:expr) => {
         Box::new(move |ctx: OpContext| -> SetupResult {
-            let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
-            match (a_ch, b_ch) {
-                (EnumReceiver::I32(a_ch), EnumReceiver::I32(b_ch)) => {
-                    wrap_binary_input(a_ch, b_ch, $fun)
-                }
-                (EnumReceiver::F32(a_ch), EnumReceiver::F32(b_ch)) => {
-                    wrap_binary_input(a_ch, b_ch, $fun)
-                }
-                (EnumReceiver::I64(a_ch), EnumReceiver::I64(b_ch)) => {
-                    wrap_binary_input(a_ch, b_ch, $fun)
-                }
-                (EnumReceiver::F64(a_ch), EnumReceiver::F64(b_ch)) => {
-                    wrap_binary_input(a_ch, b_ch, $fun)
-                }
-                // Internal error. This should never happen!
-                _ => panic!(),
+            let channels = ctx.input_channels().try_into()?;
+            match channels {
+                HomogeneousNumericFixed::F32([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
+                HomogeneousNumericFixed::F64([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
+                HomogeneousNumericFixed::I32([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
+                HomogeneousNumericFixed::I64([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
             }
         })
     };
@@ -87,8 +86,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     wire_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
     wire_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
     wire_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
-    wire_dict.insert("ArgMax", Box::new(wire_argmax));
-    wire_dict.insert("ArgMin", Box::new(wire_argmin));
+    wire_dict.insert("ArgMax", Box::new(argminmax::wire_argmax));
+    wire_dict.insert("ArgMin", Box::new(argminmax::wire_argmin));
     wire_dict.insert("Asin", element_wise_float!(|el| el.asin()));
     wire_dict.insert("Asinh", element_wise_float!(|el| el.asinh()));
     wire_dict.insert("Atan", element_wise_float!(|el| el.atan()));
@@ -625,21 +624,17 @@ fn wire_if(ctx: OpContext) -> SetupResult {
     ))
 }
 
-fn wire_argmax(ctx: OpContext) -> SetupResult {
-    let axis = ctx.attrs.get_with_default("axis", 0i64)?;
-    let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
-    let select_last_index = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
+mod argminmax {
+    use super::*;
 
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-
-    macro_rules! match_arm {
-        ($ch:expr) => {{
+    macro_rules! match_arm_argminmax {
+        ($fn:expr, $ch:expr, $axis:expr, $keepdims:expr, $use_last:expr) => {{
             let (sdr, rec) = ArcArrayD::channel();
 
             Ok((
                 Box::new(move || {
                     let data = $ch.recv()?;
-                    let out = argmax(&data, axis, keepdims, select_last_index)?;
+                    let out = $fn(&data, $axis, $keepdims, $use_last)?;
                     sdr.send(out)?;
                     Ok(())
                 }),
@@ -648,119 +643,121 @@ fn wire_argmax(ctx: OpContext) -> SetupResult {
         }};
     }
 
-    match a_ch {
-        EnumReceiver::F32(ch) => match_arm!(ch),
-        EnumReceiver::F64(ch) => match_arm!(ch),
-        EnumReceiver::I32(ch) => match_arm!(ch),
-        EnumReceiver::I64(ch) => match_arm!(ch),
-        _ => bail!("Unimplemented type for op `ArgMax`."),
-    }
-}
+    pub fn wire_argmax(ctx: OpContext) -> SetupResult {
+        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
+        let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
+        let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
 
-fn wire_argmin(ctx: OpContext) -> SetupResult {
-    let axis = ctx.attrs.get_with_default("axis", 0i64)?;
-    let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
-    let select_last_index = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
-
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-
-    macro_rules! match_arm {
-        ($ch:expr) => {{
-            let (sdr, rec) = ArcArrayD::channel();
-
-            Ok((
-                Box::new(move || {
-                    let data = $ch.recv()?;
-                    let out = argmin(&data, axis, keepdims, select_last_index)?;
-                    sdr.send(out)?;
-                    Ok(())
-                }),
-                vec![rec],
-            ))
-        }};
-    }
-
-    match a_ch {
-        EnumReceiver::F32(ch) => match_arm!(ch),
-        EnumReceiver::F64(ch) => match_arm!(ch),
-        EnumReceiver::I32(ch) => match_arm!(ch),
-        EnumReceiver::I64(ch) => match_arm!(ch),
-        _ => bail!("Unimplemented type for op `ArgMax`."),
-    }
-}
-
-fn argmax<T>(
-    data: &ArcArrayD<T>,
-    axis: i64,
-    keep_dim: bool,
-    use_last: bool,
-) -> Result<ArcArrayD<i64>>
-where
-    T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
-{
-    let start_acc = (0, T::min_value());
-    let fold_fn = |acc: (usize, T), (idx, v)| {
-        if v > acc.1 || (use_last && acc.1 == v) {
-            (idx, v)
-        } else {
-            acc
+        match ctx.input_channels().try_into()? {
+            HomogeneousNumericFixed::F32([ch]) => {
+                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
+            }
+            HomogeneousNumericFixed::F64([ch]) => {
+                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
+            }
+            HomogeneousNumericFixed::I32([ch]) => {
+                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
+            }
+            HomogeneousNumericFixed::I64([ch]) => {
+                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
+            }
         }
-    };
-    Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
-        .mapv(|(idx, _v)| idx as i64)
-        .into())
-}
+    }
 
-fn argmin<T>(
-    data: &ArcArrayD<T>,
-    axis: i64,
-    keep_dim: bool,
-    use_last: bool,
-) -> Result<ArcArrayD<i64>>
-where
-    T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
-{
-    let start_acc = (0, T::max_value());
-    let fold_fn = |acc: (usize, T), (idx, v)| {
-        if v < acc.1 || (use_last && acc.1 == v) {
-            (idx, v)
-        } else {
-            acc
+    pub fn wire_argmin(ctx: OpContext) -> SetupResult {
+        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
+        let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
+        let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
+
+        match ctx.input_channels().try_into()? {
+            HomogeneousNumericFixed::F32([ch]) => {
+                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
+            }
+            HomogeneousNumericFixed::F64([ch]) => {
+                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
+            }
+            HomogeneousNumericFixed::I32([ch]) => {
+                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
+            }
+            HomogeneousNumericFixed::I64([ch]) => {
+                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
+            }
         }
-    };
-    Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
-        .mapv(|(idx, _v)| idx as i64)
-        .into())
-}
+    }
 
-fn fold_axis<T, Acc, Fold>(
-    data: &ArcArrayD<T>,
-    axis: i64,
-    keep_dim: bool,
-    init_fold: Acc,
-    fold_fn: &Fold,
-) -> Result<ndarray::ArrayD<Acc>>
-where
-    T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
-    Acc: Copy,
-    Fold: Fn(Acc, (usize, T)) -> Acc,
-{
-    let axis = convert_negative_index(axis, data.shape().len());
-    let rank = data.shape().len();
-    if axis >= rank {
-        bail!(
-            "Axis `{}` is out of bounds for input of rank {}",
-            axis,
-            rank
-        );
+    fn argmax<T>(
+        data: &ArcArrayD<T>,
+        axis: i64,
+        keep_dim: bool,
+        use_last: bool,
+    ) -> Result<ArcArrayD<i64>>
+    where
+        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+    {
+        let start_acc = (0, T::min_value());
+        let fold_fn = |acc: (usize, T), (idx, v)| {
+            if v > acc.1 || (use_last && acc.1 == v) {
+                (idx, v)
+            } else {
+                acc
+            }
+        };
+        Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
+            .mapv(|(idx, _v)| idx as i64)
+            .into())
     }
-    let mut out = data.map_axis(Axis(axis), |lane| {
-        lane.iter().copied().enumerate().fold(init_fold, fold_fn)
-    });
-    if keep_dim {
-        out.insert_axis_inplace(Axis(axis));
+
+    fn argmin<T>(
+        data: &ArcArrayD<T>,
+        axis: i64,
+        keep_dim: bool,
+        use_last: bool,
+    ) -> Result<ArcArrayD<i64>>
+    where
+        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+    {
+        let start_acc = (0, T::max_value());
+        let fold_fn = |acc: (usize, T), (idx, v)| {
+            if v < acc.1 || (use_last && acc.1 == v) {
+                (idx, v)
+            } else {
+                acc
+            }
+        };
+        Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
+            .mapv(|(idx, _v)| idx as i64)
+            .into())
     }
-    Ok(out)
+
+    fn fold_axis<T, Acc, Fold>(
+        data: &ArcArrayD<T>,
+        axis: i64,
+        keep_dim: bool,
+        init_fold: Acc,
+        fold_fn: &Fold,
+    ) -> Result<ndarray::ArrayD<Acc>>
+    where
+        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+        Acc: Copy,
+        Fold: Fn(Acc, (usize, T)) -> Acc,
+    {
+        let axis = convert_negative_index(axis, data.shape().len());
+        let rank = data.shape().len();
+        if axis >= rank {
+            bail!(
+                "Axis `{}` is out of bounds for input of rank {}",
+                axis,
+                rank
+            );
+        }
+        let mut out = data.map_axis(Axis(axis), |lane| {
+            lane.iter().copied().enumerate().fold(init_fold, fold_fn)
+        });
+        if keep_dim {
+            out.insert_axis_inplace(Axis(axis));
+        }
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
