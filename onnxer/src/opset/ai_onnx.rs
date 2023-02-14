@@ -13,37 +13,41 @@ use crate::utils::{
 };
 use crate::{channel, value_channel, ArcArrayD, DataType, Dispatchable, EnumReceiver, Session};
 
-/// HashMap of setup function of the ai.onnx domain version 18(?).
-pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
-    let mut wire_dict: HashMap<_, SetupFnSignature> = HashMap::new();
-    wire_dict.insert("Add", Box::new(wire_add));
-    wire_dict.insert("Cast", Box::new(wire_cast));
-    wire_dict.insert("Concat", Box::new(wire_concat));
-    wire_dict.insert("Constant", Box::new(wire_constant));
-    wire_dict.insert("Cos", Box::new(wire_cos));
-    wire_dict.insert("Div", Box::new(wire_div));
-    wire_dict.insert("Eq", Box::new(wire_eq));
-    wire_dict.insert("Exp", Box::new(wire_exp));
-    wire_dict.insert("Identity", Box::new(wire_identity));
-    wire_dict.insert("If", Box::new(wire_if));
-    wire_dict.insert("IsNan", Box::new(wire_isnan));
-    wire_dict.insert("Log", Box::new(wire_log));
-    wire_dict.insert("LessOrEqual", Box::new(wire_le));
-    wire_dict.insert("Mul", Box::new(wire_mul));
-    wire_dict.insert("Not", Box::new(wire_not));
-    wire_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
-    wire_dict.insert("Split", Box::new(wire_split));
-    wire_dict.insert("Squeeze", Box::new(wire_squeeze));
-    wire_dict.insert("Sub", Box::new(wire_sub));
-    wire_dict.insert("Unsqueeze", Box::new(wire_unsqueeze));
-    wire_dict.insert("Where", Box::new(wire_where));
-    wire_dict
+macro_rules! element_wise_numeric {
+    ($fun:expr) => {
+        Box::new(move |ctx: OpContext| -> SetupResult {
+            let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+            match a_ch {
+                EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
+                EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
+                EnumReceiver::I32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
+                EnumReceiver::I64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
+                // Internal error. This should never happen.
+                _ => panic!(),
+            }
+        })
+    };
+}
+
+/// Make setup function for element wise operations with floating point input
+macro_rules! element_wise_float {
+    ($fun:expr) => {
+        Box::new(move |ctx: OpContext| -> SetupResult {
+            let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+            match a_ch {
+                EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
+                EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
+                // Internal error. This should never happen.
+                _ => panic!(),
+            }
+        })
+    };
 }
 
 /// Setup functions with two numeric inputs
-macro_rules! make_binary_numeric_fn {
-    ($fn_name:ident, $fun:expr) => {
-        fn $fn_name(ctx: OpContext) -> SetupResult {
+macro_rules! binary_numeric {
+    ($fun:expr) => {
+        Box::new(move |ctx: OpContext| -> SetupResult {
             let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
             match (a_ch, b_ch) {
                 (EnumReceiver::I32(a_ch), EnumReceiver::I32(b_ch)) => {
@@ -61,24 +65,65 @@ macro_rules! make_binary_numeric_fn {
                 // Internal error. This should never happen!
                 _ => panic!(),
             }
-        }
+        })
     };
 }
 
-make_binary_numeric_fn!(wire_add, |a, b| Ok(a + b));
-make_binary_numeric_fn!(wire_mul, |a, b| Ok(a * b));
-make_binary_numeric_fn!(wire_sub, |a, b| Ok(a - b));
-make_binary_numeric_fn!(wire_div, |a, b| Ok(a / b));
-make_binary_numeric_fn!(wire_eq, |a, b| zip_map_with_co_broadcast(
-    a,
-    b,
-    PartialEq::eq
-));
-make_binary_numeric_fn!(wire_le, |a, b| zip_map_with_co_broadcast(
-    a,
-    b,
-    PartialOrd::le
-));
+fn make_equal() -> SetupFnSignature {
+    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialEq::eq))
+}
+fn make_less_equal() -> SetupFnSignature {
+    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::le))
+}
+
+/// HashMap of setup function of the ai.onnx domain version 18(?).
+#[rustfmt::skip]
+pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
+    let mut wire_dict: HashMap<_, SetupFnSignature> = HashMap::new();
+    wire_dict.insert("Abs", element_wise_numeric!(|el| el.abs()));
+    wire_dict.insert("Acos", element_wise_float!(|el| el.acos()));
+    wire_dict.insert("Acos", element_wise_float!(|el| el.acos()));
+    wire_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
+    wire_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
+    wire_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
+    wire_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
+    wire_dict.insert("Asin", element_wise_float!(|el| el.asin()));
+    wire_dict.insert("Asinh", element_wise_float!(|el| el.asinh()));
+    wire_dict.insert("Atan", element_wise_float!(|el| el.atan()));
+    wire_dict.insert("Atanh", element_wise_float!(|el| el.atanh()));
+    wire_dict.insert("Cast", Box::new(wire_cast));
+    wire_dict.insert("Ceil", element_wise_float!(|el| el.ceil()));
+    wire_dict.insert("Concat", Box::new(wire_concat));
+    wire_dict.insert("Constant", Box::new(wire_constant));
+    wire_dict.insert("Cos", element_wise_float!(|el| el.cos()));
+    wire_dict.insert("Cosh", element_wise_float!(|el| el.cosh()));
+    wire_dict.insert("Div", binary_numeric!(|a, b| Ok(a / b)));
+    wire_dict.insert("Equal", make_equal());
+    wire_dict.insert("Exp", element_wise_float!(|el| el.exp()));
+    wire_dict.insert("Floor", element_wise_float!(|el| el.floor()));
+    wire_dict.insert("Identity", element_wise_float!(|el| el));
+    wire_dict.insert("If", Box::new(wire_if));
+    wire_dict.insert("IsInf", element_wise_float!(|el| dbg!(el).is_infinite())); // FIXME
+    wire_dict.insert("IsNaN", element_wise_float!(|el| el.is_nan()));
+    wire_dict.insert("LessOrEqual", make_less_equal());
+    wire_dict.insert("Log", element_wise_float!(|el| el.ln()));
+    wire_dict.insert("Mul", binary_numeric!(|a, b| Ok(a * b)));
+    wire_dict.insert("Not", Box::new(wire_not));
+    wire_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
+    wire_dict.insert("Sigmoid",element_wise_float!(|el| 1. / (1. + (-el).exp())));
+    wire_dict.insert("Sin", element_wise_float!(|el| el.sin()));
+    wire_dict.insert("Sinh", element_wise_float!(|el| el.sinh()));
+    wire_dict.insert("Split", Box::new(wire_split));
+    wire_dict.insert("Sqrt",element_wise_float!(|el| el.sqrt()));
+    wire_dict.insert("Squeeze", Box::new(wire_squeeze));
+    wire_dict.insert("Sub", binary_numeric!(|a, b| Ok(a - b)));
+    wire_dict.insert("Tan", element_wise_float!(|el| el.tan()));
+    wire_dict.insert("Tanh", element_wise_float!(|el| el.tanh()));
+    wire_dict.insert("Unsqueeze", Box::new(wire_unsqueeze));
+    wire_dict.insert("Where", Box::new(wire_where));
+    wire_dict.insert("Xor", make_binary_boolean_fn(|a, b| Ok(a ^ b)));
+    wire_dict
+}
 
 /// Create setup function with two boolean inputs
 fn make_binary_boolean_fn<Op>(op: Op) -> SetupFnSignature
@@ -100,27 +145,6 @@ where
         }
     })
 }
-
-/// Make setup function for element wise operations with floating point input
-macro_rules! make_element_wise_float_fn {
-    ($fn_name:ident, $fun:expr) => {
-        fn $fn_name(ctx: OpContext) -> SetupResult {
-            let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-            match a_ch {
-                EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                // Internal error. This should never happen.
-                _ => panic!(),
-            }
-        }
-    };
-}
-
-make_element_wise_float_fn!(wire_cos, |el| el.cos());
-make_element_wise_float_fn!(wire_identity, |el| el);
-make_element_wise_float_fn!(wire_isnan, |el| el.is_nan());
-make_element_wise_float_fn!(wire_exp, |el| el.exp());
-make_element_wise_float_fn!(wire_log, |el| el.ln());
 
 fn wire_not(ctx: OpContext) -> SetupResult {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();

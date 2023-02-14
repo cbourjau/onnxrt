@@ -111,7 +111,11 @@ impl TestResult {
                         unequal_bail!(k, exp, obs)
                     }
                 }
-                _ => panic!(),
+                _ => bail!(
+                    "Types don't match:\n expected: {:?}\n observed: {:?}",
+                    v_exp,
+                    v_obs
+                ),
             }
         }
         Ok("PASS".to_string())
