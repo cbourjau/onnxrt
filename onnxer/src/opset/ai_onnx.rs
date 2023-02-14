@@ -87,6 +87,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     wire_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
     wire_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
     wire_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
+    wire_dict.insert("ArgMax", Box::new(wire_argmax));
+    wire_dict.insert("ArgMin", Box::new(wire_argmin));
     wire_dict.insert("Asin", element_wise_float!(|el| el.asin()));
     wire_dict.insert("Asinh", element_wise_float!(|el| el.asinh()));
     wire_dict.insert("Atan", element_wise_float!(|el| el.atan()));
@@ -621,6 +623,144 @@ fn wire_if(ctx: OpContext) -> SetupResult {
         }),
         out_dispatchers,
     ))
+}
+
+fn wire_argmax(ctx: OpContext) -> SetupResult {
+    let axis = ctx.attrs.get_with_default("axis", 0i64)?;
+    let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
+    let select_last_index = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
+
+    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+
+    macro_rules! match_arm {
+        ($ch:expr) => {{
+            let (sdr, rec) = ArcArrayD::channel();
+
+            Ok((
+                Box::new(move || {
+                    let data = $ch.recv()?;
+                    let out = argmax(&data, axis, keepdims, select_last_index)?;
+                    sdr.send(out)?;
+                    Ok(())
+                }),
+                vec![rec],
+            ))
+        }};
+    }
+
+    match a_ch {
+        EnumReceiver::F32(ch) => match_arm!(ch),
+        EnumReceiver::F64(ch) => match_arm!(ch),
+        EnumReceiver::I32(ch) => match_arm!(ch),
+        EnumReceiver::I64(ch) => match_arm!(ch),
+        _ => bail!("Unimplemented type for op `ArgMax`."),
+    }
+}
+
+fn wire_argmin(ctx: OpContext) -> SetupResult {
+    let axis = ctx.attrs.get_with_default("axis", 0i64)?;
+    let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
+    let select_last_index = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
+
+    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+
+    macro_rules! match_arm {
+        ($ch:expr) => {{
+            let (sdr, rec) = ArcArrayD::channel();
+
+            Ok((
+                Box::new(move || {
+                    let data = $ch.recv()?;
+                    let out = argmin(&data, axis, keepdims, select_last_index)?;
+                    sdr.send(out)?;
+                    Ok(())
+                }),
+                vec![rec],
+            ))
+        }};
+    }
+
+    match a_ch {
+        EnumReceiver::F32(ch) => match_arm!(ch),
+        EnumReceiver::F64(ch) => match_arm!(ch),
+        EnumReceiver::I32(ch) => match_arm!(ch),
+        EnumReceiver::I64(ch) => match_arm!(ch),
+        _ => bail!("Unimplemented type for op `ArgMax`."),
+    }
+}
+
+fn argmax<T>(
+    data: &ArcArrayD<T>,
+    axis: i64,
+    keep_dim: bool,
+    use_last: bool,
+) -> Result<ArcArrayD<i64>>
+where
+    T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+{
+    let start_acc = (0, T::min_value());
+    let fold_fn = |acc: (usize, T), (idx, v)| {
+        if v > acc.1 || (use_last && acc.1 == v) {
+            (idx, v)
+        } else {
+            acc
+        }
+    };
+    Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
+        .mapv(|(idx, _v)| idx as i64)
+        .into())
+}
+
+fn argmin<T>(
+    data: &ArcArrayD<T>,
+    axis: i64,
+    keep_dim: bool,
+    use_last: bool,
+) -> Result<ArcArrayD<i64>>
+where
+    T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+{
+    let start_acc = (0, T::max_value());
+    let fold_fn = |acc: (usize, T), (idx, v)| {
+        if v < acc.1 || (use_last && acc.1 == v) {
+            (idx, v)
+        } else {
+            acc
+        }
+    };
+    Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
+        .mapv(|(idx, _v)| idx as i64)
+        .into())
+}
+
+fn fold_axis<T, Acc, Fold>(
+    data: &ArcArrayD<T>,
+    axis: i64,
+    keep_dim: bool,
+    init_fold: Acc,
+    fold_fn: &Fold,
+) -> Result<ndarray::ArrayD<Acc>>
+where
+    T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+    Acc: Copy,
+    Fold: Fn(Acc, (usize, T)) -> Acc,
+{
+    let axis = convert_negative_index(axis, data.shape().len());
+    let rank = data.shape().len();
+    if axis >= rank {
+        bail!(
+            "Axis `{}` is out of bounds for input of rank {}",
+            axis,
+            rank
+        );
+    }
+    let mut out = data.map_axis(Axis(axis), |lane| {
+        lane.iter().copied().enumerate().fold(init_fold, fold_fn)
+    });
+    if keep_dim {
+        out.insert_axis_inplace(Axis(axis));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

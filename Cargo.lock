@@ -361,6 +361,7 @@ dependencies = [
  "itertools",
  "ndarray",
  "num",
+ "num-traits",
  "numpy",
  "onnx_protos",
  "ordered-float",
