@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Result};
 use approx::relative_eq;
 use onnx_protos::onnx_proto3::TensorProto;
 use protobuf::Message;
-use upstream_test_data::{all_node_tests, TestCase};
+use upstream_test_data::{all_node_tests, get_node_test, TestCase};
 
 use ::onnxer::{get_opset, Session, Value};
 
@@ -147,4 +147,10 @@ fn run_all() {
         failed,
         (passed as f64) / (failed as f64) * 100.
     );
+}
+
+#[test]
+fn run_one_test() {
+    let tc = get_node_test("test_reduce_max_default_axes_keepdim_example").unwrap();
+    run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }
