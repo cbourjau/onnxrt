@@ -769,64 +769,61 @@ mod argminmax {
 }
 
 mod reduce {
+    use num_traits::Bounded;
+    use std::cmp::PartialOrd;
     use std::ops::{Add, Mul};
 
     use super::*;
 
-    struct Reduce {
+    struct CommonArgs {
         keepdims: bool,
         noop_empty: bool,
-        data_ch: EnumReceiver,
         axes_ch: Option<Receiver<ArcArrayD<i64>>>,
     }
 
-    impl Reduce {
-        fn new(ctx: OpContext) -> Result<Self> {
-            let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
-            let noop_empty = ctx.attrs.get_with_default("noop_with_empty_axes", 0i64)? != 0;
+    fn setup(ctx: OpContext) -> Result<(EnumReceiver, CommonArgs)> {
+        let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
+        let noop_empty = ctx.attrs.get_with_default("noop_with_empty_axes", 0i64)? != 0;
 
-            let mut inputs = ctx.input_channels().into_iter();
-            let data_ch = inputs
-                .next()
-                .ok_or_else(|| anyhow!("Input `data` is missing"))?;
-            let axes_ch = match inputs.next() {
-                Some(EnumReceiver::I64(ch)) => Some(ch),
-                None => None,
-                Some(_) => bail!("Input `axes` must be of type `int64`"),
-            };
-            if inputs.len() != 0 {
-                bail!("Unexpected inputs");
-            }
+        let mut inputs = ctx.input_channels().into_iter();
+        let data_ch = inputs
+            .next()
+            .ok_or_else(|| anyhow!("Input `data` is missing"))?;
+        let axes_ch = match inputs.next() {
+            Some(EnumReceiver::I64(ch)) => Some(ch),
+            None => None,
+            Some(_) => bail!("Input `axes` must be of type `int64`"),
+        };
+        if inputs.len() != 0 {
+            bail!("Unexpected inputs");
+        }
 
-            Ok(Reduce {
+        Ok((
+            data_ch,
+            CommonArgs {
                 keepdims,
                 noop_empty,
-                data_ch,
                 axes_ch,
-            })
-        }
+            },
+        ))
     }
 
     macro_rules! match_arm {
-        ($ty:ty, $data_ch:expr, $axes_ch:expr, $keepdims:expr, $noop_empty:expr, $acc:expr, $fold_fn:expr) => {
-            match_arm!(
-                $ty,
-                $data_ch,
-                $axes_ch,
-                $keepdims,
-                $noop_empty,
-                $acc,
-                $fold_fn,
-                false
-            )
+        ($ty:ty, $data_ch:expr, $common_args:expr, $acc:expr, $fold_fn:expr) => {
+            match_arm!($ty, $data_ch, $common_args, $acc, $fold_fn, false)
         };
-        ($ty:ty, $data_ch:expr, $axes_ch:expr, $keepdims:expr, $noop_empty:expr, $acc:expr, $fold_fn:expr, $norm:expr) => {{
+        ($ty:ty, $data_ch:expr, $common_args:expr, $acc:expr, $fold_fn:expr, $norm:expr) => {{
             let (sdr, rec) = ArcArrayD::channel();
+            let CommonArgs {
+                keepdims,
+                noop_empty,
+                axes_ch,
+            } = $common_args;
 
             (
                 Box::new(move || {
                     let data = $data_ch.recv()?;
-                    let axes = match &$axes_ch {
+                    let axes = match &axes_ch {
                         Some(ch) => {
                             let arr = ch.recv()?;
                             if arr.shape().len() != 1 {
@@ -838,7 +835,7 @@ mod reduce {
                         None => vec![],
                     };
                     let n_initial = data.len();
-                    let reduced = reduce(data, &axes, $keepdims, $noop_empty, $acc, $fold_fn)?;
+                    let reduced = reduce(data, &axes, keepdims, noop_empty, $acc, $fold_fn)?;
                     // Normalized each bin by the number of bins that was reduced into it.
                     if $norm {
                         let n_reduced = reduced.len();
@@ -855,177 +852,96 @@ mod reduce {
     }
 
     pub fn wire_reducemax(ctx: OpContext) -> SetupResult {
-        let Reduce {
-            data_ch,
-            axes_ch,
-            keepdims,
-            noop_empty,
-        } = Reduce::new(ctx)?;
+        let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => match_arm!(
-                f32,
-                data_ch,
-                axes_ch,
-                keepdims,
-                noop_empty,
-                -f32::INFINITY,
-                fold_max
-            ),
-            HomogeneousNumericFixed::F64([data_ch]) => match_arm!(
-                f64,
-                data_ch,
-                axes_ch,
-                keepdims,
-                noop_empty,
-                -f64::INFINITY,
-                fold_max
-            ),
+            HomogeneousNumericFixed::F32([data_ch]) => {
+                match_arm!(f32, data_ch, common_args, -f32::INFINITY, fold_max)
+            }
+            HomogeneousNumericFixed::F64([data_ch]) => {
+                match_arm!(f64, data_ch, common_args, -f64::INFINITY, fold_max)
+            }
             HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(
-                    i64,
-                    data_ch,
-                    axes_ch,
-                    keepdims,
-                    noop_empty,
-                    i64::MIN,
-                    fold_max
-                )
+                match_arm!(i64, data_ch, common_args, i64::MIN, fold_max)
             }
             HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(
-                    i32,
-                    data_ch,
-                    axes_ch,
-                    keepdims,
-                    noop_empty,
-                    i32::MIN,
-                    fold_max
-                )
+                match_arm!(i32, data_ch, common_args, i32::MIN, fold_max)
             }
         })
     }
 
     pub fn wire_reducemean(ctx: OpContext) -> SetupResult {
-        let Reduce {
-            data_ch,
-            axes_ch,
-            keepdims,
-            noop_empty,
-        } = Reduce::new(ctx)?;
+        let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
             HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, axes_ch, keepdims, noop_empty, 0.0, fold_sum, true)
+                match_arm!(f32, data_ch, common_args, 0.0, fold_sum, true)
             }
             HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, axes_ch, keepdims, noop_empty, 0.0, fold_sum, true)
+                match_arm!(f64, data_ch, common_args, 0.0, fold_sum, true)
             }
             HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, axes_ch, keepdims, noop_empty, 0, fold_sum, true)
+                match_arm!(i32, data_ch, common_args, 0, fold_sum, true)
             }
             HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, axes_ch, keepdims, noop_empty, 0, fold_sum, true)
+                match_arm!(i64, data_ch, common_args, 0, fold_sum, true)
             }
         })
     }
 
     pub fn wire_reducemin(ctx: OpContext) -> SetupResult {
-        let Reduce {
-            data_ch,
-            axes_ch,
-            keepdims,
-            noop_empty,
-        } = Reduce::new(ctx)?;
+        let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => match_arm!(
-                f32,
-                data_ch,
-                axes_ch,
-                keepdims,
-                noop_empty,
-                f32::INFINITY,
-                fold_min
-            ),
-            HomogeneousNumericFixed::F64([data_ch]) => match_arm!(
-                f64,
-                data_ch,
-                axes_ch,
-                keepdims,
-                noop_empty,
-                f64::INFINITY,
-                fold_min
-            ),
+            HomogeneousNumericFixed::F32([data_ch]) => {
+                match_arm!(f32, data_ch, common_args, f32::INFINITY, fold_min)
+            }
+            HomogeneousNumericFixed::F64([data_ch]) => {
+                match_arm!(f64, data_ch, common_args, f64::INFINITY, fold_min)
+            }
             HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(
-                    i64,
-                    data_ch,
-                    axes_ch,
-                    keepdims,
-                    noop_empty,
-                    i64::MAX,
-                    fold_min
-                )
+                match_arm!(i64, data_ch, common_args, i64::MAX, fold_min)
             }
             HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(
-                    i32,
-                    data_ch,
-                    axes_ch,
-                    keepdims,
-                    noop_empty,
-                    i32::MAX,
-                    fold_min
-                )
+                match_arm!(i32, data_ch, common_args, i32::MAX, fold_min)
             }
         })
     }
 
     pub fn wire_reduceprod(ctx: OpContext) -> SetupResult {
-        let Reduce {
-            data_ch,
-            axes_ch,
-            keepdims,
-            noop_empty,
-        } = Reduce::new(ctx)?;
+        let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
             HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, axes_ch, keepdims, noop_empty, 1.0, fold_mul)
+                match_arm!(f32, data_ch, common_args, 1.0, fold_mul)
             }
             HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, axes_ch, keepdims, noop_empty, 1.0, fold_mul)
+                match_arm!(f64, data_ch, common_args, 1.0, fold_mul)
             }
             HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, axes_ch, keepdims, noop_empty, 1, fold_mul)
+                match_arm!(i32, data_ch, common_args, 1, fold_mul)
             }
             HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, axes_ch, keepdims, noop_empty, 1, fold_mul)
+                match_arm!(i64, data_ch, common_args, 1, fold_mul)
             }
         })
     }
 
     pub fn wire_reducesum(ctx: OpContext) -> SetupResult {
-        let Reduce {
-            data_ch,
-            axes_ch,
-            keepdims,
-            noop_empty,
-        } = Reduce::new(ctx)?;
+        let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
             HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, axes_ch, keepdims, noop_empty, 0.0, fold_sum)
+                match_arm!(f32, data_ch, common_args, 0.0, fold_sum)
             }
             HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, axes_ch, keepdims, noop_empty, 0.0, fold_sum)
+                match_arm!(f64, data_ch, common_args, 0.0, fold_sum)
             }
             HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, axes_ch, keepdims, noop_empty, 0, fold_sum)
+                match_arm!(i32, data_ch, common_args, 0, fold_sum)
             }
             HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, axes_ch, keepdims, noop_empty, 0, fold_sum)
+                match_arm!(i64, data_ch, common_args, 0, fold_sum)
             }
         })
     }
@@ -1063,7 +979,7 @@ mod reduce {
         fold_fn: F,
     ) -> Result<ArcArrayD<T>>
     where
-        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
+        T: Copy + Bounded + PartialOrd,
         F: Fn(&T, &T) -> T,
     {
         let initial_shape = arr.shape().to_vec();
