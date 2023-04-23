@@ -33,6 +33,8 @@ pkgs.mkShell rec {
   RUST_BACKTRACE=1;
   VIRTUAL_ENV=toString ./.venv;
   shellHook = ''
-  PATH="$VIRTUAL_ENV/bin:$PATH"
+    python -m venv $VIRTUAL_ENV
+    source $VIRTUAL_ENV/bin/activate
+    pip install onnxruntime pytest
   '';
 }
