@@ -2,7 +2,7 @@ from time import perf_counter
 
 import numpy as np
 import onnxruntime as ort
-import onnxruntime_rs as ortrs
+import onnxer as ortrs
 
 
 def test_inference_simple():

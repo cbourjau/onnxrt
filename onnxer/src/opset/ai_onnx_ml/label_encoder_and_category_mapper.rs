@@ -4,9 +4,9 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
-use crate::session::{ExecFnSignature, OpContext};
+use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, Attributes, Dispatcher, EnumReceiver};
+use crate::{ArcArrayD, Attributes, EnumReceiver};
 
 enum LabelEncoder {
     StringToString {
@@ -141,7 +141,7 @@ impl LabelEncoder {
     }
 }
 
-pub fn wire_label_encoder(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispatcher>)> {
+pub fn wire_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let label_encoder = LabelEncoder::from_attributes(&ctx.attrs)?;
 
@@ -177,7 +177,7 @@ pub fn wire_label_encoder(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispat
     }
 }
 
-pub fn wire_category_mapper(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispatcher>)> {
+pub fn wire_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let cats_int64s: Vec<i64> = ctx.attrs.get("cats_int64s")?.try_into()?;
     let cats_strings: Vec<String> = ctx.attrs.get("cats_strings")?.try_into()?;

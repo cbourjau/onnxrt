@@ -84,10 +84,8 @@ impl TestResult {
                         if exp_el.is_nan() && obs_el.is_nan() {
                             continue;
                         }
-                        if exp_el.is_infinite() && obs_el.is_infinite() {
-                            if exp_el.is_sign_positive() == obs_el.is_sign_positive() {
-                                continue;
-                            }
+                        if exp_el.is_infinite() && obs_el.is_infinite() && exp_el.is_sign_positive() == obs_el.is_sign_positive() {
+                            continue;
                         }
                         unequal_bail!(k, exp, obs)
                     }
@@ -103,10 +101,8 @@ impl TestResult {
                         if exp_el.is_nan() && obs_el.is_nan() {
                             continue;
                         }
-                        if exp_el.is_infinite() && obs_el.is_infinite() {
-                            if exp_el.is_sign_positive() == obs_el.is_sign_positive() {
-                                continue;
-                            }
+                        if exp_el.is_infinite() && obs_el.is_infinite() && exp_el.is_sign_positive() == obs_el.is_sign_positive() {
+                            continue;
                         }
                         unequal_bail!(k, exp, obs)
                     }
@@ -126,17 +122,16 @@ impl TestResult {
 fn run_all() {
     let mut passed = 0;
     let mut failed = 0;
-    println!("");
+    println!();
     for tc in &all_node_tests().unwrap() {
-        print!("{}: ", tc.name);
         match run_test_case(tc).and_then(|tr| tr.compare()) {
-            Ok(res) => {
+            Ok(_res) => {
                 passed += 1;
-                println!("{}", res)
+                // println!("{}: {}", tc.name, res);
             }
             Err(msg) => {
                 failed += 1;
-                println!("{}", msg)
+                println!("{}: {}", tc.name, msg);
             }
         }
     }

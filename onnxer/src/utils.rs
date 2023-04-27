@@ -4,8 +4,8 @@ use anyhow::{bail, Result};
 use itertools::izip;
 use ndarray::{Dimension, IntoDimension, IxDyn, Zip};
 
-use crate::session::ExecFnSignature;
-use crate::{ArcArrayD, Dispatchable, Dispatcher};
+use crate::session::{ExecutionStep};
+use crate::{ArcArrayD, Dispatchable};
 
 /// Convert a negative index to a positive one under the assumption
 /// that it applies to a dimension of length `len`.
@@ -14,10 +14,7 @@ pub fn convert_negative_index(idx: i64, len: usize) -> usize {
     (if idx < 0 { len + idx } else { idx } as usize)
 }
 
-pub fn wrap_1_input<In, Out, Op>(
-    input: Receiver<ArcArrayD<In>>,
-    f: Op,
-) -> Result<(ExecFnSignature, Vec<Dispatcher>)>
+pub fn wrap_1_input<In, Out, Op>(input: Receiver<ArcArrayD<In>>, f: Op) -> Result<ExecutionStep>
 where
     ArcArrayD<Out>: Dispatchable,
     In: Sync + Send + 'static,
@@ -32,7 +29,10 @@ where
         sdr.send(out.into_dyn())?;
         Ok(())
     });
-    Ok((fun, vec![rec]))
+    Ok(ExecutionStep {
+        fun: Box::new(fun),
+        outputs: vec![rec],
+    })
 }
 
 /// Wrap operations which take two inputs of the same type and output
@@ -41,7 +41,7 @@ pub fn wrap_binary_input<In, Out, Op>(
     a_rec: Receiver<ArcArrayD<In>>,
     b_rec: Receiver<ArcArrayD<In>>,
     f: Op,
-) -> Result<(ExecFnSignature, Vec<Dispatcher>)>
+) -> Result<ExecutionStep>
 where
     ArcArrayD<Out>: Dispatchable,
     In: Sync + Send + 'static,
@@ -56,7 +56,10 @@ where
         sdr.send(out.into_dyn())?;
         Ok(())
     });
-    Ok((fun, vec![rec]))
+    Ok(ExecutionStep {
+        fun: Box::new(fun),
+        outputs: vec![rec],
+    })
 }
 
 /// Calculate the common shape for a pair of array shapes, that they can be broadcasted

@@ -7,7 +7,7 @@ use ndarray::{Array, Axis, IntoDimension, Ix1, IxDyn, Zip};
 use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::attribute::Attribute;
-use crate::session::{OpContext, SetupFnSignature, SetupResult};
+use crate::session::{ExecutionStep, OpContext, SetupFnSignature};
 use crate::utils::{
     co_broadcast, convert_negative_index, wrap_1_input, wrap_binary_input,
     zip_map_with_co_broadcast,
@@ -19,7 +19,7 @@ use crate::{
 
 macro_rules! element_wise_numeric {
     ($fun:expr) => {
-        Box::new(move |ctx: OpContext| -> SetupResult {
+        Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let chs = ctx.input_channels().try_into()?;
             match chs {
                 HomogeneousNumericFixed::F32([a_ch]) => {
@@ -42,13 +42,13 @@ macro_rules! element_wise_numeric {
 /// Make setup function for element wise operations with floating point input
 macro_rules! element_wise_float {
     ($fun:expr) => {
-        Box::new(move |ctx: OpContext| -> SetupResult {
+        Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
             match a_ch {
                 EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
                 EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
                 // Internal error. This should never happen.
-                _ => panic!(),
+                rec => bail!("Expected floating point input, found: '{:?}'", rec),
             }
         })
     };
@@ -57,7 +57,7 @@ macro_rules! element_wise_float {
 /// Setup functions with two numeric inputs
 macro_rules! binary_numeric {
     ($fun:expr) => {
-        Box::new(move |ctx: OpContext| -> SetupResult {
+        Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let channels = ctx.input_channels().try_into()?;
             match channels {
                 HomogeneousNumericFixed::F32([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
@@ -143,7 +143,7 @@ where
         + 'static
         + Copy,
 {
-    Box::new(move |ctx: OpContext| -> SetupResult {
+    Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
         let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
         match (a_ch, b_ch) {
             (EnumReceiver::Bool(a_ch), EnumReceiver::Bool(b_ch)) => {
@@ -155,7 +155,7 @@ where
     })
 }
 
-fn wire_not(ctx: OpContext) -> SetupResult {
+fn wire_not(ctx: OpContext) -> Result<ExecutionStep> {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     match a_ch {
         EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| !el).into())),
@@ -163,7 +163,7 @@ fn wire_not(ctx: OpContext) -> SetupResult {
     }
 }
 
-fn wire_cast(ctx: OpContext) -> SetupResult {
+fn wire_cast(ctx: OpContext) -> Result<ExecutionStep> {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     macro_rules! make_output_fallible {
         ($inp:expr, $cast:expr) => {{
@@ -227,7 +227,7 @@ fn wire_cast(ctx: OpContext) -> SetupResult {
     }
 }
 
-fn wire_constant(ctx: OpContext) -> SetupResult {
+fn wire_constant(ctx: OpContext) -> Result<ExecutionStep> {
     if ctx.attrs.get("sparse_value").is_ok() {
         unimplemented!("Sparse tensors are not supported.")
     }
@@ -235,26 +235,28 @@ fn wire_constant(ctx: OpContext) -> SetupResult {
         ($val:expr) => {{
             let (sdr, rec) = ArcArrayD::channel();
             let val = ndarray::arr0($val).into_dyn();
-            Ok((
-                Box::new(move || {
-                    sdr.send(val.clone().into())?;
-                    Ok(())
-                }),
-                vec![rec.into()],
-            ))
+            let fun = move || {
+                sdr.send(val.clone().into())?;
+                Ok(())
+            };
+            Ok(ExecutionStep {
+                fun: Box::new(fun),
+                outputs: vec![rec.into()],
+            })
         }};
     }
     macro_rules! tensor_attr {
         ($val:expr) => {{
             let (sdr, rec) = ArcArrayD::channel();
             let val = $val.clone();
-            Ok((
-                Box::new(move || {
-                    sdr.send(val.clone())?;
-                    Ok(())
-                }),
-                vec![rec.into()],
-            ))
+            let fun = move || {
+                sdr.send(val.clone())?;
+                Ok(())
+            };
+            Ok(ExecutionStep {
+                fun: Box::new(fun),
+                outputs: vec![rec.into()],
+            })
         }};
     }
 
@@ -298,7 +300,7 @@ fn wire_constant(ctx: OpContext) -> SetupResult {
     Err(anyhow!("`Constant` node did not have expected attributes"))
 }
 
-fn wire_split(ctx: OpContext) -> SetupResult {
+fn wire_split(ctx: OpContext) -> Result<ExecutionStep> {
     let n_outputs = ctx.n_outputs();
     let axis = {
         let axis = ctx.attrs.get_with_default("axis", 0i64)?;
@@ -330,7 +332,7 @@ fn wire_split(ctx: OpContext) -> SetupResult {
                 }
                 Ok(())
             });
-            Ok((fun, recs))
+            Ok(ExecutionStep { fun, outputs: recs })
         }};
     }
 
@@ -359,7 +361,7 @@ where
         .map(|arr| arr.to_owned().into()))
 }
 
-fn wire_unsqueeze(ctx: OpContext) -> SetupResult {
+fn wire_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
     // Function to compute the output shape
     let compute_expanded = |data_shape: &[usize], axes: &[i64]| {
@@ -394,7 +396,10 @@ fn wire_unsqueeze(ctx: OpContext) -> SetupResult {
                 sdr.send(out.into_dyn().into())?;
                 Ok(())
             });
-            Ok((fun, vec![rec.into()]))
+            Ok(ExecutionStep {
+                fun,
+                outputs: vec![rec.into()],
+            })
         }};
     }
     if let EnumReceiver::I64(axes_ch) = axes_ch {
@@ -411,7 +416,7 @@ fn wire_unsqueeze(ctx: OpContext) -> SetupResult {
     }
 }
 
-fn wire_concat(ctx: OpContext) -> SetupResult {
+fn wire_concat(ctx: OpContext) -> Result<ExecutionStep> {
     let axis: i64 = ctx.attrs.get("axis")?.try_into()?;
 
     macro_rules! match_arm {
@@ -437,7 +442,10 @@ fn wire_concat(ctx: OpContext) -> SetupResult {
                 sdr.send(out.into())?;
                 Ok(())
             });
-            Ok((fun, vec![rec.into()]))
+            Ok(ExecutionStep {
+                fun,
+                outputs: vec![rec.into()],
+            })
         }};
     }
 
@@ -452,7 +460,7 @@ fn wire_concat(ctx: OpContext) -> SetupResult {
     }
 }
 
-fn wire_squeeze(ctx: OpContext) -> SetupResult {
+fn wire_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
     let axes_ch = match axes_ch {
         EnumReceiver::I64(ch) => ch,
@@ -481,7 +489,10 @@ fn wire_squeeze(ctx: OpContext) -> SetupResult {
                 sdr.send(out)?;
                 Ok(())
             });
-            Ok((fun, vec![rec.into()]))
+            Ok(ExecutionStep {
+                fun,
+                outputs: vec![rec.into()],
+            })
         }};
     }
     match data_ch {
@@ -510,14 +521,14 @@ where
         .into())
 }
 
-fn wire_where(ctx: OpContext) -> SetupResult {
+fn wire_where(ctx: OpContext) -> Result<ExecutionStep> {
     let [cond_ch, x_ch, y_ch]: [_; 3] = ctx.input_channels().try_into().unwrap();
 
     pub fn match_arm<T>(
         cond_ch: Receiver<ArcArrayD<bool>>,
         x_ch: Receiver<ArcArrayD<T>>,
         y_ch: Receiver<ArcArrayD<T>>,
-    ) -> SetupResult
+    ) -> Result<ExecutionStep>
     where
         ArcArrayD<T>: Dispatchable,
         T: Sync + Send + 'static + Clone,
@@ -528,7 +539,10 @@ fn wire_where(ctx: OpContext) -> SetupResult {
             sdr.send(where_(cond, x, y)?)?;
             Ok(())
         });
-        Ok((fun, vec![rec]))
+        Ok(ExecutionStep {
+            fun,
+            outputs: vec![rec],
+        })
     }
 
     // Condition must be of type bool
@@ -549,7 +563,7 @@ fn wire_where(ctx: OpContext) -> SetupResult {
     }
 }
 
-fn wire_if(ctx: OpContext) -> SetupResult {
+fn wire_if(ctx: OpContext) -> Result<ExecutionStep> {
     // Explicit node input
     let [cond_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     // Condition must be of type bool
@@ -597,39 +611,39 @@ fn wire_if(ctx: OpContext) -> SetupResult {
         out_senders.push(out_sdr);
         out_dispatchers.push(out_disp);
     }
+    let fun = move || {
+        let cond = {
+            let conds = cond_ch.recv().unwrap();
+            if conds.len() != 1 {
+                return Err(anyhow!("`Cond` input of `If` must be a scalar."));
+            }
+            conds.to_owned().into_shape([])?.into_scalar()
+        };
 
-    Ok((
-        Box::new(move || {
-            let cond = {
-                let conds = cond_ch.recv().unwrap();
-                if conds.len() != 1 {
-                    return Err(anyhow!("`Cond` input of `If` must be a scalar."));
-                }
-                conds.to_owned().into_shape([])?.into_scalar()
-            };
-
-            let graph_inputs = graph_input_channels
-                .iter()
-                .map(|(k, ch)| (k.clone(), ch.recv().unwrap()))
-                .collect();
-            // If-graphs do not have explicit inputs; only the implicit ones
-            if cond {
-                // The outputs are defined by order, not name
-                let mut result = then_session.run(&graph_inputs)?;
-                for ((name, _), sender) in then_session.outputs.iter().zip(&out_senders) {
-                    sender.send(result.remove(name).unwrap()).unwrap();
-                }
-            } else {
-                // The outputs are defined by order, not name
-                let mut result = else_session.run(&graph_inputs)?;
-                for ((name, _), sender) in else_session.outputs.iter().zip(&out_senders) {
-                    sender.send(result.remove(name).unwrap()).unwrap();
-                }
-            };
-            Ok(())
-        }),
-        out_dispatchers,
-    ))
+        let graph_inputs = graph_input_channels
+            .iter()
+            .map(|(k, ch)| (k.clone(), ch.recv().unwrap()))
+            .collect();
+        // If-graphs do not have explicit inputs; only the implicit ones
+        if cond {
+            // The outputs are defined by order, not name
+            let mut result = then_session.run(&graph_inputs)?;
+            for ((name, _), sender) in then_session.outputs.iter().zip(&out_senders) {
+                sender.send(result.remove(name).unwrap()).unwrap();
+            }
+        } else {
+            // The outputs are defined by order, not name
+            let mut result = else_session.run(&graph_inputs)?;
+            for ((name, _), sender) in else_session.outputs.iter().zip(&out_senders) {
+                sender.send(result.remove(name).unwrap()).unwrap();
+            }
+        };
+        Ok(())
+    };
+    Ok(ExecutionStep {
+        fun: Box::new(fun),
+        outputs: out_dispatchers,
+    })
 }
 
 mod argminmax {
@@ -638,20 +652,20 @@ mod argminmax {
     macro_rules! match_arm_argminmax {
         ($fn:expr, $ch:expr, $axis:expr, $keepdims:expr, $use_last:expr) => {{
             let (sdr, rec) = ArcArrayD::channel();
-
-            Ok((
-                Box::new(move || {
-                    let data = $ch.recv()?;
-                    let out = $fn(&data, $axis, $keepdims, $use_last)?;
-                    sdr.send(out)?;
-                    Ok(())
-                }),
-                vec![rec],
-            ))
+            let fun = move || {
+                let data = $ch.recv()?;
+                let out = $fn(&data, $axis, $keepdims, $use_last)?;
+                sdr.send(out)?;
+                Ok(())
+            };
+            Ok(ExecutionStep {
+                fun: Box::new(fun),
+                outputs: vec![rec],
+            })
         }};
     }
 
-    pub fn wire_argmax(ctx: OpContext) -> SetupResult {
+    pub fn wire_argmax(ctx: OpContext) -> Result<ExecutionStep> {
         let axis = ctx.attrs.get_with_default("axis", 0i64)?;
         let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
         let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
@@ -672,7 +686,7 @@ mod argminmax {
         }
     }
 
-    pub fn wire_argmin(ctx: OpContext) -> SetupResult {
+    pub fn wire_argmin(ctx: OpContext) -> Result<ExecutionStep> {
         let axis = ctx.attrs.get_with_default("axis", 0i64)?;
         let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
         let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
@@ -819,39 +833,39 @@ mod reduce {
                 noop_empty,
                 axes_ch,
             } = $common_args;
-
-            (
-                Box::new(move || {
-                    let data = $data_ch.recv()?;
-                    let axes = match &axes_ch {
-                        Some(ch) => {
-                            let arr = ch.recv()?;
-                            if arr.shape().len() != 1 {
-                                bail!("Input `axes` must be of rank 1");
-                            }
-                            let len = arr.len();
-                            arr.into_shape((len,))?.to_vec()
+            let fun = Box::new(move || {
+                let data = $data_ch.recv()?;
+                let axes = match &axes_ch {
+                    Some(ch) => {
+                        let arr = ch.recv()?;
+                        if arr.shape().len() != 1 {
+                            bail!("Input `axes` must be of rank 1");
                         }
-                        None => vec![],
-                    };
-                    let n_initial = data.len();
-                    let reduced = reduce(data, &axes, keepdims, noop_empty, $acc, $fold_fn)?;
-                    // Normalized each bin by the number of bins that was reduced into it.
-                    if $norm {
-                        let n_reduced = reduced.len();
-                        let scaling = n_initial / n_reduced;
-                        return sdr.send(reduced.mapv(|v| v / scaling as $ty).into());
+                        let len = arr.len();
+                        arr.into_shape((len,))?.to_vec()
                     }
+                    None => vec![],
+                };
+                let n_initial = data.len();
+                let reduced = reduce(data, &axes, keepdims, noop_empty, $acc, $fold_fn)?;
+                // Normalized each bin by the number of bins that was reduced into it.
+                if $norm {
+                    let n_reduced = reduced.len();
+                    let scaling = n_initial / n_reduced;
+                    return sdr.send(reduced.mapv(|v| v / scaling as $ty).into());
+                }
 
-                    sdr.send(reduced)?;
-                    Ok(())
-                }),
-                vec![rec],
-            )
+                sdr.send(reduced)?;
+                Ok(())
+            });
+            ExecutionStep {
+                fun,
+                outputs: vec![rec],
+            }
         }};
     }
 
-    pub fn wire_reducemax(ctx: OpContext) -> SetupResult {
+    pub fn wire_reducemax(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -870,7 +884,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reducemean(ctx: OpContext) -> SetupResult {
+    pub fn wire_reducemean(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -889,7 +903,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reducemin(ctx: OpContext) -> SetupResult {
+    pub fn wire_reducemin(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -908,7 +922,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reduceprod(ctx: OpContext) -> SetupResult {
+    pub fn wire_reduceprod(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -927,7 +941,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reducesum(ctx: OpContext) -> SetupResult {
+    pub fn wire_reducesum(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {

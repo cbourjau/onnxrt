@@ -23,13 +23,16 @@ pub struct Session {
     pub(crate) outputs: Vec<(String, EnumReceiver)>,
 }
 
+pub struct ExecutionStep {
+    pub fun: Box<dyn Fn() -> Result<()> + Send>,
+    pub outputs: Vec<Dispatcher>,
+}
+
 /// Signature of functions executed at runtime.
 pub type ExecFnSignature = Box<dyn Fn() -> Result<()> + Send>;
 
 /// Signature of "wire" functions executed in the setup phase.
-pub type SetupFnSignature = Box<dyn Fn(OpContext) -> SetupResult + Sync>;
-
-pub type SetupResult = Result<(ExecFnSignature, Vec<Dispatcher>)>;
+pub type SetupFnSignature = Box<dyn Fn(OpContext) -> Result<ExecutionStep> + Sync>;
 
 pub struct OpContext<'a> {
     /// Union of all implicit inputs of a node. Only used if a node
@@ -223,7 +226,7 @@ fn setup_steps<'a>(
         let wire_fn = wire_dict
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
-        let (op, outputs) = wire_fn(ctx)?;
+        let ExecutionStep { fun: op, outputs } = wire_fn(ctx)?;
 
         steps.push(op);
 

@@ -1,10 +1,10 @@
 use anyhow::Result;
 
 use super::data_structure::TreeEnsemble;
-use crate::session::{ExecFnSignature, OpContext};
-use crate::{ArcArrayD, Dispatchable, Dispatcher, EnumReceiver};
+use crate::session::{ExecutionStep, OpContext};
+use crate::{ArcArrayD, Dispatchable, EnumReceiver};
 
-pub fn wire_tree_ensemble_regressor(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispatcher>)> {
+pub fn wire_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
     let mut input_channels = ctx.input_channels().into_iter();
     let a_ch = input_channels.next().unwrap();
     let ensemble = TreeEnsemble::from_attributes(&ctx.attrs).unwrap();
@@ -17,7 +17,10 @@ pub fn wire_tree_ensemble_regressor(ctx: OpContext) -> Result<(ExecFnSignature, 
                 sdr.send(out.into_dyn().into())?;
                 Ok(())
             });
-            Ok((fun, vec![rec]))
+            Ok(ExecutionStep {
+                fun,
+                outputs: vec![rec],
+            })
         }
         _ => panic!(),
     }

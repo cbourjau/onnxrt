@@ -2,9 +2,9 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use num::cast::AsPrimitive;
 
-use crate::session::{ExecFnSignature, OpContext};
+use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, Dispatcher, EnumReceiver};
+use crate::{ArcArrayD, EnumReceiver};
 
 fn binarize<T>(a: ArcArrayD<T>, threshold: T) -> Result<ArcArrayD<T>>
 where
@@ -14,7 +14,7 @@ where
     Ok(a.mapv(|el| ((el > threshold) as u8).as_()).into())
 }
 
-pub fn wire_binarizer(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispatcher>)> {
+pub fn wire_binarizer(ctx: OpContext) -> Result<ExecutionStep> {
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let threshold: f32 = ctx.attrs.get("threshold")?.try_into()?;
 

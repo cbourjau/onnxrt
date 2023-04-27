@@ -10,7 +10,7 @@ use crate::opset::get_opset;
 use crate::{Session, Value};
 
 #[pymodule]
-pub fn onnxruntime_rs(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+pub fn onnxer(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Session>()?;
     Ok(())
 }
@@ -19,7 +19,7 @@ pub fn onnxruntime_rs(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 impl Session {
     #[new]
     pub fn py_new(path: &str) -> PyResult<Self> {
-        Self::from_file(path, &get_opset()).map_err(|_e| PyValueError::new_err("cannot be zero"))
+        Self::from_file(path, &get_opset()).map_err(|e| PyValueError::new_err(format!("{:?}", e)))
     }
 
     #[pyo3(name = "run")]

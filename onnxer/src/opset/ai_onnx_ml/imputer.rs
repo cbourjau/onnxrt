@@ -2,9 +2,9 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use ndarray::Axis;
 
-use crate::session::{ExecFnSignature, OpContext};
+use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, Dispatcher, EnumReceiver};
+use crate::{ArcArrayD, EnumReceiver};
 
 fn impute<T>(a: ArcArrayD<T>, keys: &[T], value: T) -> Result<ArcArrayD<T>>
 where
@@ -28,7 +28,7 @@ where
     }
 }
 
-pub fn wire_imputer(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispatcher>)> {
+pub fn wire_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     // Should use ndarrays instead of vec?
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     use crate::Attribute;

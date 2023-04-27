@@ -2,10 +2,10 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use ndarray::{Axis, Ix1};
 
-use crate::session::{ExecFnSignature, OpContext};
-use crate::{ArcArrayD, Dispatchable, Dispatcher, EnumReceiver};
+use crate::session::{ExecutionStep, OpContext};
+use crate::{ArcArrayD, Dispatchable, EnumReceiver};
 
-pub fn wire_array_feature_extractor(ctx: OpContext) -> Result<(ExecFnSignature, Vec<Dispatcher>)> {
+pub fn wire_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
     let (data_ch, indices_ch) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let indices_ch = match indices_ch {
         EnumReceiver::I64(ch) => ch,
@@ -33,7 +33,10 @@ pub fn wire_array_feature_extractor(ctx: OpContext) -> Result<(ExecFnSignature, 
                 sdr.send(out.to_owned().into())?;
                 Ok(())
             });
-            Ok((fun, vec![rec.into()]))
+            Ok(ExecutionStep {
+                fun,
+                outputs: vec![rec.into()],
+            })
         }};
     }
     match data_ch {

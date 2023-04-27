@@ -13,7 +13,7 @@ pub use edges::Value;
 pub(crate) use edges::{
     channel, value_channel, DataType, Dispatchable, Dispatcher, EnumReceiver, ValueSender,
 };
-pub(crate) use input_types::{HomogeneousNumeric, HomogeneousNumericFixed};
+pub(crate) use input_types::{HomogeneousNumericFixed};
 pub use opset::get_opset;
 pub use session::Session;
 

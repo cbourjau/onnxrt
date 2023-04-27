@@ -69,10 +69,10 @@ mod tests {
     #[test]
     fn test_all() {
         let tests = all_node_tests().unwrap();
-        assert!(tests.len() > 0);
+        assert!(!tests.is_empty());
         for test in &tests {
             assert!(test.model.exists());
-            assert!(test.expected_outputs.len() > 0);
+            assert!(!test.expected_outputs.is_empty());
         }
     }
 
