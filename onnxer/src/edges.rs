@@ -120,6 +120,17 @@ impl ValueSender {
             _ => Err(anyhow!("Unexpected data type")),
         }
     }
+
+    pub fn dtype(&self) -> DataType {
+        match self {
+            Self::Bool(_) => DataType::Bool,
+            Self::F32(_) => DataType::F32,
+            Self::F64(_) => DataType::F64,
+            Self::I32(_) => DataType::I32,
+            Self::I64(_) => DataType::I64,
+            Self::String(_) => DataType::String,
+        }
+    }
 }
 
 impl<T> Sender<T> {
@@ -274,6 +285,17 @@ impl DataType {
             Self::from_i32(*elem_type)
         } else {
             Err(err_fn())
+        }
+    }
+
+    pub fn to_standard_name(&self) -> &str {
+        match self {
+            DataType::Bool => "tensor(bool)",
+            DataType::I32 => "tensor(int32)",
+            DataType::I64 => "tensor(int64)",
+            DataType::F32 => "tensor(float)",
+            DataType::F64 => "tensor(double)",
+            DataType::String => "tensor(string)",
         }
     }
 }

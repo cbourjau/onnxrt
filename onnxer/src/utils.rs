@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use itertools::izip;
 use ndarray::{Dimension, IntoDimension, IxDyn, Zip};
 
-use crate::session::{ExecutionStep};
+use crate::session::ExecutionStep;
 use crate::{ArcArrayD, Dispatchable};
 
 /// Convert a negative index to a positive one under the assumption

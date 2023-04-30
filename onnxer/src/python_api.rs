@@ -32,9 +32,29 @@ impl Session {
             .iter()
             .map(|(k, v)| match v {
                 Value::F64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                _ => panic!(),
+                Value::F32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::I64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::I32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::String(v) => (
+                    k.to_string(),
+                    v.mapv(|el| el.into_py(py))
+                        .to_owned()
+                        .into_pyarray(py)
+                        .into_py(py),
+                ),
+                Value::Bool(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
             })
             .collect()
+    }
+
+    #[pyo3(name = "input_types")]
+    pub fn py_input_types(&self) -> HashMap<String, String> {
+        let hm: HashMap<String, String> = self
+            .input_dtypes()
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_standard_name().to_string()))
+            .collect();
+        hm
     }
 }
 
@@ -42,6 +62,7 @@ impl Session {
 impl<'source> FromPyObject<'source> for Value {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
         // Get the GIL marker.
+        // TODO: convert scalars and strings
         let py = ob.py();
         Ok(if let Ok(arr) = ob.extract::<&PyArrayDyn<f32>>() {
             let arr = arr.readonly();
@@ -62,6 +83,7 @@ impl<'source> FromPyObject<'source> for Value {
             let arr = arr.readonly();
             Value::Bool(arr.as_array().to_owned().into())
         } else {
+            dbg!(ob.downcast::<PyArrayDyn<PyObject>>().unwrap());
             return Err(PyTypeError::new_err(format!(
                 "Cannot convert `{:?}` to Rust type.",
                 ob

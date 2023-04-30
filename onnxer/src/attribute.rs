@@ -64,7 +64,7 @@ impl Attributes {
     pub fn from_node(node: &NodeProto) -> Result<Self> {
         let mut hm = HashMap::new();
         for attr_proto in &node.attribute {
-            let attr = attr_proto.try_into()?;
+            let attr = dbg!(attr_proto).try_into()?;
             hm.insert(attr_proto.name.to_string(), attr);
         }
         Ok(Attributes(hm))
@@ -177,6 +177,7 @@ impl TryFrom<&AttributeProto> for Attribute {
 
     fn try_from(ap: &AttributeProto) -> Result<Self> {
         let ty = ap.type_.unwrap();
+        dbg!(ap);
         Ok(match (ty, ap) {
             (AttributeType::FLOAT, AttributeProto { f, .. }) => Attribute::ScalarF32(*f),
             (AttributeType::INT, AttributeProto { i, .. }) => Attribute::ScalarI64(*i),
@@ -351,5 +352,43 @@ impl TryFrom<&TensorProto> for Value {
                 ))
             }
         }
+    }
+}
+
+enum TensorData {
+    F32(Vec<f32>),
+    F64(Vec<f64>),
+    I32(Vec<i32>),
+    I64(Vec<i64>),
+    U64(Vec<u64>),
+    String(Vec<String>),
+    Raw(Vec<u8>),
+    External,
+}
+
+fn parse<T>(tp: TensorProto) -> Result<TensorData> {
+    if !tp.float_data.is_empty() {
+        Ok(TensorData::F32(tp.float_data))
+    } else if !tp.double_data.is_empty() {
+        Ok(TensorData::F64(tp.double_data))
+    } else if !tp.int32_data.is_empty() {
+        Ok(TensorData::I32(tp.int32_data))
+    } else if !tp.int64_data.is_empty() {
+        Ok(TensorData::I64(tp.int64_data))
+    } else if !tp.uint64_data.is_empty() {
+        Ok(TensorData::U64(tp.uint64_data))
+    } else if !tp.string_data.is_empty() {
+        Ok(TensorData::String(
+            tp.string_data
+                .into_iter()
+                .map(|v| String::from_utf8(v).map_err(|e| anyhow!("{:?}", e)))
+                .collect::<Result<_>>()?,
+        ))
+    } else if !tp.raw_data.is_empty() {
+        Ok(TensorData::Raw(tp.raw_data))
+    } else if !tp.external_data.is_empty() {
+        bail!("External data is not supported.")
+    } else {
+        bail!("Empty tensor proto")
     }
 }

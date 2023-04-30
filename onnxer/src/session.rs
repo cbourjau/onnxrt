@@ -197,6 +197,16 @@ impl Session {
             .collect()
     }
 
+    pub fn input_dtypes(&self) -> HashMap<&str, DataType> {
+        self.inputs
+            .iter()
+            .map(|(name, input)| {
+                let dtype = input.dtype();
+                (name.as_str(), dtype)
+            })
+            .collect()
+    }
+
     /// Input names (including implict ones).
     pub(crate) fn input_names(&self) -> Vec<&str> {
         self.inputs
@@ -226,12 +236,14 @@ fn setup_steps<'a>(
         let wire_fn = wire_dict
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
-        let ExecutionStep { fun: op, outputs } = wire_fn(ctx)?;
+
+        let ExecutionStep { fun: op, outputs } =
+            wire_fn(ctx).map_err(|e| anyhow!("During setup of '{}': {:?}", node.op_type, e))?;
 
         steps.push(op);
 
         if node.output.len() != outputs.len() {
-            panic!(
+            bail!(
                 "Node `{}` produced an unexpected number of outputs. Expected {} but found {}",
                 node.name,
                 node.output.len(),

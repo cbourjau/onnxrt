@@ -72,8 +72,21 @@ macro_rules! binary_numeric {
 fn make_equal() -> SetupFnSignature {
     binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialEq::eq))
 }
+
 fn make_less_equal() -> SetupFnSignature {
     binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::le))
+}
+
+fn make_less() -> SetupFnSignature {
+    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::lt))
+}
+
+fn make_greater_equal() -> SetupFnSignature {
+    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::ge))
+}
+
+fn make_greater() -> SetupFnSignature {
+    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::gt))
 }
 
 /// HashMap of setup function of the ai.onnx domain version 18(?).
@@ -102,14 +115,18 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     wire_dict.insert("Div", binary_numeric!(|a, b| Ok(a / b)));
     wire_dict.insert("Equal", make_equal());
     wire_dict.insert("Exp", element_wise_float!(|el| el.exp()));
+    wire_dict.insert("Greater", make_greater());    
+    wire_dict.insert("GreaterOrEqual", make_greater_equal());
     wire_dict.insert("Floor", element_wise_float!(|el| el.floor()));
-    wire_dict.insert("Identity", element_wise_float!(|el| el));
+    wire_dict.insert("Identity", Box::new(wire_identity));
     wire_dict.insert("If", Box::new(wire_if));
     wire_dict.insert("IsInf", element_wise_float!(|el| dbg!(el).is_infinite())); // FIXME
     wire_dict.insert("IsNaN", element_wise_float!(|el| el.is_nan()));
+    wire_dict.insert("Less", make_less());    
     wire_dict.insert("LessOrEqual", make_less_equal());
     wire_dict.insert("Log", element_wise_float!(|el| el.ln()));
     wire_dict.insert("Mul", binary_numeric!(|a, b| Ok(a * b)));
+    wire_dict.insert("Neg", element_wise_numeric!(|a| -a)); 
     wire_dict.insert("Not", Box::new(wire_not));
     wire_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
 
@@ -119,6 +136,10 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     wire_dict.insert("ReduceProd", Box::new(reduce::wire_reduceprod));
     wire_dict.insert("ReduceSum", Box::new(reduce::wire_reducesum));
 
+    // TODO: Rust's `round` rounds towards 0.0 for half-way
+    // values. ONNX standard rounds to nearest even!
+    wire_dict.insert("Round",element_wise_float!(|el| el.round()));
+        
     wire_dict.insert("Sigmoid",element_wise_float!(|el| 1. / (1. + (-el).exp())));
     wire_dict.insert("Sin", element_wise_float!(|el| el.sin()));
     wire_dict.insert("Sinh", element_wise_float!(|el| el.sinh()));
@@ -153,6 +174,18 @@ where
             _ => panic!(),
         }
     })
+}
+
+fn wire_identity(ctx: OpContext) -> Result<ExecutionStep> {
+    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+    match a_ch {
+        EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
+        EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
+        EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
+        EnumReceiver::I32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
+        EnumReceiver::I64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
+        EnumReceiver::String(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
+    }
 }
 
 fn wire_not(ctx: OpContext) -> Result<ExecutionStep> {
