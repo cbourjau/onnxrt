@@ -108,6 +108,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     wire_dict.insert("Atanh", element_wise_float!(|el| el.atanh()));
     wire_dict.insert("Cast", Box::new(wire_cast));
     wire_dict.insert("Ceil", element_wise_float!(|el| el.ceil()));
+    wire_dict.insert("Clip", Box::new(wire_clip));
     wire_dict.insert("Concat", Box::new(wire_concat));
     wire_dict.insert("Constant", Box::new(wire_constant));
     wire_dict.insert("Cos", element_wise_float!(|el| el.cos()));
@@ -194,6 +195,61 @@ fn wire_not(ctx: OpContext) -> Result<ExecutionStep> {
         EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| !el).into())),
         _ => bail!("`Not` input must be of type bool."),
     }
+}
+
+fn wire_clip(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn match_arm<T>(
+        input: Receiver<ArcArrayD<T>>,
+        min: Receiver<ArcArrayD<T>>,
+        max: Receiver<ArcArrayD<T>>,
+    ) -> Result<ExecutionStep>
+    where
+        ArcArrayD<T>: Dispatchable,
+        T: Sync + Send + 'static + Copy + PartialOrd,
+    {
+        let (sdr, rec) = channel();
+        let fun = Box::new(move || {
+            let (input, min, max) = (input.recv()?, min.recv()?, max.recv()?);
+            sdr.send(clip(input, Some(min), Some(max))?)?;
+            Ok(())
+        });
+        Ok(ExecutionStep {
+            fun,
+            outputs: vec![rec],
+        })
+    }
+
+    // TODO: implement optional inputs
+    let inputs: HomogeneousNumericFixed<3> = ctx.input_channels().try_into().unwrap();
+    match inputs {
+        HomogeneousNumericFixed::F32([input, min, max]) => match_arm(input, min, max),
+        HomogeneousNumericFixed::F64([input, min, max]) => match_arm(input, min, max),
+        HomogeneousNumericFixed::I32([input, min, max]) => match_arm(input, min, max),
+        HomogeneousNumericFixed::I64([input, min, max]) => match_arm(input, min, max),
+    }
+}
+
+fn clip<T>(
+    input: ArcArrayD<T>,
+    min: Option<ArcArrayD<T>>,
+    max: Option<ArcArrayD<T>>,
+) -> Result<ArcArrayD<T>>
+where
+    T: Copy + PartialOrd,
+{
+    let output = if let Some(min) = min {
+        let min = min.to_owned().into_shape([])?.into_scalar();
+        input.mapv(|el| if el < min { min } else { el }).into()
+    } else {
+        input
+    };
+    let output = if let Some(max) = max {
+        let max = max.to_owned().into_shape([])?.into_scalar();
+        output.mapv(|el| if el > max { max } else { el }).into()
+    } else {
+        output
+    };
+    Ok(output)
 }
 
 fn wire_cast(ctx: OpContext) -> Result<ExecutionStep> {
