@@ -296,6 +296,7 @@ fn wire_constant(ctx: OpContext) -> Result<ExecutionStep> {
     // Value could be any of the others
     if let Ok(attr) = ctx.attrs.get("value") {
         return match attr {
+            Attribute::Bools(val) => tensor_attr!(val),
             Attribute::F32s(val) => tensor_attr!(val),
             Attribute::F64s(val) => tensor_attr!(val),
             Attribute::I32s(val) => tensor_attr!(val),

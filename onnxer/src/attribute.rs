@@ -15,6 +15,8 @@ pub enum Attribute {
     F64s(ArcArrayD<f64>),
     I64s(ArcArrayD<i64>),
     I32s(ArcArrayD<i32>),
+    Bools(ArcArrayD<bool>),
+
     ScalarF32(f32),
     ScalarI64(i64),
     ScalarString(String),
@@ -41,6 +43,7 @@ impl std::fmt::Debug for Attribute {
             }};
         }
         match self {
+            Self::Bools(values) => vec_debug!("Attribute::Bools", values),
             Self::F32s(values) => vec_debug!("Attribute::F32s", values),
             Self::F64s(values) => vec_debug!("Attribute::F64s", values),
             Self::Graph(_) => write!(fmt, "Attribute::Graph")?,
@@ -64,7 +67,7 @@ impl Attributes {
     pub fn from_node(node: &NodeProto) -> Result<Self> {
         let mut hm = HashMap::new();
         for attr_proto in &node.attribute {
-            let attr = dbg!(attr_proto).try_into()?;
+            let attr = attr_proto.try_into()?;
             hm.insert(attr_proto.name.to_string(), attr);
         }
         Ok(Attributes(hm))
@@ -177,7 +180,6 @@ impl TryFrom<&AttributeProto> for Attribute {
 
     fn try_from(ap: &AttributeProto) -> Result<Self> {
         let ty = ap.type_.unwrap();
-        dbg!(ap);
         Ok(match (ty, ap) {
             (AttributeType::FLOAT, AttributeProto { f, .. }) => Attribute::ScalarF32(*f),
             (AttributeType::INT, AttributeProto { i, .. }) => Attribute::ScalarI64(*i),
@@ -241,7 +243,7 @@ impl TryFrom<&TensorProto> for Attribute {
             Value::I32(v) => Ok(Attribute::I32s(v)),
             Value::I64(v) => Ok(Attribute::I64s(v)),
             Value::String(v) => Ok(Attribute::Strings(v)),
-            _ => bail!("Unsupported tensor proto type in attribute"),
+            Value::Bool(v) => Ok(Attribute::Bools(v)),
         }
     }
 }
@@ -264,6 +266,7 @@ impl TryFrom<&TensorProto> for Value {
             }};
         }
         let shape: Vec<_> = tensor.dims.iter().map(|v| *v as usize).collect();
+
         match DataType::from_i32(tensor.data_type)? {
             DataType::F32 => {
                 let explicit_field = &tensor.float_data;
@@ -326,7 +329,12 @@ impl TryFrom<&TensorProto> for Value {
                 ))
             }
             DataType::Bool => {
-                let vec: Vec<_> = read_raw!(u8).map(|v| v > 0).collect();
+                let explicit_field = &tensor.int32_data;
+                let vec: Vec<_> = if !explicit_field.is_empty() {
+                    explicit_field.iter().map(|&el| el != 0).collect()
+                } else {
+                    read_raw!(u8).map(|v| v > 0).collect()
+                };
                 Ok(Value::Bool(
                     Array::from_vec(vec)
                         .into_dyn()
@@ -355,40 +363,40 @@ impl TryFrom<&TensorProto> for Value {
     }
 }
 
-enum TensorData {
-    F32(Vec<f32>),
-    F64(Vec<f64>),
-    I32(Vec<i32>),
-    I64(Vec<i64>),
-    U64(Vec<u64>),
-    String(Vec<String>),
-    Raw(Vec<u8>),
-    External,
-}
+// enum TensorData {
+//     F32(Vec<f32>),
+//     F64(Vec<f64>),
+//     I32(Vec<i32>),
+//     I64(Vec<i64>),
+//     U64(Vec<u64>),
+//     String(Vec<String>),
+//     Raw(Vec<u8>),
+//     External,
+// }
 
-fn parse<T>(tp: TensorProto) -> Result<TensorData> {
-    if !tp.float_data.is_empty() {
-        Ok(TensorData::F32(tp.float_data))
-    } else if !tp.double_data.is_empty() {
-        Ok(TensorData::F64(tp.double_data))
-    } else if !tp.int32_data.is_empty() {
-        Ok(TensorData::I32(tp.int32_data))
-    } else if !tp.int64_data.is_empty() {
-        Ok(TensorData::I64(tp.int64_data))
-    } else if !tp.uint64_data.is_empty() {
-        Ok(TensorData::U64(tp.uint64_data))
-    } else if !tp.string_data.is_empty() {
-        Ok(TensorData::String(
-            tp.string_data
-                .into_iter()
-                .map(|v| String::from_utf8(v).map_err(|e| anyhow!("{:?}", e)))
-                .collect::<Result<_>>()?,
-        ))
-    } else if !tp.raw_data.is_empty() {
-        Ok(TensorData::Raw(tp.raw_data))
-    } else if !tp.external_data.is_empty() {
-        bail!("External data is not supported.")
-    } else {
-        bail!("Empty tensor proto")
-    }
-}
+// fn parse(tp: TensorProto) -> Result<TensorData> {
+//     if !tp.float_data.is_empty() {
+//         Ok(TensorData::F32(tp.float_data))
+//     } else if !tp.double_data.is_empty() {
+//         Ok(TensorData::F64(tp.double_data))
+//     } else if !tp.int32_data.is_empty() {
+//         Ok(TensorData::I32(tp.int32_data))
+//     } else if !tp.int64_data.is_empty() {
+//         Ok(TensorData::I64(tp.int64_data))
+//     } else if !tp.uint64_data.is_empty() {
+//         Ok(TensorData::U64(tp.uint64_data))
+//     } else if !tp.string_data.is_empty() {
+//         Ok(TensorData::String(
+//             tp.string_data
+//                 .into_iter()
+//                 .map(|v| String::from_utf8(v).map_err(|e| anyhow!("{:?}", e)))
+//                 .collect::<Result<_>>()?,
+//         ))
+//     } else if !tp.raw_data.is_empty() {
+//         Ok(TensorData::Raw(tp.raw_data))
+//     } else if !tp.external_data.is_empty() {
+//         bail!("External data is not supported.")
+//     } else {
+//         bail!("Empty tensor proto")
+//     }
+// }

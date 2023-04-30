@@ -83,7 +83,6 @@ impl<'source> FromPyObject<'source> for Value {
             let arr = arr.readonly();
             Value::Bool(arr.as_array().to_owned().into())
         } else {
-            dbg!(ob.downcast::<PyArrayDyn<PyObject>>().unwrap());
             return Err(PyTypeError::new_err(format!(
                 "Cannot convert `{:?}` to Rust type.",
                 ob

@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 fn node_tests_folder() -> PathBuf {
-    dbg!(env!("CARGO_MANIFEST_DIR"));
     concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../upstream_test_data/onnx/onnx/backend/test/data/node"
