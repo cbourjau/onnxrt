@@ -109,19 +109,19 @@ impl<'a> OpContext<'a> {
 impl Session {
     pub fn from_file<P: AsRef<Path>>(
         path: P,
-        wire_dict: &HashMap<&'static str, SetupFnSignature>,
+        setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
         let bytes = std::fs::read(path).unwrap();
         let model_proto: ModelProto = Message::parse_from_bytes(&bytes[..]).unwrap();
-        Self::from_model_proto(&model_proto, wire_dict)
+        Self::from_model_proto(&model_proto, setup_dict)
     }
 
     pub fn from_model_proto(
         model: &ModelProto,
-        wire_dict: &HashMap<&'static str, SetupFnSignature>,
+        setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
         let graph = model.graph.as_ref().unwrap();
-        Self::from_graph_proto(graph, wire_dict)
+        Self::from_graph_proto(graph, setup_dict)
     }
 
     /// Create a session from a graph proto
@@ -133,7 +133,7 @@ impl Session {
     /// of the session.
     pub fn from_graph_proto(
         graph: &GraphProto,
-        wire_dict: &HashMap<&'static str, SetupFnSignature>,
+        setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
         // External inputs and initializers
         let (input_senders, scope) = prepare_inputs(&graph.input)?;
@@ -141,7 +141,7 @@ impl Session {
 
         let output_names: Vec<_> = graph.output.iter().map(|el| el.name.clone()).collect();
 
-        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, wire_dict)?;
+        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, setup_dict)?;
 
         Ok(Self {
             steps,
@@ -154,7 +154,7 @@ impl Session {
 
     pub(crate) fn from_nested_graph(
         graph: &GraphProto,
-        wire_dict: &HashMap<&'static str, SetupFnSignature>,
+        setup_dict: &HashMap<&'static str, SetupFnSignature>,
         outer_scope: &HashMap<String, Dispatcher>,
     ) -> anyhow::Result<Self> {
         // External inputs and initializers
@@ -164,7 +164,7 @@ impl Session {
 
         let output_names: Vec<_> = graph.output.iter().map(|el| el.name.clone()).collect();
 
-        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, wire_dict)?;
+        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, setup_dict)?;
 
         Ok(Self {
             steps,
@@ -248,17 +248,17 @@ fn setup_steps<'a>(
     mut scope: HashMap<String, Dispatcher>,
     nodes: &'a [NodeProto],
     output_names: &[String],
-    wire_dict: &HashMap<&'static str, SetupFnSignature>,
+    setup_dict: &HashMap<&'static str, SetupFnSignature>,
 ) -> Result<(Vec<ExecFnSignature>, Vec<(String, EnumReceiver)>)> {
     let mut steps = vec![];
 
     for node in nodes {
-        let ctx = OpContext::new(node, &scope, wire_dict)?;
-        let wire_fn = wire_dict
+        let ctx = OpContext::new(node, &scope, setup_dict)?;
+        let setup_fn = setup_dict
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
 
-        let ExecutionStep { fun: op, outputs } = wire_fn(ctx).map_err(|e| {
+        let ExecutionStep { fun: op, outputs } = setup_fn(ctx).map_err(|e| {
             anyhow!(
                 "During setup of '{}' the following error occurred: {:?}",
                 node.op_type,

@@ -13,7 +13,7 @@ pub use edges::Value;
 pub(crate) use edges::{
     channel, value_channel, DataType, Dispatchable, Dispatcher, EnumReceiver, ValueSender,
 };
-pub(crate) use input_types::{HomogeneousNumericFixed};
+pub(crate) use input_types::HomogeneousNumericFixed;
 pub use opset::get_opset;
 pub use session::Session;
 
@@ -28,10 +28,10 @@ mod tests {
 
     #[test]
     fn test_tree_ensemble_regressor() {
-        let wire_dict = get_opset();
+        let setup_dict = get_opset();
         let session = Session::from_file(
             "../../../onnxruntime/onnxruntime/test/testdata/tree_ensemble_as_tensor.onnx",
-            &wire_dict,
+            &setup_dict,
         )
         .unwrap();
 

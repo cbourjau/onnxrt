@@ -4,7 +4,7 @@ use ndarray::Axis;
 
 use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, EnumReceiver};
+use crate::{ArcArrayD, Attribute, EnumReceiver};
 
 fn impute<T>(a: ArcArrayD<T>, keys: &[T], value: T) -> Result<ArcArrayD<T>>
 where
@@ -28,10 +28,9 @@ where
     }
 }
 
-pub fn wire_imputer(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     // Should use ndarrays instead of vec?
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
-    use crate::Attribute;
     match a_ch {
         EnumReceiver::F32(a_ch) => {
             if let Ok(Attribute::F32s(_arr)) = ctx.attrs.get("imputed_value_floats") {

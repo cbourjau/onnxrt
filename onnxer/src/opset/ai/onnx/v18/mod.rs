@@ -92,69 +92,69 @@ fn make_greater() -> SetupFnSignature {
 /// HashMap of setup function of the ai.onnx domain version 18(?).
 #[rustfmt::skip]
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
-    let mut wire_dict: HashMap<_, SetupFnSignature> = HashMap::new();
-    wire_dict.insert("Abs", element_wise_numeric!(|el| el.abs()));
-    wire_dict.insert("Acos", element_wise_float!(|el| el.acos()));
-    wire_dict.insert("Acos", element_wise_float!(|el| el.acos()));
-    wire_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
-    wire_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
-    wire_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
-    wire_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
-    wire_dict.insert("ArgMax", Box::new(argminmax::wire_argmax));
-    wire_dict.insert("ArgMin", Box::new(argminmax::wire_argmin));
-    wire_dict.insert("Asin", element_wise_float!(|el| el.asin()));
-    wire_dict.insert("Asinh", element_wise_float!(|el| el.asinh()));
-    wire_dict.insert("Atan", element_wise_float!(|el| el.atan()));
-    wire_dict.insert("Atanh", element_wise_float!(|el| el.atanh()));
-    wire_dict.insert("Cast", Box::new(wire_cast));
-    wire_dict.insert("Ceil", element_wise_float!(|el| el.ceil()));
-    wire_dict.insert("Clip", Box::new(wire_clip));
-    wire_dict.insert("Concat", Box::new(wire_concat));
-    wire_dict.insert("Constant", Box::new(wire_constant));
-    wire_dict.insert("Cos", element_wise_float!(|el| el.cos()));
-    wire_dict.insert("Cosh", element_wise_float!(|el| el.cosh()));
-    wire_dict.insert("Div", binary_numeric!(|a, b| Ok(a / b)));
-    wire_dict.insert("Equal", make_equal());
-    wire_dict.insert("Exp", element_wise_float!(|el| el.exp()));
-    wire_dict.insert("Greater", make_greater());    
-    wire_dict.insert("GreaterOrEqual", make_greater_equal());
-    wire_dict.insert("Floor", element_wise_float!(|el| el.floor()));
-    wire_dict.insert("Identity", Box::new(wire_identity));
-    wire_dict.insert("If", Box::new(wire_if));
-    wire_dict.insert("IsInf", element_wise_float!(|el| dbg!(el).is_infinite())); // FIXME
-    wire_dict.insert("IsNaN", element_wise_float!(|el| el.is_nan()));
-    wire_dict.insert("Less", make_less());    
-    wire_dict.insert("LessOrEqual", make_less_equal());
-    wire_dict.insert("Log", element_wise_float!(|el| el.ln()));
-    wire_dict.insert("Mul", binary_numeric!(|a, b| Ok(a * b)));
-    wire_dict.insert("Neg", element_wise_numeric!(|a| -a)); 
-    wire_dict.insert("Not", Box::new(wire_not));
-    wire_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
-    wire_dict.insert("OneHot", Box::new(wire_one_hot));
+    let mut setup_dict: HashMap<_, SetupFnSignature> = HashMap::new();
+    setup_dict.insert("Abs", element_wise_numeric!(|el| el.abs()));
+    setup_dict.insert("Acos", element_wise_float!(|el| el.acos()));
+    setup_dict.insert("Acos", element_wise_float!(|el| el.acos()));
+    setup_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
+    setup_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
+    setup_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
+    setup_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
+    setup_dict.insert("ArgMax", Box::new(argminmax::setup_argmax));
+    setup_dict.insert("ArgMin", Box::new(argminmax::setup_argmin));
+    setup_dict.insert("Asin", element_wise_float!(|el| el.asin()));
+    setup_dict.insert("Asinh", element_wise_float!(|el| el.asinh()));
+    setup_dict.insert("Atan", element_wise_float!(|el| el.atan()));
+    setup_dict.insert("Atanh", element_wise_float!(|el| el.atanh()));
+    setup_dict.insert("Cast", Box::new(setup_cast));
+    setup_dict.insert("Ceil", element_wise_float!(|el| el.ceil()));
+    setup_dict.insert("Clip", Box::new(setup_clip));
+    setup_dict.insert("Concat", Box::new(setup_concat));
+    setup_dict.insert("Constant", Box::new(setup_constant));
+    setup_dict.insert("Cos", element_wise_float!(|el| el.cos()));
+    setup_dict.insert("Cosh", element_wise_float!(|el| el.cosh()));
+    setup_dict.insert("Div", binary_numeric!(|a, b| Ok(a / b)));
+    setup_dict.insert("Equal", make_equal());
+    setup_dict.insert("Exp", element_wise_float!(|el| el.exp()));
+    setup_dict.insert("Greater", make_greater());    
+    setup_dict.insert("GreaterOrEqual", make_greater_equal());
+    setup_dict.insert("Floor", element_wise_float!(|el| el.floor()));
+    setup_dict.insert("Identity", Box::new(setup_identity));
+    setup_dict.insert("If", Box::new(setup_if));
+    setup_dict.insert("IsInf", element_wise_float!(|el| dbg!(el).is_infinite())); // FIXME
+    setup_dict.insert("IsNaN", element_wise_float!(|el| el.is_nan()));
+    setup_dict.insert("Less", make_less());    
+    setup_dict.insert("LessOrEqual", make_less_equal());
+    setup_dict.insert("Log", element_wise_float!(|el| el.ln()));
+    setup_dict.insert("Mul", binary_numeric!(|a, b| Ok(a * b)));
+    setup_dict.insert("Neg", element_wise_numeric!(|a| -a)); 
+    setup_dict.insert("Not", Box::new(setup_not));
+    setup_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
+    setup_dict.insert("OneHot", Box::new(setup_one_hot));
 
-    wire_dict.insert("ReduceMax", Box::new(reduce::wire_reducemax));
-    wire_dict.insert("ReduceMean", Box::new(reduce::wire_reducemean));
-    wire_dict.insert("ReduceMin", Box::new(reduce::wire_reducemin));
-    wire_dict.insert("ReduceProd", Box::new(reduce::wire_reduceprod));
-    wire_dict.insert("ReduceSum", Box::new(reduce::wire_reducesum));
+    setup_dict.insert("ReduceMax", Box::new(reduce::setup_reducemax));
+    setup_dict.insert("ReduceMean", Box::new(reduce::setup_reducemean));
+    setup_dict.insert("ReduceMin", Box::new(reduce::setup_reducemin));
+    setup_dict.insert("ReduceProd", Box::new(reduce::setup_reduceprod));
+    setup_dict.insert("ReduceSum", Box::new(reduce::setup_reducesum));
 
     // TODO: Rust's `round` rounds towards 0.0 for half-way
     // values. ONNX standard rounds to nearest even!
-    wire_dict.insert("Round",element_wise_float!(|el| el.round()));
+    setup_dict.insert("Round",element_wise_float!(|el| el.round()));
         
-    wire_dict.insert("Sigmoid",element_wise_float!(|el| 1. / (1. + (-el).exp())));
-    wire_dict.insert("Sin", element_wise_float!(|el| el.sin()));
-    wire_dict.insert("Sinh", element_wise_float!(|el| el.sinh()));
-    wire_dict.insert("Split", Box::new(wire_split));
-    wire_dict.insert("Sqrt",element_wise_float!(|el| el.sqrt()));
-    wire_dict.insert("Squeeze", Box::new(wire_squeeze));
-    wire_dict.insert("Sub", binary_numeric!(|a, b| Ok(a - b)));
-    wire_dict.insert("Tan", element_wise_float!(|el| el.tan()));
-    wire_dict.insert("Tanh", element_wise_float!(|el| el.tanh()));
-    wire_dict.insert("Unsqueeze", Box::new(wire_unsqueeze));
-    wire_dict.insert("Where", Box::new(wire_where));
-    wire_dict.insert("Xor", make_binary_boolean_fn(|a, b| Ok(a ^ b)));
-    wire_dict
+    setup_dict.insert("Sigmoid",element_wise_float!(|el| 1. / (1. + (-el).exp())));
+    setup_dict.insert("Sin", element_wise_float!(|el| el.sin()));
+    setup_dict.insert("Sinh", element_wise_float!(|el| el.sinh()));
+    setup_dict.insert("Split", Box::new(setup_split));
+    setup_dict.insert("Sqrt",element_wise_float!(|el| el.sqrt()));
+    setup_dict.insert("Squeeze", Box::new(setup_squeeze));
+    setup_dict.insert("Sub", binary_numeric!(|a, b| Ok(a - b)));
+    setup_dict.insert("Tan", element_wise_float!(|el| el.tan()));
+    setup_dict.insert("Tanh", element_wise_float!(|el| el.tanh()));
+    setup_dict.insert("Unsqueeze", Box::new(setup_unsqueeze));
+    setup_dict.insert("Where", Box::new(setup_where));
+    setup_dict.insert("Xor", make_binary_boolean_fn(|a, b| Ok(a ^ b)));
+    setup_dict
 }
 
 /// Create setup function with two boolean inputs
@@ -178,7 +178,7 @@ where
     })
 }
 
-fn wire_identity(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_identity(ctx: OpContext) -> Result<ExecutionStep> {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     match a_ch {
         EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
@@ -190,7 +190,7 @@ fn wire_identity(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn wire_not(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_not(ctx: OpContext) -> Result<ExecutionStep> {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     match a_ch {
         EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| !el).into())),
@@ -198,7 +198,7 @@ fn wire_not(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn wire_clip(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     pub fn match_arm<T>(
         input: Receiver<ArcArrayD<T>>,
         min: Option<Receiver<ArcArrayD<T>>>,
@@ -250,10 +250,29 @@ fn wire_clip(ctx: OpContext) -> Result<ExecutionStep> {
     let max = inputs.next().flatten();
     use EnumReceiver::*;
     match (input, min, max) {
+        // F32
         (F32(input), Some(F32(min)), Some(F32(max))) => match_arm(input, Some(min), Some(max)),
         (F32(input), None, Some(F32(max))) => match_arm(input, None, Some(max)),
         (F32(input), Some(F32(min)), None) => match_arm(input, Some(min), None),
         (F32(input), None, None) => match_arm(input, None, None),
+
+        // F64
+        (F64(input), Some(F64(min)), Some(F64(max))) => match_arm(input, Some(min), Some(max)),
+        (F64(input), None, Some(F64(max))) => match_arm(input, None, Some(max)),
+        (F64(input), Some(F64(min)), None) => match_arm(input, Some(min), None),
+        (F64(input), None, None) => match_arm(input, None, None),
+
+        // I32
+        (I32(input), Some(I32(min)), Some(I32(max))) => match_arm(input, Some(min), Some(max)),
+        (I32(input), None, Some(I32(max))) => match_arm(input, None, Some(max)),
+        (I32(input), Some(I32(min)), None) => match_arm(input, Some(min), None),
+        (I32(input), None, None) => match_arm(input, None, None),
+
+        // I64
+        (I64(input), Some(I64(min)), Some(I64(max))) => match_arm(input, Some(min), Some(max)),
+        (I64(input), None, Some(I64(max))) => match_arm(input, None, Some(max)),
+        (I64(input), Some(I64(min)), None) => match_arm(input, Some(min), None),
+        (I64(input), None, None) => match_arm(input, None, None),
         inputs => bail!("Unexpected input for operator 'Clip': {:?}", inputs),
     }
 }
@@ -281,7 +300,7 @@ where
     Ok(output)
 }
 
-fn wire_cast(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     macro_rules! make_output_fallible {
         ($inp:expr, $cast:expr) => {{
@@ -345,7 +364,7 @@ fn wire_cast(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn wire_constant(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
     if ctx.attrs.get("sparse_value").is_ok() {
         unimplemented!("Sparse tensors are not supported.")
     }
@@ -419,7 +438,7 @@ fn wire_constant(ctx: OpContext) -> Result<ExecutionStep> {
     Err(anyhow!("`Constant` node did not have expected attributes"))
 }
 
-fn wire_split(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     let n_outputs = ctx.n_outputs();
     let axis = {
         let axis = ctx.attrs.get_with_default("axis", 0i64)?;
@@ -480,7 +499,7 @@ where
         .map(|arr| arr.to_owned().into()))
 }
 
-fn wire_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
     // Function to compute the output shape
     let compute_expanded = |data_shape: &[usize], axes: &[i64]| {
@@ -535,7 +554,7 @@ fn wire_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn wire_concat(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
     let axis: i64 = ctx.attrs.get("axis")?.try_into()?;
 
     macro_rules! match_arm {
@@ -579,7 +598,7 @@ fn wire_concat(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn wire_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
     let axes_ch = match axes_ch {
         EnumReceiver::I64(ch) => ch,
@@ -640,7 +659,7 @@ where
         .into())
 }
 
-fn wire_where(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
     let [cond_ch, x_ch, y_ch]: [_; 3] = ctx.input_channels().try_into().unwrap();
 
     pub fn match_arm<T>(
@@ -682,7 +701,7 @@ fn wire_where(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn wire_if(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
     // Explicit node input
     let [cond_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     // Condition must be of type bool
@@ -784,7 +803,7 @@ mod argminmax {
         }};
     }
 
-    pub fn wire_argmax(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
         let axis = ctx.attrs.get_with_default("axis", 0i64)?;
         let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
         let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
@@ -805,7 +824,7 @@ mod argminmax {
         }
     }
 
-    pub fn wire_argmin(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_argmin(ctx: OpContext) -> Result<ExecutionStep> {
         let axis = ctx.attrs.get_with_default("axis", 0i64)?;
         let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
         let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
@@ -984,7 +1003,7 @@ mod reduce {
         }};
     }
 
-    pub fn wire_reducemax(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_reducemax(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -1003,7 +1022,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reducemean(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_reducemean(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -1022,7 +1041,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reducemin(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_reducemin(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -1041,7 +1060,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reduceprod(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_reduceprod(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -1060,7 +1079,7 @@ mod reduce {
         })
     }
 
-    pub fn wire_reducesum(ctx: OpContext) -> Result<ExecutionStep> {
+    pub fn setup_reducesum(ctx: OpContext) -> Result<ExecutionStep> {
         let (data_ch, common_args) = setup(ctx)?;
         let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
         Ok(match data_ch {
@@ -1183,7 +1202,7 @@ mod reduce {
     }
 }
 
-fn wire_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
+fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
     let [indices, depth, values]: [_; 3] = ctx.input_channels().try_into().unwrap();
     let axis = ctx.attrs.get_optional("axis")?;
 
@@ -1274,36 +1293,30 @@ where
             axis
         );
     }
+
     let dims = indices.shape().iter();
 
     // Put new axis at the end for now
-    let out_shape: Vec<_> = dims
-        // .take(axis_pos)
-        .chain([depth as usize].iter())
-        // .chain(dims)
-        .cloned()
-        .collect();
+    let out_shape: Vec<_> = dims.chain([depth as usize].iter()).cloned().collect();
 
     let flat_indices = indices.iter();
-    let mut flatish_out = Array2::from_elem((indices.len(), depth), off_value);
-    for (idx, mut out_slice) in flat_indices.zip(flatish_out.axis_iter_mut(Axis(0))) {
+    let mut out_2d = Array2::from_elem((indices.len(), depth), off_value);
+    for (idx, mut out_slice) in flat_indices.zip(out_2d.axis_iter_mut(Axis(0))) {
         let val = convert_negative_index(*idx, depth);
         if let Some(el) = out_slice.get_mut([val]) {
             *el = on_value;
         }
     }
 
-    // Reshape and reanrange axes if necessary
+    // Reshape and rearrange axes if necessary
     if axis != -1 {
         let output_rank = input_rank + 1;
-        let mut tmp = flatish_out
-            .into_shape(out_shape)?
-            .insert_axis(Axis(axis_pos));
+        let mut tmp = out_2d.into_shape(out_shape)?.insert_axis(Axis(axis_pos));
         tmp.swap_axes(axis_pos, output_rank);
         let tmp = tmp.remove_axis(Axis(output_rank));
         Ok(tmp.into_dyn().into())
     } else {
-        Ok(flatish_out.into_shape(out_shape)?.into_dyn().into())
+        Ok(out_2d.into_shape(out_shape)?.into_dyn().into())
     }
 }
 

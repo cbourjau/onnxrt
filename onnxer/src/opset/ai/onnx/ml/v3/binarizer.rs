@@ -14,7 +14,7 @@ where
     Ok(a.mapv(|el| ((el > threshold) as u8).as_()).into())
 }
 
-pub fn wire_binarizer(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_binarizer(ctx: OpContext) -> Result<ExecutionStep> {
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let threshold: f32 = ctx.attrs.get("threshold")?.try_into()?;
 

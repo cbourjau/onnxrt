@@ -4,7 +4,7 @@ use super::data_structure::TreeEnsemble;
 use crate::session::{ExecutionStep, OpContext};
 use crate::{ArcArrayD, Dispatchable, EnumReceiver};
 
-pub fn wire_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
     let mut input_channels = ctx.input_channels().into_iter();
     let a_ch = input_channels.next().unwrap();
     let ensemble = TreeEnsemble::from_attributes(&ctx.attrs).unwrap();

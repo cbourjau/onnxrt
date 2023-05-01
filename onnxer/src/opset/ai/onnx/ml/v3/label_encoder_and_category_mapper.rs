@@ -141,7 +141,7 @@ impl LabelEncoder {
     }
 }
 
-pub fn wire_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let label_encoder = LabelEncoder::from_attributes(&ctx.attrs)?;
 
@@ -177,7 +177,7 @@ pub fn wire_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-pub fn wire_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let cats_int64s: Vec<i64> = ctx.attrs.get("cats_int64s")?.try_into()?;
     let cats_strings: Vec<String> = ctx.attrs.get("cats_strings")?.try_into()?;

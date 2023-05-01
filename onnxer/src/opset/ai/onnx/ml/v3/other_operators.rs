@@ -5,7 +5,7 @@ use ndarray::{Axis, Ix1};
 use crate::session::{ExecutionStep, OpContext};
 use crate::{ArcArrayD, Dispatchable, EnumReceiver};
 
-pub fn wire_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
     let (data_ch, indices_ch) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let indices_ch = match indices_ch {
         EnumReceiver::I64(ch) => ch,
