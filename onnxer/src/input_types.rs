@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 
 use anyhow::{anyhow, bail, Error, Result};
 
-use crate::{ArcArrayD, EnumReceiver};
+use crate::{ArcArrayD, TaggedReceiver};
 
 /// Homogeneous, numeric variadic inputs
 pub enum HomogeneousNumericFixed<const N: usize> {
@@ -13,10 +13,10 @@ pub enum HomogeneousNumericFixed<const N: usize> {
     I64([Receiver<ArcArrayD<i64>>; N]),
 }
 
-impl<const N: usize> TryFrom<Vec<EnumReceiver>> for HomogeneousNumericFixed<N> {
+impl<const N: usize> TryFrom<Vec<TaggedReceiver>> for HomogeneousNumericFixed<N> {
     type Error = Error;
 
-    fn try_from(vec: Vec<EnumReceiver>) -> Result<Self, Self::Error> {
+    fn try_from(vec: Vec<TaggedReceiver>) -> Result<Self, Self::Error> {
         let len = vec.len();
         macro_rules! make_err {
             () => {
@@ -43,14 +43,14 @@ pub enum HomogeneousNumeric {
 impl HomogeneousNumeric {
     pub fn new_from_iter<I>(inputs: I) -> Result<Self>
     where
-        I: IntoIterator<Item = EnumReceiver> + ExactSizeIterator,
+        I: IntoIterator<Item = TaggedReceiver> + ExactSizeIterator,
     {
         if inputs.len() == 0 {
             bail!("Construction `HomogeneousChannels` requires at least one input.")
         }
 
         let mut inputs = inputs.into_iter().peekable();
-        let first: &EnumReceiver = inputs.peek().unwrap();
+        let first: &TaggedReceiver = inputs.peek().unwrap();
 
         macro_rules! match_arm {
             ($variant:tt) => {
@@ -58,7 +58,7 @@ impl HomogeneousNumeric {
                     inputs
                         .into_iter()
                         .map(|el| {
-                            if let EnumReceiver::$variant(el) = el {
+                            if let TaggedReceiver::$variant(el) = el {
                                 Ok(el)
                             } else {
                                 bail!("Inputs are not homogeneous.")
@@ -70,10 +70,10 @@ impl HomogeneousNumeric {
         }
 
         Ok(match first {
-            EnumReceiver::F32(_) => match_arm!(F32),
-            EnumReceiver::F64(_) => match_arm!(F64),
-            EnumReceiver::I32(_) => match_arm!(I32),
-            EnumReceiver::I64(_) => match_arm!(I64),
+            TaggedReceiver::F32(_) => match_arm!(F32),
+            TaggedReceiver::F64(_) => match_arm!(F64),
+            TaggedReceiver::I32(_) => match_arm!(I32),
+            TaggedReceiver::I64(_) => match_arm!(I64),
             _ => bail!("Inputs are not numeric."),
         })
     }

@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use super::data_structure::TreeEnsemble;
 use crate::session::{ExecutionStep, OpContext};
-use crate::{ArcArrayD, Dispatchable, EnumReceiver};
+use crate::{ArcArrayD, Dispatchable, TaggedReceiver};
 
 pub fn setup_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
     let mut input_channels = ctx.input_channels().into_iter();
@@ -10,7 +10,7 @@ pub fn setup_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
     let ensemble = TreeEnsemble::from_attributes(&ctx.attrs).unwrap();
     let (sdr, rec) = ArcArrayD::<_>::channel();
     match a_ch {
-        EnumReceiver::F64(a_ch) => {
+        TaggedReceiver::F64(a_ch) => {
             let fun = Box::new(move || {
                 let a = a_ch.recv().unwrap();
                 let out = ensemble.predict(&a);

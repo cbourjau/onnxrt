@@ -13,46 +13,11 @@ use crate::utils::{
     zip_map_with_co_broadcast,
 };
 use crate::{
-    channel, value_channel, ArcArrayD, DataType, Dispatchable, EnumReceiver,
-    HomogeneousNumericFixed, Session,
+    channel, value_channel, ArcArrayD, DataType, Dispatchable, HomogeneousNumericFixed, Session,
+    TaggedReceiver,
 };
 
-macro_rules! element_wise_numeric {
-    ($fun:expr) => {
-        Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let chs = ctx.input_channels().try_into()?;
-            match chs {
-                HomogeneousNumericFixed::F32([a_ch]) => {
-                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
-                }
-                HomogeneousNumericFixed::F64([a_ch]) => {
-                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
-                }
-                HomogeneousNumericFixed::I32([a_ch]) => {
-                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
-                }
-                HomogeneousNumericFixed::I64([a_ch]) => {
-                    wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
-                }
-            }
-        })
-    };
-}
-
-/// Make setup function for element wise operations with floating point input
-macro_rules! element_wise_float {
-    ($fun:expr) => {
-        Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-            match a_ch {
-                EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
-                // Internal error. This should never happen.
-                rec => bail!("Expected floating point input, found: '{:?}'", rec),
-            }
-        })
-    };
-}
+mod simple_element_wise;
 
 /// Setup functions with two numeric inputs
 macro_rules! binary_numeric {
@@ -92,43 +57,23 @@ fn make_greater() -> SetupFnSignature {
 /// HashMap of setup function of the ai.onnx domain version 18(?).
 #[rustfmt::skip]
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
-    let mut setup_dict: HashMap<_, SetupFnSignature> = HashMap::new();
-    setup_dict.insert("Abs", element_wise_numeric!(|el| el.abs()));
-    setup_dict.insert("Acos", element_wise_float!(|el| el.acos()));
-    setup_dict.insert("Acos", element_wise_float!(|el| el.acos()));
-    setup_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
-    setup_dict.insert("Acosh", element_wise_float!(|el| el.acosh()));
+    let mut setup_dict = simple_element_wise::get_setup_dict();
     setup_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
     setup_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
     setup_dict.insert("ArgMax", Box::new(argminmax::setup_argmax));
     setup_dict.insert("ArgMin", Box::new(argminmax::setup_argmin));
-    setup_dict.insert("Asin", element_wise_float!(|el| el.asin()));
-    setup_dict.insert("Asinh", element_wise_float!(|el| el.asinh()));
-    setup_dict.insert("Atan", element_wise_float!(|el| el.atan()));
-    setup_dict.insert("Atanh", element_wise_float!(|el| el.atanh()));
     setup_dict.insert("Cast", Box::new(setup_cast));
-    setup_dict.insert("Ceil", element_wise_float!(|el| el.ceil()));
     setup_dict.insert("Clip", Box::new(setup_clip));
     setup_dict.insert("Concat", Box::new(setup_concat));
     setup_dict.insert("Constant", Box::new(setup_constant));
-    setup_dict.insert("Cos", element_wise_float!(|el| el.cos()));
-    setup_dict.insert("Cosh", element_wise_float!(|el| el.cosh()));
     setup_dict.insert("Div", binary_numeric!(|a, b| Ok(a / b)));
     setup_dict.insert("Equal", make_equal());
-    setup_dict.insert("Exp", element_wise_float!(|el| el.exp()));
     setup_dict.insert("Greater", make_greater());    
     setup_dict.insert("GreaterOrEqual", make_greater_equal());
-    setup_dict.insert("Floor", element_wise_float!(|el| el.floor()));
-    setup_dict.insert("Identity", Box::new(setup_identity));
     setup_dict.insert("If", Box::new(setup_if));
-    setup_dict.insert("IsInf", element_wise_float!(|el| dbg!(el).is_infinite())); // FIXME
-    setup_dict.insert("IsNaN", element_wise_float!(|el| el.is_nan()));
     setup_dict.insert("Less", make_less());    
     setup_dict.insert("LessOrEqual", make_less_equal());
-    setup_dict.insert("Log", element_wise_float!(|el| el.ln()));
     setup_dict.insert("Mul", binary_numeric!(|a, b| Ok(a * b)));
-    setup_dict.insert("Neg", element_wise_numeric!(|a| -a)); 
-    setup_dict.insert("Not", Box::new(setup_not));
     setup_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
     setup_dict.insert("OneHot", Box::new(setup_one_hot));
 
@@ -138,19 +83,9 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     setup_dict.insert("ReduceProd", Box::new(reduce::setup_reduceprod));
     setup_dict.insert("ReduceSum", Box::new(reduce::setup_reducesum));
 
-    // TODO: Rust's `round` rounds towards 0.0 for half-way
-    // values. ONNX standard rounds to nearest even!
-    setup_dict.insert("Round",element_wise_float!(|el| el.round()));
-        
-    setup_dict.insert("Sigmoid",element_wise_float!(|el| 1. / (1. + (-el).exp())));
-    setup_dict.insert("Sin", element_wise_float!(|el| el.sin()));
-    setup_dict.insert("Sinh", element_wise_float!(|el| el.sinh()));
     setup_dict.insert("Split", Box::new(setup_split));
-    setup_dict.insert("Sqrt",element_wise_float!(|el| el.sqrt()));
     setup_dict.insert("Squeeze", Box::new(setup_squeeze));
     setup_dict.insert("Sub", binary_numeric!(|a, b| Ok(a - b)));
-    setup_dict.insert("Tan", element_wise_float!(|el| el.tan()));
-    setup_dict.insert("Tanh", element_wise_float!(|el| el.tanh()));
     setup_dict.insert("Unsqueeze", Box::new(setup_unsqueeze));
     setup_dict.insert("Where", Box::new(setup_where));
     setup_dict.insert("Xor", make_binary_boolean_fn(|a, b| Ok(a ^ b)));
@@ -169,33 +104,13 @@ where
     Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
         let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
         match (a_ch, b_ch) {
-            (EnumReceiver::Bool(a_ch), EnumReceiver::Bool(b_ch)) => {
+            (TaggedReceiver::Bool(a_ch), TaggedReceiver::Bool(b_ch)) => {
                 wrap_binary_input(a_ch, b_ch, op)
             }
             // Internal error. This should never happen!
             _ => panic!(),
         }
     })
-}
-
-fn setup_identity(ctx: OpContext) -> Result<ExecutionStep> {
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-    match a_ch {
-        EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
-        EnumReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
-        EnumReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
-        EnumReceiver::I32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
-        EnumReceiver::I64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
-        EnumReceiver::String(a_ch) => wrap_1_input(a_ch, |a| Ok(a.into())),
-    }
-}
-
-fn setup_not(ctx: OpContext) -> Result<ExecutionStep> {
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-    match a_ch {
-        EnumReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| !el).into())),
-        _ => bail!("`Not` input must be of type bool."),
-    }
 }
 
 fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
@@ -248,7 +163,7 @@ fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
         .ok_or_else(|| anyhow!("Mandatory input 'input' is missing"))?;
     let min = inputs.next().flatten();
     let max = inputs.next().flatten();
-    use EnumReceiver::*;
+    use TaggedReceiver::*;
     match (input, min, max) {
         // F32
         (F32(input), Some(F32(min)), Some(F32(max))) => match_arm(input, Some(min), Some(max)),
@@ -313,7 +228,7 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
     }
     let to_type = DataType::from_i32(i64::try_from(ctx.attrs.get("to")?)? as i32)?;
     match a_ch {
-        EnumReceiver::Bool(a_ch) => match to_type {
+        TaggedReceiver::Bool(a_ch) => match to_type {
             DataType::Bool => wrap_1_input(a_ch, Ok),
             DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f32).into())),
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f64).into())),
@@ -321,7 +236,7 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
-        EnumReceiver::F32(a_ch) => match to_type {
+        TaggedReceiver::F32(a_ch) => match to_type {
             DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0.0).into())),
             DataType::F32 => wrap_1_input(a_ch, Ok),
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
@@ -329,7 +244,7 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
-        EnumReceiver::F64(a_ch) => match to_type {
+        TaggedReceiver::F64(a_ch) => match to_type {
             DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0.0).into())),
             DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
             DataType::F64 => wrap_1_input(a_ch, Ok),
@@ -337,7 +252,7 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
-        EnumReceiver::I32(a_ch) => match to_type {
+        TaggedReceiver::I32(a_ch) => match to_type {
             DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
             DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
@@ -345,7 +260,7 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
-        EnumReceiver::I64(a_ch) => match to_type {
+        TaggedReceiver::I64(a_ch) => match to_type {
             DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
             DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
@@ -353,7 +268,7 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::I64 => wrap_1_input(a_ch, Ok),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
-        EnumReceiver::String(a_ch) => match to_type {
+        TaggedReceiver::String(a_ch) => match to_type {
             DataType::Bool => make_output_fallible!(a_ch, |el| el.parse::<bool>()),
             DataType::F32 => make_output_fallible!(a_ch, |el| el.parse::<f32>()),
             DataType::F64 => make_output_fallible!(a_ch, |el| el.parse::<f64>()),
@@ -475,12 +390,12 @@ fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     }
 
     match a_ch {
-        EnumReceiver::F32(a_ch) => match_arm!(f32, a_ch),
-        EnumReceiver::F64(a_ch) => match_arm!(f64, a_ch),
-        EnumReceiver::I32(a_ch) => match_arm!(i32, a_ch),
-        EnumReceiver::I64(a_ch) => match_arm!(i64, a_ch),
-        EnumReceiver::String(a_ch) => match_arm!(String, a_ch),
-        EnumReceiver::Bool(a_ch) => match_arm!(bool, a_ch),
+        TaggedReceiver::F32(a_ch) => match_arm!(f32, a_ch),
+        TaggedReceiver::F64(a_ch) => match_arm!(f64, a_ch),
+        TaggedReceiver::I32(a_ch) => match_arm!(i32, a_ch),
+        TaggedReceiver::I64(a_ch) => match_arm!(i64, a_ch),
+        TaggedReceiver::String(a_ch) => match_arm!(String, a_ch),
+        TaggedReceiver::Bool(a_ch) => match_arm!(bool, a_ch),
     }
 }
 
@@ -540,14 +455,14 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
             })
         }};
     }
-    if let EnumReceiver::I64(axes_ch) = axes_ch {
+    if let TaggedReceiver::I64(axes_ch) = axes_ch {
         match data_ch {
-            EnumReceiver::String(data_ch) => match_arm!(data_ch, axes_ch),
-            EnumReceiver::I32(data_ch) => match_arm!(data_ch, axes_ch),
-            EnumReceiver::I64(data_ch) => match_arm!(data_ch, axes_ch),
-            EnumReceiver::F32(data_ch) => match_arm!(data_ch, axes_ch),
-            EnumReceiver::F64(data_ch) => match_arm!(data_ch, axes_ch),
-            EnumReceiver::Bool(data_ch) => match_arm!(data_ch, axes_ch),
+            TaggedReceiver::String(data_ch) => match_arm!(data_ch, axes_ch),
+            TaggedReceiver::I32(data_ch) => match_arm!(data_ch, axes_ch),
+            TaggedReceiver::I64(data_ch) => match_arm!(data_ch, axes_ch),
+            TaggedReceiver::F32(data_ch) => match_arm!(data_ch, axes_ch),
+            TaggedReceiver::F64(data_ch) => match_arm!(data_ch, axes_ch),
+            TaggedReceiver::Bool(data_ch) => match_arm!(data_ch, axes_ch),
         }
     } else {
         panic!()
@@ -562,7 +477,7 @@ fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
             let input_channels = $input_channels
                 .into_iter()
                 .map(|ch| match ch {
-                    EnumReceiver::$variant(ch) => Ok(ch),
+                    TaggedReceiver::$variant(ch) => Ok(ch),
                     _ => Err(anyhow!("All inputs must be of the same type")),
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -589,19 +504,19 @@ fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
 
     let inputs = ctx.input_channels();
     match &inputs[0] {
-        EnumReceiver::F32(_) => match_arm!(inputs, F32),
-        EnumReceiver::F64(_) => match_arm!(inputs, F64),
-        EnumReceiver::I32(_) => match_arm!(inputs, I32),
-        EnumReceiver::I64(_) => match_arm!(inputs, I64),
-        EnumReceiver::String(_) => match_arm!(inputs, String),
-        EnumReceiver::Bool(_) => match_arm!(inputs, Bool),
+        TaggedReceiver::F32(_) => match_arm!(inputs, F32),
+        TaggedReceiver::F64(_) => match_arm!(inputs, F64),
+        TaggedReceiver::I32(_) => match_arm!(inputs, I32),
+        TaggedReceiver::I64(_) => match_arm!(inputs, I64),
+        TaggedReceiver::String(_) => match_arm!(inputs, String),
+        TaggedReceiver::Bool(_) => match_arm!(inputs, Bool),
     }
 }
 
 fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
     let axes_ch = match axes_ch {
-        EnumReceiver::I64(ch) => ch,
+        TaggedReceiver::I64(ch) => ch,
         _ => bail!("Input `axes` of Squeeze must be of type `tensor(int64)`"),
     };
 
@@ -634,12 +549,12 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
         }};
     }
     match data_ch {
-        EnumReceiver::I32(ch) => match_arm!(ch, axes_ch),
-        EnumReceiver::F32(ch) => match_arm!(ch, axes_ch),
-        EnumReceiver::I64(ch) => match_arm!(ch, axes_ch),
-        EnumReceiver::F64(ch) => match_arm!(ch, axes_ch),
-        EnumReceiver::Bool(ch) => match_arm!(ch, axes_ch),
-        EnumReceiver::String(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::I32(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::F32(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::I64(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::F64(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::Bool(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::String(ch) => match_arm!(ch, axes_ch),
     }
 }
 
@@ -684,19 +599,21 @@ fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
     }
 
     // Condition must be of type bool
-    let cond_ch = if let EnumReceiver::Bool(cond_ch) = cond_ch {
+    let cond_ch = if let TaggedReceiver::Bool(cond_ch) = cond_ch {
         cond_ch
     } else {
         bail!("Conditional tensor must be of type `bool`.")
     };
 
     match (x_ch, y_ch) {
-        (EnumReceiver::F32(x_ch), EnumReceiver::F32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (EnumReceiver::F64(x_ch), EnumReceiver::F64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (EnumReceiver::I32(x_ch), EnumReceiver::I32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (EnumReceiver::I64(x_ch), EnumReceiver::I64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (EnumReceiver::Bool(x_ch), EnumReceiver::Bool(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (EnumReceiver::String(x_ch), EnumReceiver::String(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
+        (TaggedReceiver::F32(x_ch), TaggedReceiver::F32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
+        (TaggedReceiver::F64(x_ch), TaggedReceiver::F64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
+        (TaggedReceiver::I32(x_ch), TaggedReceiver::I32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
+        (TaggedReceiver::I64(x_ch), TaggedReceiver::I64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
+        (TaggedReceiver::Bool(x_ch), TaggedReceiver::Bool(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
+        (TaggedReceiver::String(x_ch), TaggedReceiver::String(y_ch)) => {
+            match_arm(cond_ch, x_ch, y_ch)
+        }
         _ => bail!("`X` and `Y` must be of identical type."),
     }
 }
@@ -705,7 +622,7 @@ fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
     // Explicit node input
     let [cond_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
     // Condition must be of type bool
-    let cond_ch = if let EnumReceiver::Bool(cond_ch) = cond_ch {
+    let cond_ch = if let TaggedReceiver::Bool(cond_ch) = cond_ch {
         cond_ch
     } else {
         bail!("Conditional tensor must be of type `bool`.")
@@ -933,7 +850,7 @@ mod reduce {
         axes_ch: Option<Receiver<ArcArrayD<i64>>>,
     }
 
-    fn setup(ctx: OpContext) -> Result<(EnumReceiver, CommonArgs)> {
+    fn setup(ctx: OpContext) -> Result<(TaggedReceiver, CommonArgs)> {
         let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
         let noop_empty = ctx.attrs.get_with_default("noop_with_empty_axes", 0i64)? != 0;
 
@@ -942,7 +859,7 @@ mod reduce {
             .next()
             .ok_or_else(|| anyhow!("Input `data` is missing"))?;
         let axes_ch = match inputs.next() {
-            Some(EnumReceiver::I64(ch)) => Some(ch),
+            Some(TaggedReceiver::I64(ch)) => Some(ch),
             None => None,
             Some(_) => bail!("Input `axes` must be of type `int64`"),
         };
@@ -1209,29 +1126,29 @@ fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
     // Cast other types to i64 (as stated in the standard...)
     let map_err = |e| format!("Failed to receive value: {:?}", e);
     let recv_depth: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send> = match depth {
-        EnumReceiver::F32(ch) => {
+        TaggedReceiver::F32(ch) => {
             Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
         }
-        EnumReceiver::I32(ch) => {
+        TaggedReceiver::I32(ch) => {
             Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
         }
-        EnumReceiver::F64(ch) => {
+        TaggedReceiver::F64(ch) => {
             Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
         }
-        EnumReceiver::I64(ch) => Box::new(move || Ok(ch.recv().map_err(map_err)?)),
+        TaggedReceiver::I64(ch) => Box::new(move || ch.recv().map_err(map_err)),
         _ => bail!("Unsupported type for 'depth' input."),
     };
     let recv_indices: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send> = match indices {
-        EnumReceiver::F32(ch) => {
+        TaggedReceiver::F32(ch) => {
             Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
         }
-        EnumReceiver::I32(ch) => {
+        TaggedReceiver::I32(ch) => {
             Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
         }
-        EnumReceiver::F64(ch) => {
+        TaggedReceiver::F64(ch) => {
             Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
         }
-        EnumReceiver::I64(ch) => Box::new(move || Ok(ch.recv().map_err(map_err)?)),
+        TaggedReceiver::I64(ch) => Box::new(move || ch.recv().map_err(map_err)),
         _ => bail!("Unsupported type for 'depth' input."),
     };
 
@@ -1263,10 +1180,10 @@ fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
     }
 
     match values {
-        EnumReceiver::F32(values) => match_arm(recv_indices, recv_depth, values, axis),
-        EnumReceiver::F64(values) => match_arm(recv_indices, recv_depth, values, axis),
-        EnumReceiver::I32(values) => match_arm(recv_indices, recv_depth, values, axis),
-        EnumReceiver::I64(values) => match_arm(recv_indices, recv_depth, values, axis),
+        TaggedReceiver::F32(values) => match_arm(recv_indices, recv_depth, values, axis),
+        TaggedReceiver::F64(values) => match_arm(recv_indices, recv_depth, values, axis),
+        TaggedReceiver::I32(values) => match_arm(recv_indices, recv_depth, values, axis),
+        TaggedReceiver::I64(values) => match_arm(recv_indices, recv_depth, values, axis),
         _ => bail!("Values data type is not implemented: '{:?}'", values),
     }
 }
@@ -1284,7 +1201,7 @@ where
     // Compute output shape
     let input_rank = indices.ndim();
     let output_rank = input_rank + 1;
-    let axis = axis.unwrap_or_else(|| -1);
+    let axis = axis.unwrap_or(-1);
     let axis_pos = convert_negative_index(axis, output_rank);
     if axis_pos > input_rank {
         bail!(
@@ -1297,7 +1214,7 @@ where
     let dims = indices.shape().iter();
 
     // Put new axis at the end for now
-    let out_shape: Vec<_> = dims.chain([depth as usize].iter()).cloned().collect();
+    let out_shape: Vec<_> = dims.chain([depth].iter()).cloned().collect();
 
     let flat_indices = indices.iter();
     let mut out_2d = Array2::from_elem((indices.len(), depth), off_value);

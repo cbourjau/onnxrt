@@ -6,7 +6,7 @@ use ordered_float::OrderedFloat;
 
 use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, Attributes, EnumReceiver};
+use crate::{ArcArrayD, Attributes, TaggedReceiver};
 
 enum LabelEncoder {
     StringToString {
@@ -146,31 +146,31 @@ pub fn setup_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
     let label_encoder = LabelEncoder::from_attributes(&ctx.attrs)?;
 
     match (a_ch, label_encoder) {
-        (EnumReceiver::String(a_ch), LabelEncoder::StringToString { dict, default }) => {
+        (TaggedReceiver::String(a_ch), LabelEncoder::StringToString { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::String(a_ch), LabelEncoder::StringToI64 { dict, default }) => {
+        (TaggedReceiver::String(a_ch), LabelEncoder::StringToI64 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::String(a_ch), LabelEncoder::StringToF32 { dict, default }) => {
+        (TaggedReceiver::String(a_ch), LabelEncoder::StringToF32 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::I64(a_ch), LabelEncoder::I64ToI64 { dict, default }) => {
+        (TaggedReceiver::I64(a_ch), LabelEncoder::I64ToI64 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::I64(a_ch), LabelEncoder::I64ToString { dict, default }) => {
+        (TaggedReceiver::I64(a_ch), LabelEncoder::I64ToString { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::I64(a_ch), LabelEncoder::I64ToF32 { dict, default }) => {
+        (TaggedReceiver::I64(a_ch), LabelEncoder::I64ToF32 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::F32(a_ch), LabelEncoder::F32ToString { dict, default }) => {
+        (TaggedReceiver::F32(a_ch), LabelEncoder::F32ToString { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::F32(a_ch), LabelEncoder::F32ToI64 { dict, default }) => {
+        (TaggedReceiver::F32(a_ch), LabelEncoder::F32ToI64 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (EnumReceiver::F32(a_ch), LabelEncoder::F32ToF32 { dict, default }) => {
+        (TaggedReceiver::F32(a_ch), LabelEncoder::F32ToF32 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
         _ => panic!(),
@@ -199,10 +199,10 @@ pub fn setup_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
             .zip(cats_int64s.iter().cloned()),
     );
     match a_ch {
-        EnumReceiver::I64(a_ch) => {
+        TaggedReceiver::I64(a_ch) => {
             wrap_1_input(a_ch, move |a| replace(a, &i64_to_string, &default_string))
         }
-        EnumReceiver::String(a_ch) => {
+        TaggedReceiver::String(a_ch) => {
             wrap_1_input(a_ch, move |a| replace(a, &string_to_int, &default_int64))
         }
         _ => bail!("Illegal input type"),

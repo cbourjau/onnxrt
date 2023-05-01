@@ -7,7 +7,7 @@ use onnx_protos::onnx_proto3::{GraphProto, ModelProto, NodeProto, TensorProto, V
 use protobuf::Message;
 use pyo3::prelude::*;
 
-use crate::{value_channel, Attributes, DataType, Dispatcher, EnumReceiver, Value, ValueSender};
+use crate::{value_channel, Attributes, DataType, Dispatcher, TaggedReceiver, Value, ValueSender};
 
 #[pyclass]
 pub struct Session {
@@ -20,7 +20,7 @@ pub struct Session {
     /// Constants (overriding is not supported)
     initializers: HashMap<String, (ValueSender, Value)>,
     /// Output channels which are filled after all `steps` where called.
-    pub(crate) outputs: Vec<(String, EnumReceiver)>,
+    pub(crate) outputs: Vec<(String, TaggedReceiver)>,
 }
 
 pub struct ExecutionStep {
@@ -59,7 +59,7 @@ impl<'a> OpContext<'a> {
     }
 
     /// Subscribe to the input channels for this node
-    pub fn input_channels(&self) -> Vec<EnumReceiver> {
+    pub fn input_channels(&self) -> Vec<TaggedReceiver> {
         let mut channels = vec![];
         for input_name in &self.node.input {
             channels.push(self.subscribe(input_name));
@@ -74,10 +74,10 @@ impl<'a> OpContext<'a> {
     ///
     /// Note: If the last input is optional and missing it may be
     /// absent completely in the input list of a node!
-    pub fn input_channels_with_optional(&self) -> Vec<Option<EnumReceiver>> {
+    pub fn input_channels_with_optional(&self) -> Vec<Option<TaggedReceiver>> {
         let mut channels = vec![];
         for input_name in &self.node.input {
-            if input_name == "" {
+            if input_name.is_empty() {
                 channels.push(None);
             } else {
                 channels.push(Some(self.subscribe(input_name)));
@@ -86,7 +86,7 @@ impl<'a> OpContext<'a> {
         channels
     }
 
-    pub fn subscribe(&self, name: &str) -> EnumReceiver {
+    pub fn subscribe(&self, name: &str) -> TaggedReceiver {
         // TODO: Should be fallible to avoid crash on bad user input
         // data (i.e. model)
         self.scope
@@ -249,7 +249,7 @@ fn setup_steps<'a>(
     nodes: &'a [NodeProto],
     output_names: &[String],
     setup_dict: &HashMap<&'static str, SetupFnSignature>,
-) -> Result<(Vec<ExecFnSignature>, Vec<(String, EnumReceiver)>)> {
+) -> Result<(Vec<ExecFnSignature>, Vec<(String, TaggedReceiver)>)> {
     let mut steps = vec![];
 
     for node in nodes {

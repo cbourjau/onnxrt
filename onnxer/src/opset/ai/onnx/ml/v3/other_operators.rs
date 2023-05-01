@@ -3,12 +3,12 @@ use itertools::Itertools;
 use ndarray::{Axis, Ix1};
 
 use crate::session::{ExecutionStep, OpContext};
-use crate::{ArcArrayD, Dispatchable, EnumReceiver};
+use crate::{ArcArrayD, Dispatchable, TaggedReceiver};
 
 pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
     let (data_ch, indices_ch) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     let indices_ch = match indices_ch {
-        EnumReceiver::I64(ch) => ch,
+        TaggedReceiver::I64(ch) => ch,
         _ => bail!("Input `Y` of ArrayFeatureExtractor must be of type `tensor(int64)`"),
     };
 
@@ -40,11 +40,11 @@ pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
         }};
     }
     match data_ch {
-        EnumReceiver::I32(ch) => match_arm!(ch, indices_ch),
-        EnumReceiver::I64(ch) => match_arm!(ch, indices_ch),
-        EnumReceiver::F32(ch) => match_arm!(ch, indices_ch),
-        EnumReceiver::F64(ch) => match_arm!(ch, indices_ch),
-        EnumReceiver::String(ch) => match_arm!(ch, indices_ch),
-        EnumReceiver::Bool(ch) => match_arm!(ch, indices_ch),
+        TaggedReceiver::I32(ch) => match_arm!(ch, indices_ch),
+        TaggedReceiver::I64(ch) => match_arm!(ch, indices_ch),
+        TaggedReceiver::F32(ch) => match_arm!(ch, indices_ch),
+        TaggedReceiver::F64(ch) => match_arm!(ch, indices_ch),
+        TaggedReceiver::String(ch) => match_arm!(ch, indices_ch),
+        TaggedReceiver::Bool(ch) => match_arm!(ch, indices_ch),
     }
 }

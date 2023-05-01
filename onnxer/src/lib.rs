@@ -11,7 +11,7 @@ mod utils;
 pub(crate) use attribute::{Attribute, Attributes};
 pub use edges::Value;
 pub(crate) use edges::{
-    channel, value_channel, DataType, Dispatchable, Dispatcher, EnumReceiver, ValueSender,
+    channel, value_channel, DataType, Dispatchable, Dispatcher, TaggedReceiver, ValueSender,
 };
 pub(crate) use input_types::HomogeneousNumericFixed;
 pub use opset::get_opset;

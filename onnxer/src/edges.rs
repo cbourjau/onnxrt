@@ -64,7 +64,7 @@ pub enum Dispatcher {
 /// "wire" functions and to obtain the final values of a session. The
 /// values of each variant are typed std receivers.
 #[derive(Debug)]
-pub enum EnumReceiver {
+pub enum TaggedReceiver {
     Bool(Receiver<ArcArrayD<bool>>),
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
@@ -149,37 +149,37 @@ impl<T> Sender<T> {
 
 impl Dispatcher {
     /// Subscribe to an upstream slot. Only called during the setup phase.
-    pub fn subscribe(&self) -> EnumReceiver {
+    pub fn subscribe(&self) -> TaggedReceiver {
         match self {
             Self::Bool(senders) => {
                 let (sdr, rec) = sync_channel(1);
                 senders.lock().unwrap().push(sdr);
-                EnumReceiver::Bool(rec)
+                TaggedReceiver::Bool(rec)
             }
             Self::F32(senders) => {
                 let (sdr, rec) = sync_channel(1);
                 senders.lock().unwrap().push(sdr);
-                EnumReceiver::F32(rec)
+                TaggedReceiver::F32(rec)
             }
             Self::F64(senders) => {
                 let (sdr, rec) = sync_channel(1);
                 senders.lock().unwrap().push(sdr);
-                EnumReceiver::F64(rec)
+                TaggedReceiver::F64(rec)
             }
             Self::I32(senders) => {
                 let (sdr, rec) = sync_channel(1);
                 senders.lock().unwrap().push(sdr);
-                EnumReceiver::I32(rec)
+                TaggedReceiver::I32(rec)
             }
             Self::I64(senders) => {
                 let (sdr, rec) = sync_channel(1);
                 senders.lock().unwrap().push(sdr);
-                EnumReceiver::I64(rec)
+                TaggedReceiver::I64(rec)
             }
             Self::String(senders) => {
                 let (sdr, rec) = sync_channel(1);
                 senders.lock().unwrap().push(sdr);
-                EnumReceiver::String(rec)
+                TaggedReceiver::String(rec)
             }
         }
     }
@@ -198,7 +198,7 @@ impl Dispatcher {
     }
 }
 
-impl EnumReceiver {
+impl TaggedReceiver {
     /// Receive a value. Used when gathering the outputs of a
     /// session. Wire functions match on the variants before
     /// receiving.

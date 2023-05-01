@@ -4,7 +4,7 @@ use num::cast::AsPrimitive;
 
 use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, EnumReceiver};
+use crate::{ArcArrayD, TaggedReceiver};
 
 fn binarize<T>(a: ArcArrayD<T>, threshold: T) -> Result<ArcArrayD<T>>
 where
@@ -19,12 +19,16 @@ pub fn setup_binarizer(ctx: OpContext) -> Result<ExecutionStep> {
     let threshold: f32 = ctx.attrs.get("threshold")?.try_into()?;
 
     match a_ch {
-        EnumReceiver::F32(rec) => wrap_1_input(rec, move |a| binarize(a, threshold)),
-        EnumReceiver::F64(rec) => wrap_1_input(rec, move |a| binarize(a, threshold as f64)),
+        TaggedReceiver::F32(rec) => wrap_1_input(rec, move |a| binarize(a, threshold)),
+        TaggedReceiver::F64(rec) => wrap_1_input(rec, move |a| binarize(a, threshold as f64)),
         // `floor` first for int cast in order to ensure that we don't
         // round up (for negative numbers).
-        EnumReceiver::I32(rec) => wrap_1_input(rec, move |a| binarize(a, threshold.floor() as i32)),
-        EnumReceiver::I64(rec) => wrap_1_input(rec, move |a| binarize(a, threshold.floor() as i64)),
+        TaggedReceiver::I32(rec) => {
+            wrap_1_input(rec, move |a| binarize(a, threshold.floor() as i32))
+        }
+        TaggedReceiver::I64(rec) => {
+            wrap_1_input(rec, move |a| binarize(a, threshold.floor() as i64))
+        }
         _ => bail!("Binarizer is only defined for f32, f64, i32 and i64 inputs"),
     }
 }

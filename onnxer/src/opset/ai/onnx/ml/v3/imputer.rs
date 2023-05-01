@@ -4,7 +4,7 @@ use ndarray::Axis;
 
 use crate::session::{ExecutionStep, OpContext};
 use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, Attribute, EnumReceiver};
+use crate::{ArcArrayD, Attribute, TaggedReceiver};
 
 fn impute<T>(a: ArcArrayD<T>, keys: &[T], value: T) -> Result<ArcArrayD<T>>
 where
@@ -32,7 +32,7 @@ pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     // Should use ndarrays instead of vec?
     let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
     match a_ch {
-        EnumReceiver::F32(a_ch) => {
+        TaggedReceiver::F32(a_ch) => {
             if let Ok(Attribute::F32s(_arr)) = ctx.attrs.get("imputed_value_floats") {
                 unimplemented!();
             };
@@ -40,7 +40,7 @@ pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
             let value = ctx.attrs.get_with_default("replaced_value_float", 0.0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
-        EnumReceiver::F64(a_ch) => {
+        TaggedReceiver::F64(a_ch) => {
             let keys = Vec::<f32>::try_from(ctx.attrs.get("imputed_value_floats")?)?
                 .into_iter()
                 .map(|el| el as f64)
@@ -48,12 +48,12 @@ pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
             let value = ctx.attrs.get_with_default("replaced_value_float", 0.0)? as f64;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
-        EnumReceiver::I64(a_ch) => {
+        TaggedReceiver::I64(a_ch) => {
             let keys: Vec<i64> = ctx.attrs.get("imputed_value_int64s")?.try_into()?;
             let value = ctx.attrs.get_with_default("replaced_value_int64", 0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
-        EnumReceiver::I32(a_ch) => {
+        TaggedReceiver::I32(a_ch) => {
             let keys: Vec<i64> = ctx.attrs.get("imputed_value_int64s")?.try_into()?;
             let value = ctx.attrs.get_with_default("replaced_value_int64", 0)?;
             wrap_1_input(a_ch, move |a| {
