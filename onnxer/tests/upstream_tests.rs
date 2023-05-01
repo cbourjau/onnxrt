@@ -84,7 +84,10 @@ impl TestResult {
                         if exp_el.is_nan() && obs_el.is_nan() {
                             continue;
                         }
-                        if exp_el.is_infinite() && obs_el.is_infinite() && exp_el.is_sign_positive() == obs_el.is_sign_positive() {
+                        if exp_el.is_infinite()
+                            && obs_el.is_infinite()
+                            && exp_el.is_sign_positive() == obs_el.is_sign_positive()
+                        {
                             continue;
                         }
                         unequal_bail!(k, exp, obs)
@@ -101,7 +104,10 @@ impl TestResult {
                         if exp_el.is_nan() && obs_el.is_nan() {
                             continue;
                         }
-                        if exp_el.is_infinite() && obs_el.is_infinite() && exp_el.is_sign_positive() == obs_el.is_sign_positive() {
+                        if exp_el.is_infinite()
+                            && obs_el.is_infinite()
+                            && exp_el.is_sign_positive() == obs_el.is_sign_positive()
+                        {
                             continue;
                         }
                         unequal_bail!(k, exp, obs)
@@ -146,6 +152,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_reduce_max_default_axes_keepdim_example").unwrap();
+    let tc = get_node_test("test_onehot_negative_indices").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }

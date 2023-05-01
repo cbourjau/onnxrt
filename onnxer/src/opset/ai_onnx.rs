@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 
 use anyhow::{anyhow, bail, Result};
 use itertools::sorted;
-use ndarray::{Array, Axis, IntoDimension, Ix1, IxDyn, Zip};
+use ndarray::{Array, Array2, Axis, IntoDimension, Ix1, IxDyn, Zip};
 use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::attribute::Attribute;
@@ -130,6 +130,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     wire_dict.insert("Neg", element_wise_numeric!(|a| -a)); 
     wire_dict.insert("Not", Box::new(wire_not));
     wire_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
+    wire_dict.insert("OneHot", Box::new(wire_one_hot));
 
     wire_dict.insert("ReduceMax", Box::new(reduce::wire_reducemax));
     wire_dict.insert("ReduceMean", Box::new(reduce::wire_reducemean));
@@ -200,32 +201,60 @@ fn wire_not(ctx: OpContext) -> Result<ExecutionStep> {
 fn wire_clip(ctx: OpContext) -> Result<ExecutionStep> {
     pub fn match_arm<T>(
         input: Receiver<ArcArrayD<T>>,
-        min: Receiver<ArcArrayD<T>>,
-        max: Receiver<ArcArrayD<T>>,
+        min: Option<Receiver<ArcArrayD<T>>>,
+        max: Option<Receiver<ArcArrayD<T>>>,
     ) -> Result<ExecutionStep>
     where
         ArcArrayD<T>: Dispatchable,
         T: Sync + Send + 'static + Copy + PartialOrd,
     {
         let (sdr, rec) = channel();
-        let fun = Box::new(move || {
-            let (input, min, max) = (input.recv()?, min.recv()?, max.recv()?);
-            sdr.send(clip(input, Some(min), Some(max))?)?;
-            Ok(())
-        });
+        let fun: Box<dyn Fn() -> Result<()> + Send> = match (min, max) {
+            (Some(min), Some(max)) => Box::new(move || {
+                let input = input.recv()?;
+                let min = min.recv()?;
+                let max = max.recv()?;
+                sdr.send(clip(input, Some(min), Some(max))?)?;
+                Ok(())
+            }),
+            (None, Some(max)) => Box::new(move || {
+                let input = input.recv()?;
+                let max = max.recv()?;
+                sdr.send(clip(input, None, Some(max))?)?;
+                Ok(())
+            }),
+            (Some(min), None) => Box::new(move || {
+                let input = input.recv()?;
+                let min = min.recv()?;
+                sdr.send(clip(input, Some(min), None)?)?;
+                Ok(())
+            }),
+            (None, None) => Box::new(move || {
+                let input = input.recv()?;
+                sdr.send(clip(input, None, None)?)?;
+                Ok(())
+            }),
+        };
         Ok(ExecutionStep {
             fun,
             outputs: vec![rec],
         })
     }
 
-    // TODO: implement optional inputs
-    let inputs: HomogeneousNumericFixed<3> = ctx.input_channels().try_into().unwrap();
-    match inputs {
-        HomogeneousNumericFixed::F32([input, min, max]) => match_arm(input, min, max),
-        HomogeneousNumericFixed::F64([input, min, max]) => match_arm(input, min, max),
-        HomogeneousNumericFixed::I32([input, min, max]) => match_arm(input, min, max),
-        HomogeneousNumericFixed::I64([input, min, max]) => match_arm(input, min, max),
+    let mut inputs = ctx.input_channels_with_optional().into_iter();
+    let input = inputs
+        .next()
+        .flatten()
+        .ok_or_else(|| anyhow!("Mandatory input 'input' is missing"))?;
+    let min = inputs.next().flatten();
+    let max = inputs.next().flatten();
+    use EnumReceiver::*;
+    match (input, min, max) {
+        (F32(input), Some(F32(min)), Some(F32(max))) => match_arm(input, Some(min), Some(max)),
+        (F32(input), None, Some(F32(max))) => match_arm(input, None, Some(max)),
+        (F32(input), Some(F32(min)), None) => match_arm(input, Some(min), None),
+        (F32(input), None, None) => match_arm(input, None, None),
+        inputs => bail!("Unexpected input for operator 'Clip': {:?}", inputs),
     }
 }
 
@@ -1151,6 +1180,130 @@ mod reduce {
             reduced
         };
         Ok(reduced.into())
+    }
+}
+
+fn wire_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
+    let [indices, depth, values]: [_; 3] = ctx.input_channels().try_into().unwrap();
+    let axis = ctx.attrs.get_optional("axis")?;
+
+    // Cast other types to i64 (as stated in the standard...)
+    let map_err = |e| format!("Failed to receive value: {:?}", e);
+    let recv_depth: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send> = match depth {
+        EnumReceiver::F32(ch) => {
+            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
+        }
+        EnumReceiver::I32(ch) => {
+            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
+        }
+        EnumReceiver::F64(ch) => {
+            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
+        }
+        EnumReceiver::I64(ch) => Box::new(move || Ok(ch.recv().map_err(map_err)?)),
+        _ => bail!("Unsupported type for 'depth' input."),
+    };
+    let recv_indices: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send> = match indices {
+        EnumReceiver::F32(ch) => {
+            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
+        }
+        EnumReceiver::I32(ch) => {
+            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
+        }
+        EnumReceiver::F64(ch) => {
+            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
+        }
+        EnumReceiver::I64(ch) => Box::new(move || Ok(ch.recv().map_err(map_err)?)),
+        _ => bail!("Unsupported type for 'depth' input."),
+    };
+
+    pub fn match_arm<Vals>(
+        recv_indices: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send>,
+        recv_depth: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send>,
+        values: Receiver<ArcArrayD<Vals>>,
+        axis: Option<i64>,
+    ) -> Result<ExecutionStep>
+    where
+        ArcArrayD<Vals>: Dispatchable,
+        Vals: 'static + Copy + std::fmt::Debug + Sync + Send,
+    {
+        let (sdr, rec) = channel();
+        let fun = Box::new(move || {
+            let indices = recv_indices().map_err(|e| anyhow!("{}", e))?;
+            let depth = recv_depth().map_err(|e| anyhow!("{}", e))?;
+            let values = values.recv().map_err(|e| anyhow!("{}", e))?;
+            let [off, on]: [Vals; 2] = values.into_iter().collect::<Vec<_>>().try_into().unwrap();
+            let [depth]: [_; 1] = depth.into_iter().collect::<Vec<_>>().try_into().unwrap();
+            let res: ArcArrayD<Vals> = one_hot(indices, depth.try_into()?, off, on, axis)?;
+            sdr.send(res)?;
+            Ok(())
+        });
+        Ok(ExecutionStep {
+            fun,
+            outputs: vec![rec],
+        })
+    }
+
+    match values {
+        EnumReceiver::F32(values) => match_arm(recv_indices, recv_depth, values, axis),
+        EnumReceiver::F64(values) => match_arm(recv_indices, recv_depth, values, axis),
+        EnumReceiver::I32(values) => match_arm(recv_indices, recv_depth, values, axis),
+        EnumReceiver::I64(values) => match_arm(recv_indices, recv_depth, values, axis),
+        _ => bail!("Values data type is not implemented: '{:?}'", values),
+    }
+}
+
+pub fn one_hot<Vals>(
+    indices: ArcArrayD<i64>,
+    depth: usize,
+    off_value: Vals,
+    on_value: Vals,
+    axis: Option<i64>,
+) -> Result<ArcArrayD<Vals>>
+where
+    Vals: Copy + std::fmt::Debug,
+{
+    // Compute output shape
+    let input_rank = indices.ndim();
+    let output_rank = input_rank + 1;
+    let axis = axis.unwrap_or_else(|| -1);
+    let axis_pos = convert_negative_index(axis, output_rank);
+    if axis_pos > input_rank {
+        bail!(
+            "Axis must be compatible with input rank ('{}'). Found '{}'.",
+            input_rank,
+            axis
+        );
+    }
+    let dims = indices.shape().iter();
+
+    // Put new axis at the end for now
+    let out_shape: Vec<_> = dims
+        // .take(axis_pos)
+        .chain([depth as usize].iter())
+        // .chain(dims)
+        .cloned()
+        .collect();
+
+    let flat_indices = indices.iter();
+    let mut flatish_out = Array2::from_elem((indices.len(), depth), off_value);
+    for (idx, mut out_slice) in flat_indices.zip(flatish_out.axis_iter_mut(Axis(0))) {
+        let val = convert_negative_index(*idx, depth);
+        if let Some(el) = out_slice.get_mut([val]) {
+            *el = on_value;
+        }
+    }
+
+    // Reshape and reanrange axes if necessary
+    if axis != -1 {
+        let output_rank = input_rank + 1;
+        let mut tmp = flatish_out
+            .into_shape(out_shape)?
+            .insert_axis(Axis(axis_pos));
+        tmp.swap_axes(axis_pos, output_rank);
+        let tmp = tmp.remove_axis(Axis(output_rank));
+        Ok(tmp.into_dyn().into())
+    } else {
+        Ok(flatish_out.into_shape(out_shape)?.into_dyn().into())
     }
 }
 

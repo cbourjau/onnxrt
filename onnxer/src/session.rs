@@ -67,12 +67,33 @@ impl<'a> OpContext<'a> {
         channels
     }
 
+    /// Get inputs of operators which allow for "optional" inputs.
+    ///
+    /// Some operators (e.g. 'Clip') may have inputs named '""' which
+    /// don't have to be defined in the current scope.
+    ///
+    /// Note: If the last input is optional and missing it may be
+    /// absent completely in the input list of a node!
+    pub fn input_channels_with_optional(&self) -> Vec<Option<EnumReceiver>> {
+        let mut channels = vec![];
+        for input_name in &self.node.input {
+            if input_name == "" {
+                channels.push(None);
+            } else {
+                channels.push(Some(self.subscribe(input_name)));
+            }
+        }
+        channels
+    }
+
     pub fn subscribe(&self, name: &str) -> EnumReceiver {
+        // TODO: Should be fallible to avoid crash on bad user input
+        // data (i.e. model)
         self.scope
             .get(name)
             .unwrap_or_else(|| {
                 panic!(
-                    "Requested input `{}` not in scope. Variables in scope: {:?}",
+                    "Requested input '{}' not in scope. Variables in scope: {:?}",
                     name,
                     self.scope.keys()
                 )
@@ -237,8 +258,13 @@ fn setup_steps<'a>(
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
 
-        let ExecutionStep { fun: op, outputs } =
-            wire_fn(ctx).map_err(|e| anyhow!("During setup of '{}': {:?}", node.op_type, e))?;
+        let ExecutionStep { fun: op, outputs } = wire_fn(ctx).map_err(|e| {
+            anyhow!(
+                "During setup of '{}' the following error occurred: {:?}",
+                node.op_type,
+                e
+            )
+        })?;
 
         steps.push(op);
 
