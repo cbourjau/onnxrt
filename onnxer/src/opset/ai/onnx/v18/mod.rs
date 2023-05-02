@@ -17,10 +17,15 @@ use crate::{
     TaggedReceiver,
 };
 
+mod arg_min_max;
+mod clip;
+mod one_hot;
+mod reduce;
 mod simple_element_wise;
+mod where_;
 
 /// Setup functions with two numeric inputs
-macro_rules! binary_numeric {
+macro_rules! bin_numeric {
     ($fun:expr) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let channels = ctx.input_channels().try_into()?;
@@ -34,66 +39,50 @@ macro_rules! binary_numeric {
     };
 }
 
-fn make_equal() -> SetupFnSignature {
-    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialEq::eq))
-}
-
-fn make_less_equal() -> SetupFnSignature {
-    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::le))
-}
-
-fn make_less() -> SetupFnSignature {
-    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::lt))
-}
-
-fn make_greater_equal() -> SetupFnSignature {
-    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::ge))
-}
-
-fn make_greater() -> SetupFnSignature {
-    binary_numeric!(|a, b| zip_map_with_co_broadcast(a, b, PartialOrd::gt))
+macro_rules! bin_numeric_with_co_broadcast {
+    ($fun:expr) => {
+        bin_numeric!(|a, b| zip_map_with_co_broadcast(a, b, $fun))
+    };
 }
 
 /// HashMap of setup function of the ai.onnx domain version 18(?).
 #[rustfmt::skip]
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
-    let mut setup_dict = simple_element_wise::get_setup_dict();
-    setup_dict.insert("Add", binary_numeric!(|a, b| Ok(a + b)));
-    setup_dict.insert("And", make_binary_boolean_fn(|a, b| Ok(a & b)));
-    setup_dict.insert("ArgMax", Box::new(argminmax::setup_argmax));
-    setup_dict.insert("ArgMin", Box::new(argminmax::setup_argmin));
-    setup_dict.insert("Cast", Box::new(setup_cast));
-    setup_dict.insert("Clip", Box::new(setup_clip));
-    setup_dict.insert("Concat", Box::new(setup_concat));
-    setup_dict.insert("Constant", Box::new(setup_constant));
-    setup_dict.insert("Div", binary_numeric!(|a, b| Ok(a / b)));
-    setup_dict.insert("Equal", make_equal());
-    setup_dict.insert("Greater", make_greater());    
-    setup_dict.insert("GreaterOrEqual", make_greater_equal());
-    setup_dict.insert("If", Box::new(setup_if));
-    setup_dict.insert("Less", make_less());    
-    setup_dict.insert("LessOrEqual", make_less_equal());
-    setup_dict.insert("Mul", binary_numeric!(|a, b| Ok(a * b)));
-    setup_dict.insert("Or", make_binary_boolean_fn(|a, b| Ok(a | b)));
-    setup_dict.insert("OneHot", Box::new(setup_one_hot));
-
-    setup_dict.insert("ReduceMax", Box::new(reduce::setup_reducemax));
-    setup_dict.insert("ReduceMean", Box::new(reduce::setup_reducemean));
-    setup_dict.insert("ReduceMin", Box::new(reduce::setup_reducemin));
-    setup_dict.insert("ReduceProd", Box::new(reduce::setup_reduceprod));
-    setup_dict.insert("ReduceSum", Box::new(reduce::setup_reducesum));
-
-    setup_dict.insert("Split", Box::new(setup_split));
-    setup_dict.insert("Squeeze", Box::new(setup_squeeze));
-    setup_dict.insert("Sub", binary_numeric!(|a, b| Ok(a - b)));
-    setup_dict.insert("Unsqueeze", Box::new(setup_unsqueeze));
-    setup_dict.insert("Where", Box::new(setup_where));
-    setup_dict.insert("Xor", make_binary_boolean_fn(|a, b| Ok(a ^ b)));
-    setup_dict
+    let mut d = simple_element_wise::get_setup_dict();
+    d.insert("Add", bin_numeric!(|a, b| Ok(a + b)));
+    d.insert("And", binary_boolean_factory(|a, b| Ok(a & b)));
+    d.insert("ArgMax", Box::new(arg_min_max::setup_argmax));
+    d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
+    d.insert("Cast", Box::new(setup_cast));
+    d.insert("Clip", Box::new(clip::setup_clip));
+    d.insert("Concat", Box::new(setup_concat));
+    d.insert("Constant", Box::new(setup_constant));
+    d.insert("Div", bin_numeric!(|a, b| Ok(a / b)));
+    d.insert("Equal", bin_numeric_with_co_broadcast!(PartialEq::eq));
+    d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
+    d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
+    d.insert("If", Box::new(setup_if));
+    d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
+    d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
+    d.insert("Mul", bin_numeric!(|a, b| Ok(a * b)));
+    d.insert("OneHot", Box::new(one_hot::setup_one_hot));
+    d.insert("Or", binary_boolean_factory(|a, b| Ok(a | b)));
+    d.insert("ReduceMax", Box::new(reduce::setup_reducemax));
+    d.insert("ReduceMean", Box::new(reduce::setup_reducemean));
+    d.insert("ReduceMin", Box::new(reduce::setup_reducemin));
+    d.insert("ReduceProd", Box::new(reduce::setup_reduceprod));
+    d.insert("ReduceSum", Box::new(reduce::setup_reducesum));
+    d.insert("Split", Box::new(setup_split));
+    d.insert("Squeeze", Box::new(setup_squeeze));
+    d.insert("Sub", bin_numeric!(|a, b| Ok(a - b)));
+    d.insert("Unsqueeze", Box::new(setup_unsqueeze));
+    d.insert("Where", Box::new(where_::setup_where));
+    d.insert("Xor", binary_boolean_factory(|a, b| Ok(a ^ b)));
+    d
 }
 
 /// Create setup function with two boolean inputs
-fn make_binary_boolean_fn<Op>(op: Op) -> SetupFnSignature
+fn binary_boolean_factory<Op>(op: Op) -> SetupFnSignature
 where
     Op: Fn(ArcArrayD<bool>, ArcArrayD<bool>) -> Result<ArcArrayD<bool>>
         + Send
@@ -111,108 +100,6 @@ where
             _ => panic!(),
         }
     })
-}
-
-fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
-    pub fn match_arm<T>(
-        input: Receiver<ArcArrayD<T>>,
-        min: Option<Receiver<ArcArrayD<T>>>,
-        max: Option<Receiver<ArcArrayD<T>>>,
-    ) -> Result<ExecutionStep>
-    where
-        ArcArrayD<T>: Dispatchable,
-        T: Sync + Send + 'static + Copy + PartialOrd,
-    {
-        let (sdr, rec) = channel();
-        let fun: Box<dyn Fn() -> Result<()> + Send> = match (min, max) {
-            (Some(min), Some(max)) => Box::new(move || {
-                let input = input.recv()?;
-                let min = min.recv()?;
-                let max = max.recv()?;
-                sdr.send(clip(input, Some(min), Some(max))?)?;
-                Ok(())
-            }),
-            (None, Some(max)) => Box::new(move || {
-                let input = input.recv()?;
-                let max = max.recv()?;
-                sdr.send(clip(input, None, Some(max))?)?;
-                Ok(())
-            }),
-            (Some(min), None) => Box::new(move || {
-                let input = input.recv()?;
-                let min = min.recv()?;
-                sdr.send(clip(input, Some(min), None)?)?;
-                Ok(())
-            }),
-            (None, None) => Box::new(move || {
-                let input = input.recv()?;
-                sdr.send(clip(input, None, None)?)?;
-                Ok(())
-            }),
-        };
-        Ok(ExecutionStep {
-            fun,
-            outputs: vec![rec],
-        })
-    }
-
-    let mut inputs = ctx.input_channels_with_optional().into_iter();
-    let input = inputs
-        .next()
-        .flatten()
-        .ok_or_else(|| anyhow!("Mandatory input 'input' is missing"))?;
-    let min = inputs.next().flatten();
-    let max = inputs.next().flatten();
-    use TaggedReceiver::*;
-    match (input, min, max) {
-        // F32
-        (F32(input), Some(F32(min)), Some(F32(max))) => match_arm(input, Some(min), Some(max)),
-        (F32(input), None, Some(F32(max))) => match_arm(input, None, Some(max)),
-        (F32(input), Some(F32(min)), None) => match_arm(input, Some(min), None),
-        (F32(input), None, None) => match_arm(input, None, None),
-
-        // F64
-        (F64(input), Some(F64(min)), Some(F64(max))) => match_arm(input, Some(min), Some(max)),
-        (F64(input), None, Some(F64(max))) => match_arm(input, None, Some(max)),
-        (F64(input), Some(F64(min)), None) => match_arm(input, Some(min), None),
-        (F64(input), None, None) => match_arm(input, None, None),
-
-        // I32
-        (I32(input), Some(I32(min)), Some(I32(max))) => match_arm(input, Some(min), Some(max)),
-        (I32(input), None, Some(I32(max))) => match_arm(input, None, Some(max)),
-        (I32(input), Some(I32(min)), None) => match_arm(input, Some(min), None),
-        (I32(input), None, None) => match_arm(input, None, None),
-
-        // I64
-        (I64(input), Some(I64(min)), Some(I64(max))) => match_arm(input, Some(min), Some(max)),
-        (I64(input), None, Some(I64(max))) => match_arm(input, None, Some(max)),
-        (I64(input), Some(I64(min)), None) => match_arm(input, Some(min), None),
-        (I64(input), None, None) => match_arm(input, None, None),
-        inputs => bail!("Unexpected input for operator 'Clip': {:?}", inputs),
-    }
-}
-
-fn clip<T>(
-    input: ArcArrayD<T>,
-    min: Option<ArcArrayD<T>>,
-    max: Option<ArcArrayD<T>>,
-) -> Result<ArcArrayD<T>>
-where
-    T: Copy + PartialOrd,
-{
-    let output = if let Some(min) = min {
-        let min = min.to_owned().into_shape([])?.into_scalar();
-        input.mapv(|el| if el < min { min } else { el }).into()
-    } else {
-        input
-    };
-    let output = if let Some(max) = max {
-        let max = max.to_owned().into_shape([])?.into_scalar();
-        output.mapv(|el| if el > max { max } else { el }).into()
-    } else {
-        output
-    };
-    Ok(output)
 }
 
 fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
@@ -558,66 +445,6 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn where_<T>(cond: ArcArrayD<bool>, x: ArcArrayD<T>, y: ArcArrayD<T>) -> Result<ArcArrayD<T>>
-where
-    T: Clone,
-{
-    let common_shape: IxDyn = {
-        let com1: IxDyn =
-            co_broadcast(&cond.shape().into_dimension(), &x.shape().into_dimension())?;
-        co_broadcast(&com1, &y.shape().into_dimension())?
-    };
-    Ok(Zip::from(cond.view().broadcast(common_shape).unwrap())
-        .and_broadcast(x.view())
-        .and_broadcast(y.view())
-        .map_collect(|&cond, x, y| if cond { x.clone() } else { y.clone() })
-        .into())
-}
-
-fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
-    let [cond_ch, x_ch, y_ch]: [_; 3] = ctx.input_channels().try_into().unwrap();
-
-    pub fn match_arm<T>(
-        cond_ch: Receiver<ArcArrayD<bool>>,
-        x_ch: Receiver<ArcArrayD<T>>,
-        y_ch: Receiver<ArcArrayD<T>>,
-    ) -> Result<ExecutionStep>
-    where
-        ArcArrayD<T>: Dispatchable,
-        T: Sync + Send + 'static + Clone,
-    {
-        let (sdr, rec) = channel();
-        let fun = Box::new(move || {
-            let (cond, x, y) = (cond_ch.recv()?, x_ch.recv()?, y_ch.recv()?);
-            sdr.send(where_(cond, x, y)?)?;
-            Ok(())
-        });
-        Ok(ExecutionStep {
-            fun,
-            outputs: vec![rec],
-        })
-    }
-
-    // Condition must be of type bool
-    let cond_ch = if let TaggedReceiver::Bool(cond_ch) = cond_ch {
-        cond_ch
-    } else {
-        bail!("Conditional tensor must be of type `bool`.")
-    };
-
-    match (x_ch, y_ch) {
-        (TaggedReceiver::F32(x_ch), TaggedReceiver::F32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::F64(x_ch), TaggedReceiver::F64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::I32(x_ch), TaggedReceiver::I32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::I64(x_ch), TaggedReceiver::I64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::Bool(x_ch), TaggedReceiver::Bool(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::String(x_ch), TaggedReceiver::String(y_ch)) => {
-            match_arm(cond_ch, x_ch, y_ch)
-        }
-        _ => bail!("`X` and `Y` must be of identical type."),
-    }
-}
-
 fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
     // Explicit node input
     let [cond_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
@@ -699,555 +526,4 @@ fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
         fun: Box::new(fun),
         outputs: out_dispatchers,
     })
-}
-
-mod argminmax {
-    use super::*;
-
-    macro_rules! match_arm_argminmax {
-        ($fn:expr, $ch:expr, $axis:expr, $keepdims:expr, $use_last:expr) => {{
-            let (sdr, rec) = ArcArrayD::channel();
-            let fun = move || {
-                let data = $ch.recv()?;
-                let out = $fn(&data, $axis, $keepdims, $use_last)?;
-                sdr.send(out)?;
-                Ok(())
-            };
-            Ok(ExecutionStep {
-                fun: Box::new(fun),
-                outputs: vec![rec],
-            })
-        }};
-    }
-
-    pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
-        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
-        let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
-        let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
-
-        match ctx.input_channels().try_into()? {
-            HomogeneousNumericFixed::F32([ch]) => {
-                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
-            }
-            HomogeneousNumericFixed::F64([ch]) => {
-                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
-            }
-            HomogeneousNumericFixed::I32([ch]) => {
-                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
-            }
-            HomogeneousNumericFixed::I64([ch]) => {
-                match_arm_argminmax!(argmax, ch, axis, keepdims, use_last)
-            }
-        }
-    }
-
-    pub fn setup_argmin(ctx: OpContext) -> Result<ExecutionStep> {
-        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
-        let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
-        let use_last = ctx.attrs.get_with_default("select_last_index", 0i64)? != 0;
-
-        match ctx.input_channels().try_into()? {
-            HomogeneousNumericFixed::F32([ch]) => {
-                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
-            }
-            HomogeneousNumericFixed::F64([ch]) => {
-                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
-            }
-            HomogeneousNumericFixed::I32([ch]) => {
-                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
-            }
-            HomogeneousNumericFixed::I64([ch]) => {
-                match_arm_argminmax!(argmin, ch, axis, keepdims, use_last)
-            }
-        }
-    }
-
-    fn argmax<T>(
-        data: &ArcArrayD<T>,
-        axis: i64,
-        keep_dim: bool,
-        use_last: bool,
-    ) -> Result<ArcArrayD<i64>>
-    where
-        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
-    {
-        let start_acc = (0, T::min_value());
-        let fold_fn = |acc: (usize, T), (idx, v)| {
-            if v > acc.1 || (use_last && acc.1 == v) {
-                (idx, v)
-            } else {
-                acc
-            }
-        };
-        Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
-            .mapv(|(idx, _v)| idx as i64)
-            .into())
-    }
-
-    fn argmin<T>(
-        data: &ArcArrayD<T>,
-        axis: i64,
-        keep_dim: bool,
-        use_last: bool,
-    ) -> Result<ArcArrayD<i64>>
-    where
-        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
-    {
-        let start_acc = (0, T::max_value());
-        let fold_fn = |acc: (usize, T), (idx, v)| {
-            if v < acc.1 || (use_last && acc.1 == v) {
-                (idx, v)
-            } else {
-                acc
-            }
-        };
-        Ok(fold_axis(data, axis, keep_dim, start_acc, &fold_fn)?
-            .mapv(|(idx, _v)| idx as i64)
-            .into())
-    }
-
-    fn fold_axis<T, Acc, Fold>(
-        data: &ArcArrayD<T>,
-        axis: i64,
-        keep_dim: bool,
-        init_fold: Acc,
-        fold_fn: &Fold,
-    ) -> Result<ndarray::ArrayD<Acc>>
-    where
-        T: Copy + num_traits::Bounded + ::std::cmp::PartialOrd,
-        Acc: Copy,
-        Fold: Fn(Acc, (usize, T)) -> Acc,
-    {
-        let axis = convert_negative_index(axis, data.shape().len());
-        let rank = data.shape().len();
-        if axis >= rank {
-            bail!(
-                "Axis `{}` is out of bounds for input of rank {}",
-                axis,
-                rank
-            );
-        }
-        let mut out = data.map_axis(Axis(axis), |lane| {
-            lane.iter().copied().enumerate().fold(init_fold, fold_fn)
-        });
-        if keep_dim {
-            out.insert_axis_inplace(Axis(axis));
-        }
-        Ok(out)
-    }
-}
-
-mod reduce {
-    use num_traits::Bounded;
-    use std::cmp::PartialOrd;
-    use std::ops::{Add, Mul};
-
-    use super::*;
-
-    struct CommonArgs {
-        keepdims: bool,
-        noop_empty: bool,
-        axes_ch: Option<Receiver<ArcArrayD<i64>>>,
-    }
-
-    fn setup(ctx: OpContext) -> Result<(TaggedReceiver, CommonArgs)> {
-        let keepdims = ctx.attrs.get_with_default("keepdims", 1i64)? == 1;
-        let noop_empty = ctx.attrs.get_with_default("noop_with_empty_axes", 0i64)? != 0;
-
-        let mut inputs = ctx.input_channels().into_iter();
-        let data_ch = inputs
-            .next()
-            .ok_or_else(|| anyhow!("Input `data` is missing"))?;
-        let axes_ch = match inputs.next() {
-            Some(TaggedReceiver::I64(ch)) => Some(ch),
-            None => None,
-            Some(_) => bail!("Input `axes` must be of type `int64`"),
-        };
-        if inputs.len() != 0 {
-            bail!("Unexpected inputs");
-        }
-
-        Ok((
-            data_ch,
-            CommonArgs {
-                keepdims,
-                noop_empty,
-                axes_ch,
-            },
-        ))
-    }
-
-    macro_rules! match_arm {
-        ($ty:ty, $data_ch:expr, $common_args:expr, $acc:expr, $fold_fn:expr) => {
-            match_arm!($ty, $data_ch, $common_args, $acc, $fold_fn, false)
-        };
-        ($ty:ty, $data_ch:expr, $common_args:expr, $acc:expr, $fold_fn:expr, $norm:expr) => {{
-            let (sdr, rec) = ArcArrayD::channel();
-            let CommonArgs {
-                keepdims,
-                noop_empty,
-                axes_ch,
-            } = $common_args;
-            let fun = Box::new(move || {
-                let data = $data_ch.recv()?;
-                let axes = match &axes_ch {
-                    Some(ch) => {
-                        let arr = ch.recv()?;
-                        if arr.shape().len() != 1 {
-                            bail!("Input `axes` must be of rank 1");
-                        }
-                        let len = arr.len();
-                        arr.into_shape((len,))?.to_vec()
-                    }
-                    None => vec![],
-                };
-                let n_initial = data.len();
-                let reduced = reduce(data, &axes, keepdims, noop_empty, $acc, $fold_fn)?;
-                // Normalized each bin by the number of bins that was reduced into it.
-                if $norm {
-                    let n_reduced = reduced.len();
-                    let scaling = n_initial / n_reduced;
-                    return sdr.send(reduced.mapv(|v| v / scaling as $ty).into());
-                }
-
-                sdr.send(reduced)?;
-                Ok(())
-            });
-            ExecutionStep {
-                fun,
-                outputs: vec![rec],
-            }
-        }};
-    }
-
-    pub fn setup_reducemax(ctx: OpContext) -> Result<ExecutionStep> {
-        let (data_ch, common_args) = setup(ctx)?;
-        let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
-        Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, common_args, -f32::INFINITY, fold_max)
-            }
-            HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, common_args, -f64::INFINITY, fold_max)
-            }
-            HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, common_args, i64::MIN, fold_max)
-            }
-            HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, common_args, i32::MIN, fold_max)
-            }
-        })
-    }
-
-    pub fn setup_reducemean(ctx: OpContext) -> Result<ExecutionStep> {
-        let (data_ch, common_args) = setup(ctx)?;
-        let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
-        Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, common_args, 0.0, fold_sum, true)
-            }
-            HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, common_args, 0.0, fold_sum, true)
-            }
-            HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, common_args, 0, fold_sum, true)
-            }
-            HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, common_args, 0, fold_sum, true)
-            }
-        })
-    }
-
-    pub fn setup_reducemin(ctx: OpContext) -> Result<ExecutionStep> {
-        let (data_ch, common_args) = setup(ctx)?;
-        let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
-        Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, common_args, f32::INFINITY, fold_min)
-            }
-            HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, common_args, f64::INFINITY, fold_min)
-            }
-            HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, common_args, i64::MAX, fold_min)
-            }
-            HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, common_args, i32::MAX, fold_min)
-            }
-        })
-    }
-
-    pub fn setup_reduceprod(ctx: OpContext) -> Result<ExecutionStep> {
-        let (data_ch, common_args) = setup(ctx)?;
-        let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
-        Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, common_args, 1.0, fold_mul)
-            }
-            HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, common_args, 1.0, fold_mul)
-            }
-            HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, common_args, 1, fold_mul)
-            }
-            HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, common_args, 1, fold_mul)
-            }
-        })
-    }
-
-    pub fn setup_reducesum(ctx: OpContext) -> Result<ExecutionStep> {
-        let (data_ch, common_args) = setup(ctx)?;
-        let data_ch = HomogeneousNumericFixed::try_from(vec![data_ch])?;
-        Ok(match data_ch {
-            HomogeneousNumericFixed::F32([data_ch]) => {
-                match_arm!(f32, data_ch, common_args, 0.0, fold_sum)
-            }
-            HomogeneousNumericFixed::F64([data_ch]) => {
-                match_arm!(f64, data_ch, common_args, 0.0, fold_sum)
-            }
-            HomogeneousNumericFixed::I32([data_ch]) => {
-                match_arm!(i32, data_ch, common_args, 0, fold_sum)
-            }
-            HomogeneousNumericFixed::I64([data_ch]) => {
-                match_arm!(i64, data_ch, common_args, 0, fold_sum)
-            }
-        })
-    }
-
-    fn fold_max<T: PartialOrd + Copy>(acc: &T, el: &T) -> T {
-        if el > acc {
-            *el
-        } else {
-            *acc
-        }
-    }
-
-    fn fold_min<T: PartialOrd + Copy>(acc: &T, el: &T) -> T {
-        if el < acc {
-            *el
-        } else {
-            *acc
-        }
-    }
-
-    fn fold_mul<T: Copy + Mul<Output = T>>(acc: &T, el: &T) -> T {
-        *acc * *el
-    }
-
-    fn fold_sum<T: Copy + Add<Output = T>>(acc: &T, el: &T) -> T {
-        *acc + *el
-    }
-
-    fn reduce<T, F>(
-        arr: ArcArrayD<T>,
-        axes: &[i64],
-        keepdims: bool,
-        empty_is_noop: bool,
-        fold_init: T,
-        fold_fn: F,
-    ) -> Result<ArcArrayD<T>>
-    where
-        T: Copy + Bounded + PartialOrd,
-        F: Fn(&T, &T) -> T,
-    {
-        let initial_shape = arr.shape().to_vec();
-        let rank = initial_shape.len();
-
-        // Deal with special case around empty `arr`
-        let axes = if axes.is_empty() {
-            if empty_is_noop {
-                return Ok(arr);
-            } else {
-                (0..arr.shape().len()).collect()
-            }
-        } else {
-            axes.iter()
-                .map(|idx| convert_negative_index(*idx, rank))
-                .collect::<HashSet<_>>()
-        };
-        if let Some(max_axis_input) = axes.iter().max() {
-            if *max_axis_input >= rank {
-                bail!(
-                    "Input `axes={}` is incompatible tensor of `rank={}`",
-                    *max_axis_input,
-                    rank
-                );
-            }
-        }
-        // Reorder the axes to put the once that are being reduced at the end
-        let regrouped_axes: Vec<_> = (0..rank)
-            .filter(|axis| !axes.contains(axis))
-            .chain(sorted(axes.clone()))
-            .collect();
-
-        let reduce_mask: Vec<_> = (0..rank).map(|axis| axes.contains(&axis)).collect();
-
-        // Number of elements that are being reduced
-        let len_reduce_axis = initial_shape
-            .iter()
-            .zip(&reduce_mask)
-            .filter(|(_, &red_this)| red_this)
-            .fold(1, |acc, el| acc * el.0);
-
-        let new_shape: Vec<_> = initial_shape
-            .iter()
-            .zip(&reduce_mask)
-            .filter_map(|(dim_len, &do_red)| if do_red { None } else { Some(dim_len) })
-            .chain(&[len_reduce_axis])
-            .copied()
-            .collect();
-        let last_axis = Axis(new_shape.len() - 1);
-        let reduced = arr
-            .permuted_axes(regrouped_axes)
-            .as_standard_layout()
-            .into_shape(new_shape)
-            .expect("Invalid shape.")
-            .fold_axis(last_axis, fold_init, fold_fn);
-
-        let reduced = if keepdims {
-            let out_shape: Vec<_> = initial_shape
-                .iter()
-                .enumerate()
-                .map(|(i, &el)| if axes.contains(&i) { 1 } else { el })
-                .collect();
-            reduced.into_shape(out_shape)?
-        } else {
-            reduced
-        };
-        Ok(reduced.into())
-    }
-}
-
-fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
-    let [indices, depth, values]: [_; 3] = ctx.input_channels().try_into().unwrap();
-    let axis = ctx.attrs.get_optional("axis")?;
-
-    // Cast other types to i64 (as stated in the standard...)
-    let map_err = |e| format!("Failed to receive value: {:?}", e);
-    let recv_depth: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send> = match depth {
-        TaggedReceiver::F32(ch) => {
-            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
-        }
-        TaggedReceiver::I32(ch) => {
-            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
-        }
-        TaggedReceiver::F64(ch) => {
-            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
-        }
-        TaggedReceiver::I64(ch) => Box::new(move || ch.recv().map_err(map_err)),
-        _ => bail!("Unsupported type for 'depth' input."),
-    };
-    let recv_indices: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send> = match indices {
-        TaggedReceiver::F32(ch) => {
-            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
-        }
-        TaggedReceiver::I32(ch) => {
-            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
-        }
-        TaggedReceiver::F64(ch) => {
-            Box::new(move || Ok(ch.recv().map_err(map_err)?.mapv(|el| el as i64).into()))
-        }
-        TaggedReceiver::I64(ch) => Box::new(move || ch.recv().map_err(map_err)),
-        _ => bail!("Unsupported type for 'depth' input."),
-    };
-
-    pub fn match_arm<Vals>(
-        recv_indices: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send>,
-        recv_depth: Box<dyn Fn() -> Result<ArcArrayD<i64>, String> + Send>,
-        values: Receiver<ArcArrayD<Vals>>,
-        axis: Option<i64>,
-    ) -> Result<ExecutionStep>
-    where
-        ArcArrayD<Vals>: Dispatchable,
-        Vals: 'static + Copy + std::fmt::Debug + Sync + Send,
-    {
-        let (sdr, rec) = channel();
-        let fun = Box::new(move || {
-            let indices = recv_indices().map_err(|e| anyhow!("{}", e))?;
-            let depth = recv_depth().map_err(|e| anyhow!("{}", e))?;
-            let values = values.recv().map_err(|e| anyhow!("{}", e))?;
-            let [off, on]: [Vals; 2] = values.into_iter().collect::<Vec<_>>().try_into().unwrap();
-            let [depth]: [_; 1] = depth.into_iter().collect::<Vec<_>>().try_into().unwrap();
-            let res: ArcArrayD<Vals> = one_hot(indices, depth.try_into()?, off, on, axis)?;
-            sdr.send(res)?;
-            Ok(())
-        });
-        Ok(ExecutionStep {
-            fun,
-            outputs: vec![rec],
-        })
-    }
-
-    match values {
-        TaggedReceiver::F32(values) => match_arm(recv_indices, recv_depth, values, axis),
-        TaggedReceiver::F64(values) => match_arm(recv_indices, recv_depth, values, axis),
-        TaggedReceiver::I32(values) => match_arm(recv_indices, recv_depth, values, axis),
-        TaggedReceiver::I64(values) => match_arm(recv_indices, recv_depth, values, axis),
-        _ => bail!("Values data type is not implemented: '{:?}'", values),
-    }
-}
-
-pub fn one_hot<Vals>(
-    indices: ArcArrayD<i64>,
-    depth: usize,
-    off_value: Vals,
-    on_value: Vals,
-    axis: Option<i64>,
-) -> Result<ArcArrayD<Vals>>
-where
-    Vals: Copy + std::fmt::Debug,
-{
-    // Compute output shape
-    let input_rank = indices.ndim();
-    let output_rank = input_rank + 1;
-    let axis = axis.unwrap_or(-1);
-    let axis_pos = convert_negative_index(axis, output_rank);
-    if axis_pos > input_rank {
-        bail!(
-            "Axis must be compatible with input rank ('{}'). Found '{}'.",
-            input_rank,
-            axis
-        );
-    }
-
-    let dims = indices.shape().iter();
-
-    // Put new axis at the end for now
-    let out_shape: Vec<_> = dims.chain([depth].iter()).cloned().collect();
-
-    let flat_indices = indices.iter();
-    let mut out_2d = Array2::from_elem((indices.len(), depth), off_value);
-    for (idx, mut out_slice) in flat_indices.zip(out_2d.axis_iter_mut(Axis(0))) {
-        let val = convert_negative_index(*idx, depth);
-        if let Some(el) = out_slice.get_mut([val]) {
-            *el = on_value;
-        }
-    }
-
-    // Reshape and rearrange axes if necessary
-    if axis != -1 {
-        let output_rank = input_rank + 1;
-        let mut tmp = out_2d.into_shape(out_shape)?.insert_axis(Axis(axis_pos));
-        tmp.swap_axes(axis_pos, output_rank);
-        let tmp = tmp.remove_axis(Axis(output_rank));
-        Ok(tmp.into_dyn().into())
-    } else {
-        Ok(out_2d.into_shape(out_shape)?.into_dyn().into())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ndarray::array;
-
-    #[test]
-    fn test_where() {
-        let cond = array![[true, false], [true, true]].into_dyn().into();
-        let x = array![[1, 2], [3, 4]].into_dyn().into();
-        let y = array![[9, 8], [7, 6]].into_dyn().into();
-        let expected: ArcArrayD<_> = array![[1, 8], [3, 4]].into_dyn().into();
-        assert_eq!(where_(cond, x, y).unwrap(), expected);
-    }
 }
