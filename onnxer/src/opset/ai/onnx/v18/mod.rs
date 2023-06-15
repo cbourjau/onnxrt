@@ -21,6 +21,7 @@ mod arg_min_max;
 mod clip;
 mod one_hot;
 mod reduce;
+mod reshape;
 mod simple_element_wise;
 mod where_;
 
@@ -72,6 +73,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ReduceMin", Box::new(reduce::setup_reducemin));
     d.insert("ReduceProd", Box::new(reduce::setup_reduceprod));
     d.insert("ReduceSum", Box::new(reduce::setup_reducesum));
+    d.insert("Reshape", Box::new(reshape::setup_reshape));
     d.insert("Split", Box::new(setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", bin_numeric!(|a, b| Ok(a - b)));
