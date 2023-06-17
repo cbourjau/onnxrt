@@ -82,6 +82,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
 
     d.insert("BitwiseAnd", binary_op!(int, |a, b| Ok(a & b)));
+    d.insert("BitwiseOr", binary_op!(int, |a, b| Ok(a | b)));
+    d.insert("BitwiseXor", binary_op!(int, |a, b| Ok(a ^ b)));
     
     d.insert("Cast", Box::new(setup_cast));
     d.insert("Clip", Box::new(clip::setup_clip));
