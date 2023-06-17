@@ -262,7 +262,7 @@ fn setup_steps<'a>(
             anyhow!(
                 "During setup of '{}' the following error occurred: {:?}",
                 node.op_type,
-                e
+                e.to_string()
             )
         })?;
 

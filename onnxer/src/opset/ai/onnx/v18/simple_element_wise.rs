@@ -3,11 +3,11 @@
 use std::collections::HashMap;
 
 use anyhow::{bail, Result};
-use num_traits::{Signed, Unsigned};
+use num_traits::Unsigned;
 
 use crate::session::{ExecutionStep, OpContext, SetupFnSignature};
 use crate::utils::wrap_1_input;
-use crate::{HomogeneousNumericFixed, TaggedReceiver};
+use crate::TaggedReceiver;
 
 macro_rules! element_wise {
     (int, $fun:expr) => {

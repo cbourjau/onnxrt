@@ -103,7 +103,13 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ReduceMean", Box::new(reduce::setup_reducemean));
     d.insert("ReduceMin", Box::new(reduce::setup_reducemin));
     d.insert("ReduceProd", Box::new(reduce::setup_reduceprod));
+    d.insert("ReduceL1", Box::new(reduce::setup_reducel1));
+    d.insert("ReduceL2", Box::new(reduce::setup_reducel2));
+    d.insert("ReduceSumSquare", Box::new(reduce::setup_reducesumsquare));
     d.insert("ReduceSum", Box::new(reduce::setup_reducesum));
+    d.insert("ReduceLogSum", Box::new(reduce::setup_reducelogsum));
+    d.insert("ReduceLogSumExp", Box::new(reduce::setup_reducelogsumexp));
+
     d.insert("Reshape", Box::new(reshape::setup_reshape));
     d.insert("Split", Box::new(setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));

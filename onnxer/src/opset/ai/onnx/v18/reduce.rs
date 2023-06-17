@@ -1,4 +1,4 @@
-use num_traits::{AsPrimitive, Bounded, One, Zero};
+use num_traits::{AsPrimitive, Bounded, Float, One, Signed, Zero};
 use std::cmp::PartialOrd;
 use std::ops::{Add, Mul};
 
@@ -52,6 +52,63 @@ impl State {
         D: Bounded + Copy + PartialOrd + Zero,
     {
         self.reduce(data, axes, D::zero(), fold_sum)
+    }
+
+    fn reduce_sum_square<D>(
+        &self,
+        data: ArcArrayD<D>,
+        axes: Option<ArcArrayD<i64>>,
+    ) -> Result<ArcArrayD<D>>
+    where
+        D: Bounded + Copy + PartialOrd + Zero + Mul<Output = D>,
+    {
+        let sq_data: ArcArrayD<_> = data.mapv(|el| el * el).into();
+        self.reduce_sum(sq_data, axes)
+    }
+
+    fn reduce_l1<D>(&self, data: ArcArrayD<D>, axes: Option<ArcArrayD<i64>>) -> Result<ArcArrayD<D>>
+    where
+        D: Bounded + Copy + PartialOrd + Zero + Signed,
+    {
+        let abs_data: ArcArrayD<_> = data.mapv(|el| el.abs()).into();
+        self.reduce_sum(abs_data, axes)
+    }
+
+    fn reduce_l2<D>(&self, data: ArcArrayD<D>, axes: Option<ArcArrayD<i64>>) -> Result<ArcArrayD<D>>
+    where
+        D: Bounded + Copy + PartialOrd + Zero + Float,
+    {
+        Ok(self
+            .reduce_sum_square(data, axes)?
+            .mapv(|el| el.sqrt())
+            .into())
+    }
+
+    fn reduce_log_sum<D>(
+        &self,
+        data: ArcArrayD<D>,
+        axes: Option<ArcArrayD<i64>>,
+    ) -> Result<ArcArrayD<D>>
+    where
+        D: Bounded + Copy + PartialOrd + Zero + Float,
+    {
+        let sum = self.reduce_sum(data, axes)?;
+        let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
+        Ok(log_data)
+    }
+
+    fn reduce_log_sum_exp<D>(
+        &self,
+        data: ArcArrayD<D>,
+        axes: Option<ArcArrayD<i64>>,
+    ) -> Result<ArcArrayD<D>>
+    where
+        D: Bounded + Copy + PartialOrd + Zero + Float,
+    {
+        let exp: ArcArrayD<_> = data.mapv(|el| el.exp()).into();
+        let sum = self.reduce_sum(exp, axes)?;
+        let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
+        Ok(log_data)
     }
 
     fn reduce_prod<D>(
@@ -203,32 +260,38 @@ fn validate_inputs(ctx: OpContext) -> Result<(TaggedReceiver, Option<Receiver<Ar
 }
 
 macro_rules! create_setup_function {
-    ($setup_name:tt, $member_fun:tt) => {
+    ($setup_name:tt, $member_fun:tt, $($variant:tt),*) => {
         pub fn $setup_name(ctx: OpContext) -> Result<ExecutionStep> {
             let state = State::new(&ctx.attrs)?;
             let (data_ch, axes_ch) = validate_inputs(ctx)?;
 
+            use TaggedReceiver::*;
             match data_ch {
-                TaggedReceiver::F32(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
+                $($variant(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
                     state.$member_fun(data, axes)
-                }),
-                TaggedReceiver::F64(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
-                    state.$member_fun(data, axes)
-                }),
-                TaggedReceiver::I32(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
-                    state.$member_fun(data, axes)
-                }),
-                TaggedReceiver::I64(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
-                    state.$member_fun(data, axes)
-                }),
-                _ => bail!("Reduce operations are only implemented for numeric input types."),
+                }),)*
+                _ => bail!("Type support of reduce operations is limited."),
             }
         }
     };
 }
 
-create_setup_function!(setup_reducemax, reduce_max);
-create_setup_function!(setup_reducemin, reduce_min);
-create_setup_function!(setup_reducesum, reduce_sum);
-create_setup_function!(setup_reducemean, reduce_mean);
-create_setup_function!(setup_reduceprod, reduce_prod);
+create_setup_function!(setup_reducemax, reduce_max, I32, I64, F32, F64, U32, U64);
+create_setup_function!(setup_reducemin, reduce_min, I32, I64, F32, F64, U32, U64);
+create_setup_function!(setup_reducesum, reduce_sum, I32, I64, F32, F64, U32, U64);
+create_setup_function!(setup_reducemean, reduce_mean, I32, I64, F32, F64, U32, U64);
+create_setup_function!(setup_reduceprod, reduce_prod, I32, I64, F32, F64, U32, U64);
+create_setup_function!(
+    setup_reducesumsquare,
+    reduce_sum_square,
+    I32,
+    I64,
+    F32,
+    F64,
+    U32,
+    U64
+);
+create_setup_function!(setup_reducel1, reduce_l1, I32, I64, F32, F64); // missing abs for unsigned
+create_setup_function!(setup_reducel2, reduce_l2, F32, F64); // missing sqrt for integers
+create_setup_function!(setup_reducelogsum, reduce_log_sum, F32, F64); // missing sqrt for integers
+create_setup_function!(setup_reducelogsumexp, reduce_log_sum_exp, F32, F64); // missing sqrt for integers
