@@ -5,6 +5,7 @@ use itertools::izip;
 use ndarray::{Dimension, IntoDimension, IxDyn, Zip};
 
 use crate::session::ExecutionStep;
+use crate::setup_utils::setup;
 use crate::{ArcArrayD, Dispatchable};
 
 /// Convert a negative index to a positive one under the assumption
@@ -21,45 +22,7 @@ where
     Out: Sync + Send + 'static,
     Op: Fn(ArcArrayD<In>) -> Result<ArcArrayD<Out>> + Send + Sync + 'static,
 {
-    let (sdr, rec) = ArcArrayD::<Out>::channel();
-
-    let fun = Box::new(move || {
-        let a = input.try_recv()?;
-        let out = f(a)?;
-        sdr.send(out.into_dyn())?;
-        Ok(())
-    });
-    Ok(ExecutionStep {
-        fun: Box::new(fun),
-        outputs: vec![rec],
-    })
-}
-
-/// Wrap operations which take two inputs of the same type and output
-/// an array of type `Out`.
-pub fn wrap_binary_input<In, Out, Op>(
-    a_rec: Receiver<ArcArrayD<In>>,
-    b_rec: Receiver<ArcArrayD<In>>,
-    f: Op,
-) -> Result<ExecutionStep>
-where
-    ArcArrayD<Out>: Dispatchable,
-    In: Sync + Send + 'static,
-    Out: Sync + Send + 'static,
-    Op: Fn(ArcArrayD<In>, ArcArrayD<In>) -> Result<ArcArrayD<Out>> + Send + Sync + 'static,
-{
-    let (sdr, rec) = ArcArrayD::<Out>::channel();
-    let fun = Box::new(move || {
-        let a = a_rec.try_recv()?;
-        let b = b_rec.try_recv()?;
-        let out = f(a, b)?;
-        sdr.send(out.into_dyn())?;
-        Ok(())
-    });
-    Ok(ExecutionStep {
-        fun: Box::new(fun),
-        outputs: vec![rec],
-    })
+    setup((input,), move |(input,)| f(input))
 }
 
 /// Calculate the common shape for a pair of array shapes, that they can be broadcasted

@@ -8,10 +8,7 @@ use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::attribute::Attribute;
 use crate::session::{ExecutionStep, OpContext, SetupFnSignature};
-use crate::utils::{
-    co_broadcast, convert_negative_index, wrap_1_input, wrap_binary_input,
-    zip_map_with_co_broadcast,
-};
+use crate::utils::{co_broadcast, convert_negative_index, wrap_1_input, zip_map_with_co_broadcast};
 use crate::{
     channel, value_channel, ArcArrayD, DataType, Dispatchable, HomogeneousNumericFixed, Session,
     TaggedReceiver,
@@ -32,11 +29,12 @@ macro_rules! bin_numeric {
     ($fun:expr) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let channels = ctx.input_channels().try_into()?;
+            use HomogeneousNumericFixed::*;
             match channels {
-                HomogeneousNumericFixed::F32([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
-                HomogeneousNumericFixed::F64([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
-                HomogeneousNumericFixed::I32([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
-                HomogeneousNumericFixed::I64([a_ch, b_ch]) => wrap_binary_input(a_ch, b_ch, $fun),
+                F32([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
+                F64([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
+                I32([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
+                I64([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
             }
         })
     };
@@ -53,7 +51,7 @@ macro_rules! bin_numeric_with_co_broadcast {
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     let mut d = simple_element_wise::get_setup_dict();
     d.insert("Add", bin_numeric!(|a, b| Ok(a + b)));
-    d.insert("And", binary_boolean_factory(|a, b| Ok(a & b)));
+    d.insert("And", binary_boolean_factory(|(a, b)| Ok(a & b)));
     d.insert("ArgMax", Box::new(arg_min_max::setup_argmax));
     d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
     d.insert("Cast", Box::new(setup_cast));
@@ -69,7 +67,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("Mul", bin_numeric!(|a, b| Ok(a * b)));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
-    d.insert("Or", binary_boolean_factory(|a, b| Ok(a | b)));
+    d.insert("Or", binary_boolean_factory(|(a, b)| Ok(a | b)));
     d.insert("ReduceMax", Box::new(reduce::setup_reducemax));
     d.insert("ReduceMean", Box::new(reduce::setup_reducemean));
     d.insert("ReduceMin", Box::new(reduce::setup_reducemin));
@@ -81,14 +79,14 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Sub", bin_numeric!(|a, b| Ok(a - b)));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
     d.insert("Where", Box::new(where_::setup_where));
-    d.insert("Xor", binary_boolean_factory(|a, b| Ok(a ^ b)));
+    d.insert("Xor", binary_boolean_factory(|(a, b)| Ok(a ^ b)));
     d
 }
 
 /// Create setup function with two boolean inputs
 fn binary_boolean_factory<Op>(op: Op) -> SetupFnSignature
 where
-    Op: Fn(ArcArrayD<bool>, ArcArrayD<bool>) -> Result<ArcArrayD<bool>>
+    Op: Fn((ArcArrayD<bool>, ArcArrayD<bool>)) -> Result<ArcArrayD<bool>>
         + Send
         + Sync
         + 'static
@@ -96,10 +94,9 @@ where
 {
     Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
         let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
+        use TaggedReceiver::*;
         match (a_ch, b_ch) {
-            (TaggedReceiver::Bool(a_ch), TaggedReceiver::Bool(b_ch)) => {
-                wrap_binary_input(a_ch, b_ch, op)
-            }
+            (Bool(a_ch), Bool(b_ch)) => setup((a_ch, b_ch), op),
             // Internal error. This should never happen!
             _ => panic!(),
         }

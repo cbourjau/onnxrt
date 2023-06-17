@@ -35,6 +35,7 @@ macro_rules! element_wise_float {
     ($fun:expr) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+
             match a_ch {
                 TaggedReceiver::F32(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
                 TaggedReceiver::F64(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into())),
