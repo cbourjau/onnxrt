@@ -16,6 +16,7 @@ use crate::{
 
 mod arg_min_max;
 mod clip;
+mod cumsum;
 mod one_hot;
 mod reduce;
 mod reshape;
@@ -87,6 +88,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     
     d.insert("Cast", Box::new(setup_cast));
     d.insert("Clip", Box::new(clip::setup_clip));
+    d.insert("CumSum", Box::new(cumsum::setup_cumsum));
     d.insert("Concat", Box::new(setup_concat));
     d.insert("Constant", Box::new(setup_constant));
     d.insert("Div", binary_op!(numeric, |a, b| Ok(a / b)));
