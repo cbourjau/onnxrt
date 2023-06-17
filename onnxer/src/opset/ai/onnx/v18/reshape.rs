@@ -34,6 +34,12 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
         TaggedReceiver::I64(data) => setup((data, shape), move |(data, shape)| {
             reshape(data, shape, allow_zero)
         })?,
+        TaggedReceiver::U32(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
+        TaggedReceiver::U64(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
         TaggedReceiver::String(data) => setup((data, shape), move |(data, shape)| {
             reshape(data, shape, allow_zero)
         })?,

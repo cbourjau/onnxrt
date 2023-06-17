@@ -15,6 +15,8 @@ pub enum Attribute {
     F64s(ArcArrayD<f64>),
     I64s(ArcArrayD<i64>),
     I32s(ArcArrayD<i32>),
+    U64s(ArcArrayD<u64>),
+    U32s(ArcArrayD<u32>),
     Bools(ArcArrayD<bool>),
 
     ScalarF32(f32),
@@ -49,6 +51,8 @@ impl std::fmt::Debug for Attribute {
             Self::Graph(_) => write!(fmt, "Attribute::Graph")?,
             Self::I32s(values) => vec_debug!("Attribute::I32s", values),
             Self::I64s(values) => vec_debug!("Attribute::I64s", values),
+            Self::U32s(values) => vec_debug!("Attribute::U32s", values),
+            Self::U64s(values) => vec_debug!("Attribute::U64s", values),
             Self::ScalarF32(val) => write!(fmt, "Attribute::ScalarF32({})", val)?,
             Self::ScalarI64(val) => write!(fmt, "Attribute::ScalarI64({})", val)?,
             Self::ScalarString(val) => write!(fmt, "Attribute::ScalarString({})", val)?,
@@ -242,6 +246,8 @@ impl TryFrom<&TensorProto> for Attribute {
             Value::F64(v) => Ok(Attribute::F64s(v)),
             Value::I32(v) => Ok(Attribute::I32s(v)),
             Value::I64(v) => Ok(Attribute::I64s(v)),
+            Value::U32(v) => Ok(Attribute::U32s(v)),
+            Value::U64(v) => Ok(Attribute::U64s(v)),
             Value::String(v) => Ok(Attribute::Strings(v)),
             Value::Bool(v) => Ok(Attribute::Bools(v)),
         }
@@ -321,6 +327,31 @@ impl TryFrom<&TensorProto> for Value {
                     read_raw!(i64).collect::<Vec<_>>()
                 };
                 Ok(Value::I64(
+                    Array::from_vec(vec)
+                        .into_dyn()
+                        .into_shape(shape)
+                        .unwrap()
+                        .into(),
+                ))
+            }
+            DataType::U64 => {
+                let explicit_field = &tensor.uint64_data;
+                let vec: Vec<_> = if !explicit_field.is_empty() {
+                    explicit_field.clone()
+                } else {
+                    read_raw!(u64).collect::<Vec<_>>()
+                };
+                Ok(Value::U64(
+                    Array::from_vec(vec)
+                        .into_dyn()
+                        .into_shape(shape)
+                        .unwrap()
+                        .into(),
+                ))
+            }
+            DataType::U32 => {
+                let vec = read_raw!(u32).collect::<Vec<_>>();
+                Ok(Value::U32(
                     Array::from_vec(vec)
                         .into_dyn()
                         .into_shape(shape)

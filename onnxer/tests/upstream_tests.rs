@@ -68,6 +68,16 @@ impl TestResult {
                         unequal_bail!(k, exp, obs)
                     }
                 }
+                (Value::U32(exp), Value::U32(obs)) => {
+                    if exp != obs {
+                        unequal_bail!(k, exp, obs)
+                    }
+                }
+                (Value::U64(exp), Value::U64(obs)) => {
+                    if exp != obs {
+                        unequal_bail!(k, exp, obs)
+                    }
+                }
                 (Value::String(exp), Value::String(obs)) => {
                     if exp != obs {
                         unequal_bail!(k, exp, obs)

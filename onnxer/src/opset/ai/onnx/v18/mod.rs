@@ -24,17 +24,43 @@ mod where_;
 
 use crate::setup_utils::setup;
 
-/// Setup functions with two numeric inputs
-macro_rules! bin_numeric {
-    ($fun:expr) => {
+macro_rules! binary_op {
+    (int, $fun:expr) => {
+        binary_op!(
+            $fun,
+            I32, I64, U32, U64 |
+            rec => bail!("Expected integer input, found: '{:?}'", rec)
+        )
+    };
+    (numeric, $fun:expr) => {
+        binary_op!(
+            $fun,
+            F32, F64, I32, I64, U32, U64 |
+        )
+    };
+    (float, $fun:expr) => {
+        binary_op!(
+            $fun,
+            F32, F64 |
+            rec => bail!("Expected floating point input, found: '{:?}'", rec)
+        )
+    };
+    (signed, $fun:expr) => {
+        binary_op!(
+            $fun,
+            I32, I64, F32, F64 |
+            rec => bail!("Expected signed input, found: '{:?}'", rec)
+        )
+    };
+    ($fun:expr, $($variant:tt),* | $($rec:tt => $bail:expr)?) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let channels = ctx.input_channels().try_into()?;
+            let inputs: HomogeneousNumericFixed<2> = ctx.input_channels().try_into().unwrap();
             use HomogeneousNumericFixed::*;
-            match channels {
-                F32([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
-                F64([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
-                I32([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
-                I64([a_ch, b_ch]) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
+            match inputs {
+                $($variant([a_ch, b_ch]) => {
+                    setup((a_ch, b_ch), move |(a, b)| $fun(a, b))
+                })*,
+                $($rec => $bail)?
             }
         })
     };
@@ -42,7 +68,7 @@ macro_rules! bin_numeric {
 
 macro_rules! bin_numeric_with_co_broadcast {
     ($fun:expr) => {
-        bin_numeric!(|a, b| zip_map_with_co_broadcast(a, b, $fun))
+        binary_op!(numeric, |a, b| zip_map_with_co_broadcast(a, b, $fun))
     };
 }
 
@@ -50,22 +76,25 @@ macro_rules! bin_numeric_with_co_broadcast {
 #[rustfmt::skip]
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     let mut d = simple_element_wise::get_setup_dict();
-    d.insert("Add", bin_numeric!(|a, b| Ok(a + b)));
+    d.insert("Add", binary_op!(numeric, |a, b| Ok(a + b)));
     d.insert("And", binary_boolean_factory(|(a, b)| Ok(a & b)));
     d.insert("ArgMax", Box::new(arg_min_max::setup_argmax));
     d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
+
+    d.insert("BitwiseAnd", binary_op!(int, |a, b| Ok(a & b)));
+    
     d.insert("Cast", Box::new(setup_cast));
     d.insert("Clip", Box::new(clip::setup_clip));
     d.insert("Concat", Box::new(setup_concat));
     d.insert("Constant", Box::new(setup_constant));
-    d.insert("Div", bin_numeric!(|a, b| Ok(a / b)));
+    d.insert("Div", binary_op!(numeric, |a, b| Ok(a / b)));
     d.insert("Equal", bin_numeric_with_co_broadcast!(PartialEq::eq));
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
     d.insert("If", Box::new(setup_if));
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
-    d.insert("Mul", bin_numeric!(|a, b| Ok(a * b)));
+    d.insert("Mul", binary_op!(numeric, |a, b| Ok(a * b)));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
     d.insert("Or", binary_boolean_factory(|(a, b)| Ok(a | b)));
     d.insert("ReduceMax", Box::new(reduce::setup_reducemax));
@@ -76,7 +105,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Reshape", Box::new(reshape::setup_reshape));
     d.insert("Split", Box::new(setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
-    d.insert("Sub", bin_numeric!(|a, b| Ok(a - b)));
+    d.insert("Sub", binary_op!(numeric, |a, b| Ok(a - b)));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
     d.insert("Where", Box::new(where_::setup_where));
     d.insert("Xor", binary_boolean_factory(|(a, b)| Ok(a ^ b)));
@@ -122,6 +151,8 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f64).into())),
             DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::F32(a_ch) => match to_type {
@@ -130,6 +161,8 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
             DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::F64(a_ch) => match to_type {
@@ -138,6 +171,8 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::F64 => wrap_1_input(a_ch, Ok),
             DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::I32(a_ch) => match to_type {
@@ -146,6 +181,8 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
             DataType::I32 => wrap_1_input(a_ch, Ok),
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::I64(a_ch) => match to_type {
@@ -154,6 +191,28 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
             DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
             DataType::I64 => wrap_1_input(a_ch, Ok),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
+            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
+        },
+        TaggedReceiver::U32(a_ch) => match to_type {
+            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
+            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
+            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
+            DataType::I32 => wrap_1_input(a_ch, Ok),
+            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
+            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
+        },
+        TaggedReceiver::U64(a_ch) => match to_type {
+            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
+            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
+            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
+            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
+            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::String(a_ch) => match to_type {
@@ -162,6 +221,8 @@ fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
             DataType::F64 => make_output_fallible!(a_ch, |el| el.parse::<f64>()),
             DataType::I32 => make_output_fallible!(a_ch, |el| el.parse::<i32>()),
             DataType::I64 => make_output_fallible!(a_ch, |el| el.parse::<i64>()),
+            DataType::U32 => make_output_fallible!(a_ch, |el| el.parse::<u32>()),
+            DataType::U64 => make_output_fallible!(a_ch, |el| el.parse::<u64>()),
             DataType::String => wrap_1_input(a_ch, Ok),
         },
     }
@@ -266,6 +327,8 @@ fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
         TaggedReceiver::F64(a_ch) => match_arm!(f64, a_ch),
         TaggedReceiver::I32(a_ch) => match_arm!(i32, a_ch),
         TaggedReceiver::I64(a_ch) => match_arm!(i64, a_ch),
+        TaggedReceiver::U32(a_ch) => match_arm!(u32, a_ch),
+        TaggedReceiver::U64(a_ch) => match_arm!(u64, a_ch),
         TaggedReceiver::String(a_ch) => match_arm!(String, a_ch),
         TaggedReceiver::Bool(a_ch) => match_arm!(bool, a_ch),
     }
@@ -294,6 +357,8 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
             TaggedReceiver::String(data_ch) => setup((data_ch, axes_ch), unsqueeze),
             TaggedReceiver::I32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
             TaggedReceiver::I64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::U32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::U64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
             TaggedReceiver::F32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
             TaggedReceiver::F64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
             TaggedReceiver::Bool(data_ch) => setup((data_ch, axes_ch), unsqueeze),
@@ -368,6 +433,8 @@ fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
         TaggedReceiver::F64(_) => match_arm!(inputs, F64),
         TaggedReceiver::I32(_) => match_arm!(inputs, I32),
         TaggedReceiver::I64(_) => match_arm!(inputs, I64),
+        TaggedReceiver::U32(_) => match_arm!(inputs, U32),
+        TaggedReceiver::U64(_) => match_arm!(inputs, U64),
         TaggedReceiver::String(_) => match_arm!(inputs, String),
         TaggedReceiver::Bool(_) => match_arm!(inputs, Bool),
     }
@@ -381,11 +448,13 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
     };
 
     match data_ch {
-        TaggedReceiver::I32(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::F32(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::I64(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::F64(ch) => setup((ch, axes_ch), squeeze),
         TaggedReceiver::Bool(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::F32(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::F64(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::I32(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::I64(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::U32(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::U64(ch) => setup((ch, axes_ch), squeeze),
         TaggedReceiver::String(ch) => setup((ch, axes_ch), squeeze),
     }
 }

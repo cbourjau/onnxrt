@@ -14,6 +14,8 @@ pub enum DataType {
     F64,
     I32,
     I64,
+    U32,
+    U64,
     String,
 }
 
@@ -26,6 +28,8 @@ pub enum Value {
     F64(ArcArrayD<f64>),
     I32(ArcArrayD<i32>),
     I64(ArcArrayD<i64>),
+    U32(ArcArrayD<u32>),
+    U64(ArcArrayD<u64>),
     String(ArcArrayD<String>),
 }
 
@@ -37,6 +41,8 @@ pub enum ValueSender {
     F64(Sender<ArcArrayD<f64>>),
     I32(Sender<ArcArrayD<i32>>),
     I64(Sender<ArcArrayD<i64>>),
+    U32(Sender<ArcArrayD<u32>>),
+    U64(Sender<ArcArrayD<u64>>),
     String(Sender<ArcArrayD<String>>),
 }
 
@@ -57,6 +63,8 @@ pub enum Dispatcher {
     F64(Arc<Mutex<Vec<SyncSender<ArcArrayD<f64>>>>>),
     I32(Arc<Mutex<Vec<SyncSender<ArcArrayD<i32>>>>>),
     I64(Arc<Mutex<Vec<SyncSender<ArcArrayD<i64>>>>>),
+    U32(Arc<Mutex<Vec<SyncSender<ArcArrayD<u32>>>>>),
+    U64(Arc<Mutex<Vec<SyncSender<ArcArrayD<u64>>>>>),
     String(Arc<Mutex<Vec<SyncSender<ArcArrayD<String>>>>>),
 }
 
@@ -70,6 +78,8 @@ pub enum TaggedReceiver {
     F64(Receiver<ArcArrayD<f64>>),
     I32(Receiver<ArcArrayD<i32>>),
     I64(Receiver<ArcArrayD<i64>>),
+    U32(Receiver<ArcArrayD<u32>>),
+    U64(Receiver<ArcArrayD<u64>>),
     String(Receiver<ArcArrayD<String>>),
 }
 
@@ -101,6 +111,14 @@ pub fn value_channel(dtype: &DataType) -> (ValueSender, Dispatcher) {
             let (sdr, disp) = channel();
             (ValueSender::I64(sdr), disp)
         }
+        DataType::U32 => {
+            let (sdr, disp) = channel();
+            (ValueSender::U32(sdr), disp)
+        }
+        DataType::U64 => {
+            let (sdr, disp) = channel();
+            (ValueSender::U64(sdr), disp)
+        }
         DataType::String => {
             let (sdr, disp) = channel();
             (ValueSender::String(sdr), disp)
@@ -116,6 +134,8 @@ impl ValueSender {
             (Self::F64(sdr), Value::F64(val)) => sdr.send(val),
             (Self::I32(sdr), Value::I32(val)) => sdr.send(val),
             (Self::I64(sdr), Value::I64(val)) => sdr.send(val),
+            (Self::U32(sdr), Value::U32(val)) => sdr.send(val),
+            (Self::U64(sdr), Value::U64(val)) => sdr.send(val),
             (Self::String(sdr), Value::String(val)) => sdr.send(val),
             _ => Err(anyhow!("Unexpected data type")),
         }
@@ -128,6 +148,8 @@ impl ValueSender {
             Self::F64(_) => DataType::F64,
             Self::I32(_) => DataType::I32,
             Self::I64(_) => DataType::I64,
+            Self::U32(_) => DataType::U32,
+            Self::U64(_) => DataType::U64,
             Self::String(_) => DataType::String,
         }
     }
@@ -150,38 +172,18 @@ impl<T> Sender<T> {
 impl Dispatcher {
     /// Subscribe to an upstream slot. Only called during the setup phase.
     pub fn subscribe(&self) -> TaggedReceiver {
-        match self {
-            Self::Bool(senders) => {
-                let (sdr, rec) = sync_channel(1);
-                senders.lock().unwrap().push(sdr);
-                TaggedReceiver::Bool(rec)
-            }
-            Self::F32(senders) => {
-                let (sdr, rec) = sync_channel(1);
-                senders.lock().unwrap().push(sdr);
-                TaggedReceiver::F32(rec)
-            }
-            Self::F64(senders) => {
-                let (sdr, rec) = sync_channel(1);
-                senders.lock().unwrap().push(sdr);
-                TaggedReceiver::F64(rec)
-            }
-            Self::I32(senders) => {
-                let (sdr, rec) = sync_channel(1);
-                senders.lock().unwrap().push(sdr);
-                TaggedReceiver::I32(rec)
-            }
-            Self::I64(senders) => {
-                let (sdr, rec) = sync_channel(1);
-                senders.lock().unwrap().push(sdr);
-                TaggedReceiver::I64(rec)
-            }
-            Self::String(senders) => {
-                let (sdr, rec) = sync_channel(1);
-                senders.lock().unwrap().push(sdr);
-                TaggedReceiver::String(rec)
-            }
+        macro_rules! impl_all {
+            ($($variant:tt ),*) => {{
+                match self {
+                    $(Self::$variant(senders) => {
+                        let (sdr, rec) = sync_channel(1);
+                        senders.lock().unwrap().push(sdr);
+                        TaggedReceiver::$variant(rec)
+                    })*
+                }
+            }};
         }
+        impl_all!(Bool, F32, F64, I32, I64, String, U32, U64)
     }
 
     /// Data type of this object.
@@ -193,6 +195,8 @@ impl Dispatcher {
             Self::F64(_) => DataType::F64,
             Self::I32(_) => DataType::I32,
             Self::I64(_) => DataType::I64,
+            Self::U32(_) => DataType::U32,
+            Self::U64(_) => DataType::U64,
             Self::String(_) => DataType::String,
         }
     }
@@ -209,6 +213,8 @@ impl TaggedReceiver {
             Self::F64(rec) => Ok(Value::F64(rec.recv()?)),
             Self::I32(rec) => Ok(Value::I32(rec.recv()?)),
             Self::I64(rec) => Ok(Value::I64(rec.recv()?)),
+            Self::U32(rec) => Ok(Value::U32(rec.recv()?)),
+            Self::U64(rec) => Ok(Value::U64(rec.recv()?)),
             Self::String(rec) => Ok(Value::String(rec.recv()?)),
         }
     }
@@ -222,6 +228,8 @@ impl TaggedReceiver {
             Self::F64(_) => DataType::F64,
             Self::I32(_) => DataType::I32,
             Self::I64(_) => DataType::I64,
+            Self::U32(_) => DataType::U32,
+            Self::U64(_) => DataType::U64,
             Self::String(_) => DataType::String,
         }
     }
@@ -249,6 +257,8 @@ macro_rules! impl_dispatchable {
 }
 impl_dispatchable!(i32, Dispatcher::I32);
 impl_dispatchable!(i64, Dispatcher::I64);
+impl_dispatchable!(u32, Dispatcher::U32);
+impl_dispatchable!(u64, Dispatcher::U64);
 impl_dispatchable!(f32, Dispatcher::F32);
 impl_dispatchable!(f64, Dispatcher::F64);
 impl_dispatchable!(String, Dispatcher::String);
@@ -257,13 +267,15 @@ impl_dispatchable!(bool, Dispatcher::Bool);
 impl DataType {
     pub fn from_i32(type_number: i32) -> Result<Self> {
         Ok(match type_number {
-            // Defined in tensor_proto::DataType
+            // Defined in tensor_proto::DataType (cf onnx.proto)
             1 => DataType::F32,
             11 => DataType::F64,
             6 => DataType::I32,
             7 => DataType::I64,
             8 => DataType::String,
             9 => DataType::Bool,
+            12 => DataType::U32,
+            13 => DataType::U64,
             val => bail!("Type number `{}`", val),
         })
     }
@@ -293,6 +305,8 @@ impl DataType {
             DataType::Bool => "tensor(bool)",
             DataType::I32 => "tensor(int32)",
             DataType::I64 => "tensor(int64)",
+            DataType::U32 => "tensor(uint32)",
+            DataType::U64 => "tensor(uint64)",
             DataType::F32 => "tensor(float)",
             DataType::F64 => "tensor(double)",
             DataType::String => "tensor(string)",

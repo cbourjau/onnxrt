@@ -38,6 +38,8 @@ impl Session {
                 Value::F32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::I64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::I32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::U64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::U32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::String(v) => (
                     k.to_string(),
                     v.mapv(|el| el.into_py(py))

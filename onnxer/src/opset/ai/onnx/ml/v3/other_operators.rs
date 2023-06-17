@@ -17,6 +17,8 @@ pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
     match data_ch {
         TaggedReceiver::I32(ch) => setup((ch, indices_ch), array_feature_extractor),
         TaggedReceiver::I64(ch) => setup((ch, indices_ch), array_feature_extractor),
+        TaggedReceiver::U32(ch) => setup((ch, indices_ch), array_feature_extractor),
+        TaggedReceiver::U64(ch) => setup((ch, indices_ch), array_feature_extractor),
         TaggedReceiver::F32(ch) => setup((ch, indices_ch), array_feature_extractor),
         TaggedReceiver::F64(ch) => setup((ch, indices_ch), array_feature_extractor),
         TaggedReceiver::String(ch) => setup((ch, indices_ch), array_feature_extractor),
