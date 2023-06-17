@@ -294,31 +294,19 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
 
     if let TaggedReceiver::I64(axes_ch) = axes_ch {
         match data_ch {
-            TaggedReceiver::String(data_ch) => {
-                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
-            }
-            TaggedReceiver::I32(data_ch) => {
-                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
-            }
-            TaggedReceiver::I64(data_ch) => {
-                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
-            }
-            TaggedReceiver::F32(data_ch) => {
-                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
-            }
-            TaggedReceiver::F64(data_ch) => {
-                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
-            }
-            TaggedReceiver::Bool(data_ch) => {
-                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
-            }
+            TaggedReceiver::String(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::I32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::I64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::F32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::F64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
+            TaggedReceiver::Bool(data_ch) => setup((data_ch, axes_ch), unsqueeze),
         }
     } else {
         panic!()
     }
 }
 
-fn unsqueeze<D>(data: ArcArrayD<D>, axes: ArcArrayD<i64>) -> Result<ArcArrayD<D>> {
+fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {
     // Function to compute the output shape
     let compute_expanded = |data_shape: &[usize], axes: &[i64]| {
         let mut shape_expanded = vec![0; data_shape.len() + axes.len()];
@@ -395,42 +383,31 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
         _ => bail!("Input `axes` of Squeeze must be of type `tensor(int64)`"),
     };
 
-    macro_rules! match_arm {
-        ($ch:expr, $axes_ch:expr) => {{
-            let (sdr, rec) = ArcArrayD::<_>::channel();
-            let fun = Box::new(move || {
-                let data = $ch.try_recv()?;
-                let indices = $axes_ch.try_recv()?.into_dimensionality::<Ix1>()?.to_vec();
-                // Convert negative indices to positive ones and ensure they are sorted
-                let mut indices = indices
-                    .iter()
-                    .map(|&idx| convert_negative_index(idx, data.ndim()))
-                    .map(Axis)
-                    .collect::<Vec<_>>();
-                indices.sort();
-
-                // Remove axis one after the other starting from the back of `data`.
-                let out = indices
-                    .iter()
-                    .rev()
-                    .fold(data, |arr, &axis| arr.remove_axis(axis));
-                sdr.send(out)?;
-                Ok(())
-            });
-            Ok(ExecutionStep {
-                fun,
-                outputs: vec![rec.into()],
-            })
-        }};
-    }
     match data_ch {
-        TaggedReceiver::I32(ch) => match_arm!(ch, axes_ch),
-        TaggedReceiver::F32(ch) => match_arm!(ch, axes_ch),
-        TaggedReceiver::I64(ch) => match_arm!(ch, axes_ch),
-        TaggedReceiver::F64(ch) => match_arm!(ch, axes_ch),
-        TaggedReceiver::Bool(ch) => match_arm!(ch, axes_ch),
-        TaggedReceiver::String(ch) => match_arm!(ch, axes_ch),
+        TaggedReceiver::I32(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::F32(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::I64(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::F64(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::Bool(ch) => setup((ch, axes_ch), squeeze),
+        TaggedReceiver::String(ch) => setup((ch, axes_ch), squeeze),
     }
+}
+
+fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {
+    let mut indices = indices
+        .iter()
+        .map(|&idx| convert_negative_index(idx, data.ndim()))
+        .map(Axis)
+        .collect::<Vec<_>>();
+    indices.sort();
+
+    // Remove axis one after the other starting from the back of `data`.
+    let out = indices
+        .iter()
+        .rev()
+        .fold(data, |arr, &axis| arr.remove_axis(axis));
+
+    Ok(out)
 }
 
 fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {

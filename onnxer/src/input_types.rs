@@ -33,14 +33,16 @@ impl<const N: usize> TryFrom<Vec<TaggedReceiver>> for HomogeneousNumericFixed<N>
 }
 
 /// Homogeneous, numeric variadic inputs
-pub enum HomogeneousNumeric {
+pub enum Homogeneous {
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
     I32(Vec<Receiver<ArcArrayD<i32>>>),
     I64(Vec<Receiver<ArcArrayD<i64>>>),
+    String(Vec<Receiver<ArcArrayD<String>>>),
+    Bool(Vec<Receiver<ArcArrayD<bool>>>),
 }
 
-impl HomogeneousNumeric {
+impl Homogeneous {
     pub fn new_from_iter<I>(inputs: I) -> Result<Self>
     where
         I: IntoIterator<Item = TaggedReceiver> + ExactSizeIterator,
@@ -54,7 +56,7 @@ impl HomogeneousNumeric {
 
         macro_rules! match_arm {
             ($variant:tt) => {
-                HomogeneousNumeric::$variant({
+                Homogeneous::$variant({
                     inputs
                         .into_iter()
                         .map(|el| {
@@ -74,6 +76,32 @@ impl HomogeneousNumeric {
             TaggedReceiver::F64(_) => match_arm!(F64),
             TaggedReceiver::I32(_) => match_arm!(I32),
             TaggedReceiver::I64(_) => match_arm!(I64),
+            TaggedReceiver::Bool(_) => match_arm!(Bool),
+            TaggedReceiver::String(_) => match_arm!(String),
+        })
+    }
+}
+
+/// Homogeneous, numeric variadic inputs
+pub enum HomogeneousNumeric {
+    F32(Vec<Receiver<ArcArrayD<f32>>>),
+    F64(Vec<Receiver<ArcArrayD<f64>>>),
+    I32(Vec<Receiver<ArcArrayD<i32>>>),
+    I64(Vec<Receiver<ArcArrayD<i64>>>),
+}
+
+impl HomogeneousNumeric {
+    pub fn new_from_iter<I>(inputs: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = TaggedReceiver> + ExactSizeIterator,
+    {
+        let inputs = Homogeneous::new_from_iter(inputs)?;
+
+        Ok(match inputs {
+            Homogeneous::F32(arrs) => HomogeneousNumeric::F32(arrs),
+            Homogeneous::F64(arrs) => HomogeneousNumeric::F64(arrs),
+            Homogeneous::I32(arrs) => HomogeneousNumeric::I32(arrs),
+            Homogeneous::I64(arrs) => HomogeneousNumeric::I64(arrs),
             _ => bail!("Inputs are not numeric."),
         })
     }
