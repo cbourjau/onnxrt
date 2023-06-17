@@ -34,6 +34,18 @@ pub trait MultiOutputSender {
     fn send(&self, items: Self::Items) -> Result<()>;
 }
 
+impl<A> MultiOutputSender for Sender<A>
+where
+    A: Clone + Dispatchable,
+{
+    type Items = A;
+
+    fn send(&self, items: Self::Items) -> Result<()> {
+        self.send(items)?;
+        Ok(())
+    }
+}
+
 impl<A> MultiOutputSender for (Sender<A>,)
 where
     A: Clone + Dispatchable,
@@ -64,6 +76,18 @@ pub trait Dispatchables {
     type Senders;
 
     fn channels() -> (Self::Senders, Vec<Dispatcher>);
+}
+
+impl<A> Dispatchables for A
+where
+    A: Dispatchable + Clone,
+{
+    type Senders = Sender<A>;
+
+    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
+        let (sdr, disp) = A::channel();
+        (sdr, vec![disp])
+    }
 }
 
 impl<A> Dispatchables for (A,)
