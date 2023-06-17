@@ -23,13 +23,16 @@ impl Session {
     }
 
     #[pyo3(name = "run")]
-    pub fn py_run(&self, inputs: &PyDict) -> HashMap<String, PyObject> {
+    pub fn py_run<'py>(&self, inputs: &'py PyDict) -> PyResult<&'py PyDict> {
         let py = inputs.py();
         let inputs: HashMap<String, Value> = inputs.extract().unwrap();
 
-        self.run(&inputs)
-            .unwrap()
+        let mut outs = self.run(&inputs).unwrap();
+
+        let py_outs: Vec<(String, PyObject)> = self
+            .outputs
             .iter()
+            .map(|(k, _)| (k, outs.remove(k).unwrap()))
             .map(|(k, v)| match v {
                 Value::F64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::F32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
@@ -44,7 +47,8 @@ impl Session {
                 ),
                 Value::Bool(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
             })
-            .collect()
+            .collect();
+        PyDict::from_sequence(py, py_outs.into_py(py))
     }
 
     #[pyo3(name = "input_types")]
