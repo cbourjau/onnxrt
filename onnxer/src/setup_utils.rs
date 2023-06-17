@@ -159,6 +159,15 @@ pub trait InChannels {
     fn recv(&self) -> Result<Self::Items>;
 }
 
+/// Operators such as 'Constant' do not have inputs.
+impl InChannels for () {
+    type Items = ();
+
+    fn recv(&self) -> Result<Self::Items> {
+        Ok(())
+    }
+}
+
 impl<A> InChannels for (A,)
 where
     A: LastInChannel,

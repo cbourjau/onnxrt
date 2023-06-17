@@ -25,6 +25,8 @@ mod reshape;
 mod simple_element_wise;
 mod where_;
 
+use crate::setup_utils::setup;
+
 /// Setup functions with two numeric inputs
 macro_rules! bin_numeric {
     ($fun:expr) => {
@@ -174,36 +176,21 @@ fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
     }
     macro_rules! scalar {
         ($val:expr) => {{
-            let (sdr, rec) = ArcArrayD::channel();
-            let val = ndarray::arr0($val).into_dyn();
-            let fun = move || {
-                sdr.send(val.clone().into())?;
-                Ok(())
-            };
-            Ok(ExecutionStep {
-                fun: Box::new(fun),
-                outputs: vec![rec.into()],
-            })
+            let val: ArcArrayD<_> = ndarray::arr0($val).into_dyn().into();
+            setup((), move |()| Ok(val.clone()))
         }};
     }
+
     macro_rules! tensor_attr {
         ($val:expr) => {{
-            let (sdr, rec) = ArcArrayD::channel();
             let val = $val.clone();
-            let fun = move || {
-                sdr.send(val.clone())?;
-                Ok(())
-            };
-            Ok(ExecutionStep {
-                fun: Box::new(fun),
-                outputs: vec![rec.into()],
-            })
+            setup((), move |()| Ok(val.clone()))
         }};
     }
 
     // Value could be any of the others
-    if let Ok(attr) = ctx.attrs.get("value") {
-        return match attr {
+    if let Ok(attr) = ctx.attrs.get("value").as_ref() {
+        return match attr.clone() {
             Attribute::Bools(val) => tensor_attr!(val),
             Attribute::F32s(val) => tensor_attr!(val),
             Attribute::F64s(val) => tensor_attr!(val),
@@ -213,8 +200,7 @@ fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
             Attribute::ScalarF32(val) => scalar!(*val),
             Attribute::ScalarI64(val) => scalar!(*val),
             Attribute::ScalarString(val) => {
-                let val = val.to_owned();
-                scalar!(val)
+                scalar!(val.to_owned())
             }
             // TODO: Support const bools! Needs refactor of attrs
             _ => todo!("{:?}", attr),
