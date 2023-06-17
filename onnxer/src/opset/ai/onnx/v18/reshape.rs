@@ -1,7 +1,10 @@
 use super::*;
 
+use crate::setup_utils::setup;
+
 pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
     let [data, shape]: [_; 2] = ctx.input_channels().try_into().unwrap();
+
     let allow_zero = ctx.attrs.get_with_default("allowzero", 0)? == 1;
 
     let shape = {
@@ -16,39 +19,32 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
     };
 
     Ok(match data {
-        TaggedReceiver::Bool(data) => match_arm(data, shape, allow_zero)?,
-        TaggedReceiver::F32(data) => match_arm(data, shape, allow_zero)?,
-        TaggedReceiver::F64(data) => match_arm(data, shape, allow_zero)?,
-        TaggedReceiver::I32(data) => match_arm(data, shape, allow_zero)?,
-        TaggedReceiver::I64(data) => match_arm(data, shape, allow_zero)?,
-        TaggedReceiver::String(data) => match_arm(data, shape, allow_zero)?,
+        TaggedReceiver::Bool(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
+        TaggedReceiver::F32(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
+        TaggedReceiver::F64(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
+        TaggedReceiver::I32(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
+        TaggedReceiver::I64(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
+        TaggedReceiver::String(data) => setup((data, shape), move |(data, shape)| {
+            reshape(data, shape, allow_zero)
+        })?,
     })
 }
 
-fn match_arm<Data>(
-    data: Receiver<ArcArrayD<Data>>,
-    shape: Receiver<ArcArrayD<i64>>,
+fn reshape<D>(
+    data: ArcArrayD<D>,
+    shape: ArcArrayD<i64>,
     allow_zero: bool,
-) -> Result<ExecutionStep>
-where
-    ArcArrayD<Data>: Dispatchable,
-    Data: 'static + Clone + std::fmt::Debug + Sync + Send + std::fmt::Debug,
-{
-    let (sdr, rec) = channel();
-    let fun = Box::new(move || {
-        let data = data.recv().map_err(|e| anyhow!("{}", e))?;
-        let shape = shape.recv().map_err(|e| anyhow!("{}", e))?;
-        let out = reshape(data, shape, allow_zero)?;
-        sdr.send(out)?;
-        Ok(())
-    });
-    Ok(ExecutionStep {
-        fun,
-        outputs: vec![rec],
-    })
-}
-
-fn reshape<D>(data: ArcArrayD<D>, shape: ArcArrayD<i64>, allow_zero: bool) -> Result<ArcArrayD<D>>
+) -> Result<(ArcArrayD<D>,)>
 where
     D: Clone + std::fmt::Debug,
 {
@@ -96,5 +92,5 @@ where
         bail!("Reshaped tensor must have same number of elements as input tensor")
     }
 
-    Ok(data.reshape(fixed).into())
+    Ok((data.reshape(fixed).into(),))
 }

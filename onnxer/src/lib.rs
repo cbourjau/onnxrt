@@ -6,6 +6,7 @@ mod input_types;
 mod opset;
 mod python_api;
 mod session;
+mod setup_utils;
 mod utils;
 
 pub(crate) use attribute::{Attribute, Attributes};
