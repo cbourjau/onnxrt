@@ -291,6 +291,34 @@ where
 
 fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
+
+    if let TaggedReceiver::I64(axes_ch) = axes_ch {
+        match data_ch {
+            TaggedReceiver::String(data_ch) => {
+                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
+            }
+            TaggedReceiver::I32(data_ch) => {
+                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
+            }
+            TaggedReceiver::I64(data_ch) => {
+                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
+            }
+            TaggedReceiver::F32(data_ch) => {
+                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
+            }
+            TaggedReceiver::F64(data_ch) => {
+                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
+            }
+            TaggedReceiver::Bool(data_ch) => {
+                setup((data_ch, axes_ch), |(data, axes)| unsqueeze(data, axes))
+            }
+        }
+    } else {
+        panic!()
+    }
+}
+
+fn unsqueeze<D>(data: ArcArrayD<D>, axes: ArcArrayD<i64>) -> Result<ArcArrayD<D>> {
     // Function to compute the output shape
     let compute_expanded = |data_shape: &[usize], axes: &[i64]| {
         let mut shape_expanded = vec![0; data_shape.len() + axes.len()];
@@ -311,37 +339,9 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
         shape_expanded
     };
 
-    macro_rules! match_arm {
-        ($data_ch:expr, $axes_ch:expr) => {{
-            let (sdr, rec) = ArcArrayD::<_>::channel();
-            let fun = Box::new(move || {
-                let data = $data_ch.try_recv()?;
-                let axes = $axes_ch.try_recv()?;
-                // Check that axes is 1D
-                let axes = axes.into_dimensionality::<Ix1>()?.to_vec();
-                let new_shape = compute_expanded(data.shape(), &axes);
-                let out = data.into_shape(new_shape)?;
-                sdr.send(out.into_dyn().into())?;
-                Ok(())
-            });
-            Ok(ExecutionStep {
-                fun,
-                outputs: vec![rec.into()],
-            })
-        }};
-    }
-    if let TaggedReceiver::I64(axes_ch) = axes_ch {
-        match data_ch {
-            TaggedReceiver::String(data_ch) => match_arm!(data_ch, axes_ch),
-            TaggedReceiver::I32(data_ch) => match_arm!(data_ch, axes_ch),
-            TaggedReceiver::I64(data_ch) => match_arm!(data_ch, axes_ch),
-            TaggedReceiver::F32(data_ch) => match_arm!(data_ch, axes_ch),
-            TaggedReceiver::F64(data_ch) => match_arm!(data_ch, axes_ch),
-            TaggedReceiver::Bool(data_ch) => match_arm!(data_ch, axes_ch),
-        }
-    } else {
-        panic!()
-    }
+    let axes = axes.into_dimensionality::<Ix1>()?.to_vec();
+    let new_shape = compute_expanded(data.shape(), &axes);
+    Ok(data.into_shape(new_shape)?)
 }
 
 fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
