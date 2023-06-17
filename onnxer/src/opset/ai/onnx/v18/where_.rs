@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::setup_utils::setup;
+
 pub fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
     let [cond_ch, x_ch, y_ch]: [_; 3] = ctx.input_channels().try_into().unwrap();
 
@@ -10,41 +12,19 @@ pub fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
         bail!("Conditional tensor must be of type `bool`.")
     };
 
+    use TaggedReceiver::*;
     match (x_ch, y_ch) {
-        (TaggedReceiver::F32(x_ch), TaggedReceiver::F32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::F64(x_ch), TaggedReceiver::F64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::I32(x_ch), TaggedReceiver::I32(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::I64(x_ch), TaggedReceiver::I64(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::Bool(x_ch), TaggedReceiver::Bool(y_ch)) => match_arm(cond_ch, x_ch, y_ch),
-        (TaggedReceiver::String(x_ch), TaggedReceiver::String(y_ch)) => {
-            match_arm(cond_ch, x_ch, y_ch)
-        }
+        (F32(x_ch), F32(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
+        (F64(x_ch), F64(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
+        (I32(x_ch), I32(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
+        (I64(x_ch), I64(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
+        (Bool(x_ch), Bool(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
+        (String(x_ch), String(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
         _ => bail!("`X` and `Y` must be of identical type."),
     }
 }
 
-fn match_arm<T>(
-    cond_ch: Receiver<ArcArrayD<bool>>,
-    x_ch: Receiver<ArcArrayD<T>>,
-    y_ch: Receiver<ArcArrayD<T>>,
-) -> Result<ExecutionStep>
-where
-    ArcArrayD<T>: Dispatchable,
-    T: Sync + Send + 'static + Clone,
-{
-    let (sdr, rec) = channel();
-    let fun = Box::new(move || {
-        let (cond, x, y) = (cond_ch.recv()?, x_ch.recv()?, y_ch.recv()?);
-        sdr.send(where_(cond, x, y)?)?;
-        Ok(())
-    });
-    Ok(ExecutionStep {
-        fun,
-        outputs: vec![rec],
-    })
-}
-
-fn where_<T>(cond: ArcArrayD<bool>, x: ArcArrayD<T>, y: ArcArrayD<T>) -> Result<ArcArrayD<T>>
+fn where_<T>((cond, x, y): (ArcArrayD<bool>, ArcArrayD<T>, ArcArrayD<T>)) -> Result<ArcArrayD<T>>
 where
     T: Clone,
 {
@@ -71,6 +51,6 @@ mod tests {
         let x = array![[1, 2], [3, 4]].into_dyn().into();
         let y = array![[9, 8], [7, 6]].into_dyn().into();
         let expected: ArcArrayD<_> = array![[1, 8], [3, 4]].into_dyn().into();
-        assert_eq!(where_(cond, x, y).unwrap(), expected);
+        assert_eq!(where_((cond, x, y)).unwrap(), expected);
     }
 }
