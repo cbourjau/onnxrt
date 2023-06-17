@@ -120,6 +120,17 @@ impl<T> InChannel for Receiver<T> {
     }
 }
 
+impl<T> InChannel for Option<Receiver<T>> {
+    type Item = Option<T>;
+
+    fn recv(&self) -> Result<Self::Item> {
+        match self {
+            Some(rec) => Ok(Some(rec.recv()?)),
+            None => Ok(None),
+        }
+    }
+}
+
 impl<T> LastInChannel for T
 where
     T: InChannel,
@@ -168,5 +179,18 @@ where
 
     fn recv(&self) -> Result<Self::Items> {
         Ok((self.0.recv()?, self.1.recv()?))
+    }
+}
+
+impl<A, B, C> InChannels for (A, B, C)
+where
+    A: InChannel,
+    B: InChannel,
+    C: LastInChannel,
+{
+    type Items = (A::Item, B::Item, C::Item);
+
+    fn recv(&self) -> Result<Self::Items> {
+        Ok((self.0.recv()?, self.1.recv()?, self.2.recv()?))
     }
 }

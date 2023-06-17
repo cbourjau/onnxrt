@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::setup_utils::setup;
+
 pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     let mut inputs = ctx.input_channels_with_optional().into_iter();
     let input = inputs
@@ -38,7 +40,7 @@ pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-pub fn match_arm<T>(
+fn match_arm<T>(
     input: Receiver<ArcArrayD<T>>,
     min: Option<Receiver<ArcArrayD<T>>>,
     max: Option<Receiver<ArcArrayD<T>>>,
@@ -47,36 +49,8 @@ where
     ArcArrayD<T>: Dispatchable,
     T: Sync + Send + 'static + Copy + PartialOrd,
 {
-    let (sdr, rec) = channel();
-    let fun: Box<dyn Fn() -> Result<()> + Send> = match (min, max) {
-        (Some(min), Some(max)) => Box::new(move || {
-            let input = input.recv()?;
-            let min = min.recv()?;
-            let max = max.recv()?;
-            sdr.send(clip(input, Some(min), Some(max))?)?;
-            Ok(())
-        }),
-        (None, Some(max)) => Box::new(move || {
-            let input = input.recv()?;
-            let max = max.recv()?;
-            sdr.send(clip(input, None, Some(max))?)?;
-            Ok(())
-        }),
-        (Some(min), None) => Box::new(move || {
-            let input = input.recv()?;
-            let min = min.recv()?;
-            sdr.send(clip(input, Some(min), None)?)?;
-            Ok(())
-        }),
-        (None, None) => Box::new(move || {
-            let input = input.recv()?;
-            sdr.send(clip(input, None, None)?)?;
-            Ok(())
-        }),
-    };
-    Ok(ExecutionStep {
-        fun,
-        outputs: vec![rec],
+    setup((input, min, max), move |(input, min, max)| {
+        clip(input, min, max)
     })
 }
 
