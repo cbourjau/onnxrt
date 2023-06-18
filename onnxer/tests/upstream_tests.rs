@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::fs::read;
 
 use anyhow::{anyhow, bail, Result};
-use approx::relative_eq;
+use approx::{relative_eq, ulps_eq, AbsDiffEq, RelativeEq, UlpsEq};
+use num::Float;
 use onnx_protos::onnx_proto3::TensorProto;
 use protobuf::Message;
 use upstream_test_data::{all_node_tests, get_node_test, TestCase};
 
-use ::onnxer::{get_opset, Session, Value};
+use ::onnxer::{get_opset, ArcArrayD, Session, Value};
 
 struct TestResult {
     expected: HashMap<String, Value>,
@@ -32,6 +33,47 @@ fn run_test_case(tc: &TestCase) -> Result<TestResult> {
     Ok(TestResult { expected, observed })
 }
 
+macro_rules! unequal_bail {
+    ($k:expr, $exp:expr, $obs:expr) => {
+        bail!(
+            "Unequal outputs for `{}`:\n    expected: {:?}\n    observed: {:?}",
+            $k,
+            $exp,
+            $obs
+        )
+    };
+}
+
+fn check_float_almost_equal<T>(exp: &ArcArrayD<T>, obs: &ArcArrayD<T>) -> Result<()>
+where
+    T: Float + RelativeEq + UlpsEq + Clone + std::fmt::Debug,
+    <T as AbsDiffEq>::Epsilon: Clone,
+{
+    if exp.shape() != obs.shape() {
+        bail!("Expected shape {:?} found {:?}", exp.shape(), obs.shape());
+    }
+
+    if ulps_eq!(exp, obs) {
+        return Ok(());
+    }
+    for (exp_el, obs_el) in exp.iter().zip(obs.iter()) {
+        if relative_eq!(exp_el, obs_el) {
+            continue;
+        }
+        if exp_el.is_nan() && obs_el.is_nan() {
+            continue;
+        }
+        if exp_el.is_infinite()
+            && obs_el.is_infinite()
+            && exp_el.is_sign_positive() == obs_el.is_sign_positive()
+        {
+            continue;
+        }
+        bail!("Tensors are not equal")
+    }
+    Ok(())
+}
+
 impl TestResult {
     fn compare(&self) -> Result<String> {
         if self.expected.len() != self.observed.len() {
@@ -42,16 +84,6 @@ impl TestResult {
                 .observed
                 .get(k)
                 .ok_or_else(|| anyhow!("Key {} is not in the observed output.", k))?;
-            macro_rules! unequal_bail {
-                ($k:expr, $exp:expr, $obs:expr) => {
-                    bail!(
-                        "Unequal outputs for `{}`:\n    expected: {:?}\n    observed: {:?}",
-                        $k,
-                        $exp,
-                        $obs
-                    )
-                };
-            }
             match (v_exp, v_obs) {
                 (Value::Bool(exp), Value::Bool(obs)) => {
                     if exp != obs {
@@ -84,42 +116,12 @@ impl TestResult {
                     }
                 }
                 (Value::F32(exp), Value::F32(obs)) => {
-                    if exp.shape() != obs.shape() {
-                        bail!("Expected shape {:?} found {:?}", exp.shape(), obs.shape());
-                    }
-                    for (exp_el, obs_el) in exp.iter().zip(obs.iter()) {
-                        if relative_eq!(exp_el, obs_el, epsilon = f32::EPSILON) {
-                            continue;
-                        }
-                        if exp_el.is_nan() && obs_el.is_nan() {
-                            continue;
-                        }
-                        if exp_el.is_infinite()
-                            && obs_el.is_infinite()
-                            && exp_el.is_sign_positive() == obs_el.is_sign_positive()
-                        {
-                            continue;
-                        }
+                    if check_float_almost_equal(exp, obs).is_err() {
                         unequal_bail!(k, exp, obs)
                     }
                 }
                 (Value::F64(exp), Value::F64(obs)) => {
-                    if exp.shape() != obs.shape() {
-                        bail!("Expected shape {:?} found {:?}", exp.shape(), obs.shape());
-                    }
-                    for (exp_el, obs_el) in exp.iter().zip(obs.iter()) {
-                        if relative_eq!(exp_el, obs_el, epsilon = f64::EPSILON) {
-                            continue;
-                        }
-                        if exp_el.is_nan() && obs_el.is_nan() {
-                            continue;
-                        }
-                        if exp_el.is_infinite()
-                            && obs_el.is_infinite()
-                            && exp_el.is_sign_positive() == obs_el.is_sign_positive()
-                        {
-                            continue;
-                        }
+                    if check_float_almost_equal(exp, obs).is_err() {
                         unequal_bail!(k, exp, obs)
                     }
                 }
@@ -162,6 +164,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_onehot_negative_indices").unwrap();
+    let tc = get_node_test("test_mod_mixed_sign_int32").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }
