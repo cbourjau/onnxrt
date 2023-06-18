@@ -28,6 +28,53 @@ where
     Ok(ExecutionStep { fun, outputs: recs })
 }
 
+pub fn setup_variadic_out<F, InCh, In, Out>(
+    in_channels: InCh,
+    fun: F,
+    n_outputs: usize,
+) -> Result<ExecutionStep>
+where
+    InCh: InChannels<Items = In> + Send + 'static,
+    F: Fn(In) -> Result<Out> + Send + 'static,
+    // We must be able to create channels for the output of 'F'
+    Out: Clone + VariadicDispatchable + Send + 'static,
+    <Out as VariadicDispatchable>::Senders: MultiOutputSender<Items = Out> + Send + 'static,
+{
+    let (sdrs, recs) = Out::channels(n_outputs);
+    let fun = Box::new(move || {
+        let inputs = in_channels.recv().unwrap();
+        let out = fun(inputs)?;
+        sdrs.send(out)?;
+        Ok(())
+    });
+    Ok(ExecutionStep { fun, outputs: recs })
+}
+
+pub trait VariadicDispatchable {
+    type Senders;
+
+    fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>);
+}
+
+impl<T> VariadicDispatchable for Vec<T>
+where
+    T: Dispatchable + Clone,
+{
+    type Senders = Vec<Sender<T>>;
+
+    fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>) {
+        let mut sdrs = vec![];
+        let mut recs = vec![];
+
+        for _ in 0..n {
+            let (sdr, rec) = T::channel();
+            sdrs.push(sdr);
+            recs.push(rec);
+        }
+        (sdrs, recs)
+    }
+}
+
 pub trait MultiOutputSender {
     type Items;
 
@@ -68,6 +115,20 @@ where
     fn send(&self, items: Self::Items) -> Result<()> {
         self.0.send(items.0)?;
         self.1.send(items.1)?;
+        Ok(())
+    }
+}
+
+impl<A> MultiOutputSender for Vec<Sender<A>>
+where
+    A: Clone,
+{
+    type Items = Vec<A>;
+
+    fn send(&self, items: Self::Items) -> Result<()> {
+        for (item, sdr) in items.into_iter().zip(self.iter()) {
+            sdr.send(item)?;
+        }
         Ok(())
     }
 }

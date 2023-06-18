@@ -6,7 +6,8 @@ use itertools::sorted;
 use ndarray::{Array, Array2, Axis, IntoDimension, Ix1, IxDyn, Zip};
 use onnx_protos::onnx_proto3::GraphProto;
 
-use crate::attribute::Attribute;
+use crate::attribute::{Attribute, Attributes};
+use crate::input_types::Homogeneous;
 use crate::session::{ExecutionStep, OpContext, SetupFnSignature};
 use crate::utils::{co_broadcast, convert_negative_index, wrap_1_input, zip_map_with_co_broadcast};
 use crate::{
@@ -25,7 +26,7 @@ mod reshape;
 mod simple_element_wise;
 mod where_;
 
-use crate::setup_utils::setup;
+use crate::setup_utils::{setup, setup_variadic_out};
 
 macro_rules! binary_op {
     (int, $fun:expr) => {
@@ -317,13 +318,8 @@ fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
 
 fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     let n_outputs = ctx.n_outputs();
-    let axis = {
-        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
-        if axis < 0 {
-            todo!("Negative `axis` in split")
-        }
-        axis
-    };
+
+    let state = Split::new(&ctx)?;
 
     // `input_channels` creates channels and must only be called once!
     let input_channels = ctx.input_channels();
@@ -332,50 +328,71 @@ fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     }
 
     let [a_ch]: [_; 1] = input_channels.try_into().unwrap();
-    // Get from attrs
-    macro_rules! match_arm {
-        ($ty:ty, $inp:expr) => {{
-            let (sdrs, recs): (Vec<_>, Vec<_>) = (0..n_outputs)
-                .map(|_| ArcArrayD::channel())
-                .map(|(sdr, rec)| (sdr, rec.into()))
-                .unzip();
-            let fun = Box::new(move || {
-                let a = $inp.try_recv()?;
-                let outs = split(&a, axis, n_outputs)?;
-                for (out, sdr) in outs.zip(&sdrs) {
-                    sdr.send(out)?;
-                }
-                Ok(())
-            });
-            Ok(ExecutionStep { fun, outputs: recs })
-        }};
-    }
 
-    match a_ch {
-        TaggedReceiver::F32(a_ch) => match_arm!(f32, a_ch),
-        TaggedReceiver::F64(a_ch) => match_arm!(f64, a_ch),
-        TaggedReceiver::I32(a_ch) => match_arm!(i32, a_ch),
-        TaggedReceiver::I64(a_ch) => match_arm!(i64, a_ch),
-        TaggedReceiver::U32(a_ch) => match_arm!(u32, a_ch),
-        TaggedReceiver::U64(a_ch) => match_arm!(u64, a_ch),
-        TaggedReceiver::String(a_ch) => match_arm!(String, a_ch),
-        TaggedReceiver::Bool(a_ch) => match_arm!(bool, a_ch),
-    }
+    setup_all!(
+        a_ch,
+        a_ch,
+        setup_variadic_out((a_ch,), move |(a,)| state.split(a), n_outputs)
+    )
 }
 
-fn split<T>(
-    a: &ArcArrayD<T>,
+struct Split {
     axis: i64,
-    n_outputs: usize,
-) -> Result<impl Iterator<Item = ArcArrayD<T>> + '_>
-where
-    T: Clone,
-{
-    let axis = axis as usize;
-    let len_axis = a.shape()[axis];
-    let chunk_size = len_axis / n_outputs;
-    Ok(a.axis_chunks_iter(Axis(axis), chunk_size)
-        .map(|arr| arr.to_owned().into()))
+    num_outputs: Option<usize>,
+}
+
+impl Split {
+    fn new(ctx: &OpContext) -> Result<Self> {
+        // Terrible naming in the standard! This is actually the chunk size!
+        let num_outputs: Option<i64> = ctx.attrs.get_optional("num_outputs")?;
+
+        let num_outputs = {
+            if let Some(num_outputs) = num_outputs {
+                let num_outputs: usize = num_outputs.try_into()?;
+                if ctx.n_outputs() != num_outputs {
+                    panic!()
+                }
+                Some(num_outputs)
+            } else {
+                Some(ctx.n_outputs())
+            }
+        };
+        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
+        Ok(Self { axis, num_outputs })
+    }
+
+    fn split<T>(&self, a: ArcArrayD<T>) -> Result<Vec<ArcArrayD<T>>>
+    where
+        T: Clone,
+    {
+        let axis = convert_negative_index(self.axis, a.shape().len());
+
+        let len_axis = a.shape()[axis];
+
+        let chunk_size = match self.num_outputs {
+            Some(num_outputs) => {
+                if len_axis < num_outputs {
+                    bail!(
+                        "Split: Cannot split dimension with '{}' elements into '{}' chunks.",
+                        len_axis,
+                        num_outputs,
+                    )
+                }
+                if len_axis % num_outputs == 0 {
+                    len_axis / num_outputs
+                } else {
+                    len_axis / num_outputs + 1
+                }
+            }
+            None => {
+                // Requires 'split' input; not implemented
+                panic!()
+            }
+        };
+        Ok(a.axis_chunks_iter(Axis(axis), chunk_size)
+            .map(|arr| arr.to_owned().into())
+            .collect())
+    }
 }
 
 fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
@@ -415,48 +432,42 @@ fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArray
 }
 
 fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
-    let axis: i64 = ctx.attrs.get("axis")?.try_into()?;
+    let state = Concat::new(&ctx.attrs)?;
 
-    macro_rules! match_arm {
-        ($input_channels:expr, $variant:tt) => {{
-            let input_channels = $input_channels
-                .into_iter()
-                .map(|ch| match ch {
-                    TaggedReceiver::$variant(ch) => Ok(ch),
-                    _ => Err(anyhow!("All inputs must be of the same type")),
-                })
-                .collect::<Result<Vec<_>>>()?;
+    let inputs = Homogeneous::new_from_iter(ctx.input_channels().into_iter())?;
 
-            let (sdr, rec) = ArcArrayD::<_>::channel();
-            let fun = Box::new(move || {
-                let arrays: Vec<_> = input_channels
-                    .iter()
-                    .map(|ch| ch.try_recv())
-                    .collect::<Result<_, _>>()?;
-                let array_views: Vec<_> = arrays.iter().map(|a| a.into()).collect();
-                let n_dims = arrays[0].ndim();
-                let axis = convert_negative_index(axis, n_dims);
-                let out = ndarray::concatenate(Axis(axis), array_views.as_slice())?;
-                sdr.send(out.into())?;
-                Ok(())
-            });
-            Ok(ExecutionStep {
-                fun,
-                outputs: vec![rec.into()],
-            })
-        }};
+    use Homogeneous::*;
+    match inputs {
+        F32(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        F64(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        I32(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        I64(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        U32(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        U64(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        String(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+        Bool(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
+    }
+}
+
+#[derive(Copy, Clone)]
+struct Concat {
+    axis: i64,
+}
+impl Concat {
+    fn new(attrs: &Attributes) -> Result<Self> {
+        let axis: i64 = attrs.get("axis")?.try_into()?;
+        Ok(Self { axis })
     }
 
-    let inputs = ctx.input_channels();
-    match &inputs[0] {
-        TaggedReceiver::F32(_) => match_arm!(inputs, F32),
-        TaggedReceiver::F64(_) => match_arm!(inputs, F64),
-        TaggedReceiver::I32(_) => match_arm!(inputs, I32),
-        TaggedReceiver::I64(_) => match_arm!(inputs, I64),
-        TaggedReceiver::U32(_) => match_arm!(inputs, U32),
-        TaggedReceiver::U64(_) => match_arm!(inputs, U64),
-        TaggedReceiver::String(_) => match_arm!(inputs, String),
-        TaggedReceiver::Bool(_) => match_arm!(inputs, Bool),
+    fn concat<T>(self, (arrays,): (Vec<ArcArrayD<T>>,)) -> Result<ArcArrayD<T>>
+    where
+        T: Clone,
+    {
+        let array_views: Vec<_> = arrays.iter().map(|a| a.into()).collect();
+        let n_dims = arrays[0].ndim();
+        let axis = convert_negative_index(self.axis, n_dims);
+        let out = ndarray::concatenate(Axis(axis), array_views.as_slice())?;
+        Ok(out.into())
     }
 }
 
@@ -467,7 +478,7 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
         _ => bail!("Input `axes` of Squeeze must be of type `tensor(int64)`"),
     };
 
-    setup_all!(ch, ch, setup((ch, axes_ch), squeeze))
+    setup_all!(data_ch, data_ch, setup((data_ch, axes_ch), squeeze))
 }
 
 fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {
