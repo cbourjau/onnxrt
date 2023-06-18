@@ -24,9 +24,10 @@ mod one_hot;
 mod reduce;
 mod reshape;
 mod simple_element_wise;
+mod split;
 mod where_;
 
-use crate::setup_utils::{setup, setup_variadic_out};
+use crate::setup_utils::setup;
 
 macro_rules! binary_op {
     (int, $fun:expr) => {
@@ -76,6 +77,7 @@ macro_rules! bin_numeric_with_co_broadcast {
     };
 }
 
+#[macro_export]
 macro_rules! setup_all {
     ($tagged_rec:expr, $rec_name:ident, $setup:expr) => {
         match $tagged_rec {
@@ -133,7 +135,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ReduceLogSumExp", Box::new(reduce::setup_reducelogsumexp));
 
     d.insert("Reshape", Box::new(reshape::setup_reshape));
-    d.insert("Split", Box::new(setup_split));
+    d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", binary_op!(numeric, |a, b| Ok(a - b)));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
@@ -314,85 +316,6 @@ fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
         return tensor_attr!(ArcArrayD::<String>::try_from(attr)?);
     };
     Err(anyhow!("`Constant` node did not have expected attributes"))
-}
-
-fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
-    let n_outputs = ctx.n_outputs();
-
-    let state = Split::new(&ctx)?;
-
-    // `input_channels` creates channels and must only be called once!
-    let input_channels = ctx.input_channels();
-    if input_channels.len() > 1 {
-        bail!("`split` input of `Split` operator is not supported");
-    }
-
-    let [a_ch]: [_; 1] = input_channels.try_into().unwrap();
-
-    setup_all!(
-        a_ch,
-        a_ch,
-        setup_variadic_out((a_ch,), move |(a,)| state.split(a), n_outputs)
-    )
-}
-
-struct Split {
-    axis: i64,
-    num_outputs: Option<usize>,
-}
-
-impl Split {
-    fn new(ctx: &OpContext) -> Result<Self> {
-        // Terrible naming in the standard! This is actually the chunk size!
-        let num_outputs: Option<i64> = ctx.attrs.get_optional("num_outputs")?;
-
-        let num_outputs = {
-            if let Some(num_outputs) = num_outputs {
-                let num_outputs: usize = num_outputs.try_into()?;
-                if ctx.n_outputs() != num_outputs {
-                    panic!()
-                }
-                Some(num_outputs)
-            } else {
-                Some(ctx.n_outputs())
-            }
-        };
-        let axis = ctx.attrs.get_with_default("axis", 0i64)?;
-        Ok(Self { axis, num_outputs })
-    }
-
-    fn split<T>(&self, a: ArcArrayD<T>) -> Result<Vec<ArcArrayD<T>>>
-    where
-        T: Clone,
-    {
-        let axis = convert_negative_index(self.axis, a.shape().len());
-
-        let len_axis = a.shape()[axis];
-
-        let chunk_size = match self.num_outputs {
-            Some(num_outputs) => {
-                if len_axis < num_outputs {
-                    bail!(
-                        "Split: Cannot split dimension with '{}' elements into '{}' chunks.",
-                        len_axis,
-                        num_outputs,
-                    )
-                }
-                if len_axis % num_outputs == 0 {
-                    len_axis / num_outputs
-                } else {
-                    len_axis / num_outputs + 1
-                }
-            }
-            None => {
-                // Requires 'split' input; not implemented
-                panic!()
-            }
-        };
-        Ok(a.axis_chunks_iter(Axis(axis), chunk_size)
-            .map(|arr| arr.to_owned().into())
-            .collect())
-    }
 }
 
 fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
