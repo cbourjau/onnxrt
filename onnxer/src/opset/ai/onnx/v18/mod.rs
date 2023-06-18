@@ -17,6 +17,7 @@ use crate::{
 mod arg_min_max;
 mod clip;
 mod cumsum;
+mod min;
 mod mod_;
 mod one_hot;
 mod reduce;
@@ -100,6 +101,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("Mod", Box::new(mod_::setup_mod));
+    d.insert("Min", Box::new(min::setup_min));
     d.insert("Mul", binary_op!(numeric, |a, b| Ok(a * b)));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
     d.insert("Or", binary_boolean_factory(|(a, b)| Ok(a | b)));
