@@ -75,6 +75,21 @@ macro_rules! bin_numeric_with_co_broadcast {
     };
 }
 
+macro_rules! setup_all {
+    ($tagged_rec:expr, $rec_name:ident, $setup:expr) => {
+        match $tagged_rec {
+            TaggedReceiver::F32($rec_name) => $setup,
+            TaggedReceiver::F64($rec_name) => $setup,
+            TaggedReceiver::I32($rec_name) => $setup,
+            TaggedReceiver::I64($rec_name) => $setup,
+            TaggedReceiver::U32($rec_name) => $setup,
+            TaggedReceiver::U64($rec_name) => $setup,
+            TaggedReceiver::String($rec_name) => $setup,
+            TaggedReceiver::Bool($rec_name) => $setup,
+        }
+    };
+}
+
 /// HashMap of setup function of the ai.onnx domain version 18(?).
 #[rustfmt::skip]
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
@@ -367,16 +382,7 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
 
     if let TaggedReceiver::I64(axes_ch) = axes_ch {
-        match data_ch {
-            TaggedReceiver::String(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::I32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::I64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::U32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::U64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::F32(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::F64(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-            TaggedReceiver::Bool(data_ch) => setup((data_ch, axes_ch), unsqueeze),
-        }
+        setup_all!(data_ch, data_ch, setup((data_ch, axes_ch), unsqueeze))
     } else {
         panic!()
     }
@@ -461,16 +467,7 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
         _ => bail!("Input `axes` of Squeeze must be of type `tensor(int64)`"),
     };
 
-    match data_ch {
-        TaggedReceiver::Bool(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::F32(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::F64(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::I32(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::I64(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::U32(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::U64(ch) => setup((ch, axes_ch), squeeze),
-        TaggedReceiver::String(ch) => setup((ch, axes_ch), squeeze),
-    }
+    setup_all!(ch, ch, setup((ch, axes_ch), squeeze))
 }
 
 fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {
