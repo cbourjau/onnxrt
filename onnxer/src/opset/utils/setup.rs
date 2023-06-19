@@ -2,12 +2,22 @@
 
 use std::sync::mpsc::Receiver;
 
+use crate::opset::utils::*;
 use crate::{
     edges::{Dispatcher, Sender},
-    session::ExecutionStep,
     Dispatchable,
 };
-use anyhow::Result;
+
+// Deprecated. Use 'setup' directly
+pub fn wrap_1_input<In, Out, Op>(input: Receiver<ArcArrayD<In>>, f: Op) -> Result<ExecutionStep>
+where
+    ArcArrayD<Out>: Dispatchable,
+    In: Sync + Send + 'static,
+    Out: Sync + Send + 'static,
+    Op: Fn(ArcArrayD<In>) -> Result<ArcArrayD<Out>> + Send + Sync + 'static,
+{
+    setup((input,), move |(input,)| f(input))
+}
 
 pub fn setup<F, InCh, In, Out>(in_channels: InCh, fun: F) -> Result<ExecutionStep>
 where

@@ -1,28 +1,17 @@
-use std::sync::mpsc::Receiver;
-
+//! Utils to help with the tensor operation of an operation
+//! This module is not concerned with the monomophization ("setup")
+//! step.
 use anyhow::{bail, Result};
 use itertools::izip;
 use ndarray::{Dimension, IntoDimension, IxDyn, Zip};
 
-use crate::session::ExecutionStep;
-use crate::setup_utils::setup;
-use crate::{ArcArrayD, Dispatchable};
+use crate::ArcArrayD;
 
 /// Convert a negative index to a positive one under the assumption
 /// that it applies to a dimension of length `len`.
 pub fn convert_negative_index(idx: i64, len: usize) -> usize {
     let len = len as i64;
     (if idx < 0 { len + idx } else { idx } as usize)
-}
-
-pub fn wrap_1_input<In, Out, Op>(input: Receiver<ArcArrayD<In>>, f: Op) -> Result<ExecutionStep>
-where
-    ArcArrayD<Out>: Dispatchable,
-    In: Sync + Send + 'static,
-    Out: Sync + Send + 'static,
-    Op: Fn(ArcArrayD<In>) -> Result<ArcArrayD<Out>> + Send + Sync + 'static,
-{
-    setup((input,), move |(input,)| f(input))
 }
 
 /// Calculate the common shape for a pair of array shapes, that they can be broadcasted

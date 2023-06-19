@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::session::SetupFnSignature;
 
 pub mod ai;
+mod utils;
 
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     let mut setup_dict: HashMap<_, SetupFnSignature> = HashMap::new();

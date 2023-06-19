@@ -2,12 +2,10 @@
 
 use std::collections::HashMap;
 
-use anyhow::{bail, Result};
 use num_traits::Unsigned;
 
-use crate::session::{ExecutionStep, OpContext, SetupFnSignature};
-use crate::utils::wrap_1_input;
-use crate::TaggedReceiver;
+use crate::opset::utils::*;
+use crate::session::SetupFnSignature;
 
 macro_rules! element_wise {
     (int, $fun:expr) => {

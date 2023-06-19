@@ -2,10 +2,7 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use ndarray::Axis;
 
-use crate::session::{ExecutionStep, OpContext};
-use crate::{ArcArrayD, TaggedReceiver};
-
-use crate::setup_utils::setup;
+use crate::opset::utils::*;
 
 pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
     let (data_ch, indices_ch) = ctx.input_channels().into_iter().collect_tuple().unwrap();
@@ -14,16 +11,11 @@ pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
         _ => bail!("Input `Y` of ArrayFeatureExtractor must be of type `tensor(int64)`"),
     };
 
-    match data_ch {
-        TaggedReceiver::I32(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::I64(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::U32(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::U64(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::F32(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::F64(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::String(ch) => setup((ch, indices_ch), array_feature_extractor),
-        TaggedReceiver::Bool(ch) => setup((ch, indices_ch), array_feature_extractor),
-    }
+    setup_all!(
+        data_ch,
+        data_ch,
+        setup((data_ch, indices_ch), array_feature_extractor)
+    )
 }
 
 fn array_feature_extractor<D>(

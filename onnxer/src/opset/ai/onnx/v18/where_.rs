@@ -1,6 +1,6 @@
-use super::*;
+use ndarray::{IntoDimension, Zip};
 
-use crate::setup_utils::setup;
+use crate::opset::utils::*;
 
 pub fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
     let [cond_ch, x_ch, y_ch]: [_; 3] = ctx.input_channels().try_into().unwrap();

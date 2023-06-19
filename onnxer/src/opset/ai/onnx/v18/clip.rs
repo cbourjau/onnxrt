@@ -1,6 +1,7 @@
-use super::*;
+use std::sync::mpsc::Receiver;
 
-use crate::setup_utils::setup;
+use crate::opset::utils::*;
+use crate::Dispatchable;
 
 pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     let mut inputs = ctx.input_channels_with_optional().into_iter();

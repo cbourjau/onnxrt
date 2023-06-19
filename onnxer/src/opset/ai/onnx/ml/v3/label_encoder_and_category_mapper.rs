@@ -4,9 +4,7 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 
-use crate::session::{ExecutionStep, OpContext};
-use crate::utils::wrap_1_input;
-use crate::{ArcArrayD, Attributes, TaggedReceiver};
+use crate::opset::utils::*;
 
 enum LabelEncoder {
     StringToString {

@@ -1,6 +1,4 @@
-use super::*;
-
-use crate::setup_utils::setup;
+use crate::opset::utils::*;
 
 pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
     let [data, shape]: [_; 2] = ctx.input_channels().try_into().unwrap();

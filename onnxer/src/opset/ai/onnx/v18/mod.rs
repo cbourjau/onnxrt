@@ -1,19 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
-use anyhow::{anyhow, bail, Result};
 use itertools::sorted;
-use ndarray::{Array, Array2, Axis, IntoDimension, Ix1, IxDyn, Zip};
 use onnx_protos::onnx_proto3::GraphProto;
 
-use crate::attribute::{Attribute, Attributes};
-use crate::input_types::Homogeneous;
-use crate::session::{ExecutionStep, OpContext, SetupFnSignature};
-use crate::utils::{co_broadcast, convert_negative_index, wrap_1_input, zip_map_with_co_broadcast};
-use crate::{
-    channel, value_channel, ArcArrayD, DataType, Dispatchable, HomogeneousNumericFixed, Session,
-    TaggedReceiver,
-};
+use crate::opset::utils::*;
+use crate::session::SetupFnSignature;
+use crate::{channel, value_channel, DataType, Dispatchable, Session};
 
 mod arg_min_max;
 mod clip;
@@ -27,91 +20,25 @@ mod simple_element_wise;
 mod split;
 mod where_;
 
-use crate::setup_utils::setup;
-
-macro_rules! binary_op {
-    (int, $fun:expr) => {
-        binary_op!(
-            $fun,
-            I32, I64, U32, U64 |
-            rec => bail!("Expected integer input, found: '{:?}'", rec)
-        )
-    };
-    (numeric, $fun:expr) => {
-        binary_op!(
-            $fun,
-            F32, F64, I32, I64, U32, U64 |
-        )
-    };
-    (float, $fun:expr) => {
-        binary_op!(
-            $fun,
-            F32, F64 |
-            rec => bail!("Expected floating point input, found: '{:?}'", rec)
-        )
-    };
-    (signed, $fun:expr) => {
-        binary_op!(
-            $fun,
-            I32, I64, F32, F64 |
-            rec => bail!("Expected signed input, found: '{:?}'", rec)
-        )
-    };
-    ($fun:expr, $($variant:tt),* | $($rec:tt => $bail:expr)?) => {
-        Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let inputs: HomogeneousNumericFixed<2> = ctx.input_channels().try_into().unwrap();
-            use HomogeneousNumericFixed::*;
-            match inputs {
-                $($variant([a_ch, b_ch]) => {
-                    setup((a_ch, b_ch), move |(a, b)| $fun(a, b))
-                })*,
-                $($rec => $bail)?
-            }
-        })
-    };
-}
-
-macro_rules! bin_numeric_with_co_broadcast {
-    ($fun:expr) => {
-        binary_op!(numeric, |a, b| zip_map_with_co_broadcast(a, b, $fun))
-    };
-}
-
-#[macro_export]
-macro_rules! setup_all {
-    ($tagged_rec:expr, $rec_name:ident, $setup:expr) => {
-        match $tagged_rec {
-            TaggedReceiver::F32($rec_name) => $setup,
-            TaggedReceiver::F64($rec_name) => $setup,
-            TaggedReceiver::I32($rec_name) => $setup,
-            TaggedReceiver::I64($rec_name) => $setup,
-            TaggedReceiver::U32($rec_name) => $setup,
-            TaggedReceiver::U64($rec_name) => $setup,
-            TaggedReceiver::String($rec_name) => $setup,
-            TaggedReceiver::Bool($rec_name) => $setup,
-        }
-    };
-}
-
 /// HashMap of setup function of the ai.onnx domain version 18(?).
 #[rustfmt::skip]
 pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     let mut d = simple_element_wise::get_setup_dict();
-    d.insert("Add", binary_op!(numeric, |a, b| Ok(a + b)));
-    d.insert("And", binary_boolean_factory(|(a, b)| Ok(a & b)));
+    d.insert("Add", binary_op_factory!(numeric, |a, b| Ok(a + b)));
+    d.insert("And", binary_op_factory!(boolean, |a, b| Ok(a & b)));
     d.insert("ArgMax", Box::new(arg_min_max::setup_argmax));
     d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
 
-    d.insert("BitwiseAnd", binary_op!(int, |a, b| Ok(a & b)));
-    d.insert("BitwiseOr", binary_op!(int, |a, b| Ok(a | b)));
-    d.insert("BitwiseXor", binary_op!(int, |a, b| Ok(a ^ b)));
+    d.insert("BitwiseAnd", binary_op_factory!(int, |a, b| Ok(a & b)));
+    d.insert("BitwiseOr", binary_op_factory!(int, |a, b| Ok(a | b)));
+    d.insert("BitwiseXor", binary_op_factory!(int, |a, b| Ok(a ^ b)));
     
     d.insert("Cast", Box::new(setup_cast));
     d.insert("Clip", Box::new(clip::setup_clip));
     d.insert("CumSum", Box::new(cumsum::setup_cumsum));
     d.insert("Concat", Box::new(setup_concat));
     d.insert("Constant", Box::new(setup_constant));
-    d.insert("Div", binary_op!(numeric, |a, b| Ok(a / b)));
+    d.insert("Div", binary_op_factory!(numeric, |a, b| Ok(a / b)));
     d.insert("Equal", bin_numeric_with_co_broadcast!(PartialEq::eq));
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
@@ -120,9 +47,9 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("Mod", Box::new(mod_::setup_mod));
     d.insert("Min", Box::new(min::setup_min));
-    d.insert("Mul", binary_op!(numeric, |a, b| Ok(a * b)));
+    d.insert("Mul", binary_op_factory!(numeric, |a, b| Ok(a * b)));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
-    d.insert("Or", binary_boolean_factory(|(a, b)| Ok(a | b)));
+    d.insert("Or", binary_op_factory!(boolean, |a, b| Ok(a | b)));
     d.insert("ReduceMax", Box::new(reduce::setup_reducemax));
     d.insert("ReduceMean", Box::new(reduce::setup_reducemean));
     d.insert("ReduceMin", Box::new(reduce::setup_reducemin));
@@ -137,31 +64,11 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Reshape", Box::new(reshape::setup_reshape));
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
-    d.insert("Sub", binary_op!(numeric, |a, b| Ok(a - b)));
+    d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
     d.insert("Where", Box::new(where_::setup_where));
-    d.insert("Xor", binary_boolean_factory(|(a, b)| Ok(a ^ b)));
+    d.insert("Xor", binary_op_factory!(boolean, |a, b| Ok(a ^ b)));
     d
-}
-
-/// Create setup function with two boolean inputs
-fn binary_boolean_factory<Op>(op: Op) -> SetupFnSignature
-where
-    Op: Fn((ArcArrayD<bool>, ArcArrayD<bool>)) -> Result<ArcArrayD<bool>>
-        + Send
-        + Sync
-        + 'static
-        + Copy,
-{
-    Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-        let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
-        use TaggedReceiver::*;
-        match (a_ch, b_ch) {
-            (Bool(a_ch), Bool(b_ch)) => setup((a_ch, b_ch), op),
-            // Internal error. This should never happen!
-            _ => panic!(),
-        }
-    })
 }
 
 fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {

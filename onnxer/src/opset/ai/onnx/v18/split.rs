@@ -1,7 +1,4 @@
-use super::*;
-
-use crate::setup_all;
-use crate::setup_utils::setup_variadic_out;
+use crate::opset::utils::*;
 
 pub fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     let n_outputs = ctx.n_outputs();

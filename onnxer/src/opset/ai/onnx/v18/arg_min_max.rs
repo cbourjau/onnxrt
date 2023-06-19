@@ -1,6 +1,6 @@
-use super::*;
+use ndarray::Axis;
 
-use crate::{attribute::Attributes, setup_utils::setup};
+use crate::opset::utils::*;
 
 pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::new(&ctx.attrs)?;

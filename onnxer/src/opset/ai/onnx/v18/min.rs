@@ -2,9 +2,7 @@ use std::ops::Mul;
 
 use num::Zero;
 
-use super::*;
-
-use crate::{input_types::HomogeneousNumeric, setup_utils::setup};
+use crate::opset::utils::*;
 
 fn min<T>((inputs,): (Vec<ArcArrayD<T>>,)) -> Result<ArcArrayD<T>>
 where

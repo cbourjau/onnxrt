@@ -2,19 +2,15 @@ use ndarray::{ArcArray, IxDyn};
 
 mod attribute;
 mod edges;
-mod input_types;
 mod opset;
 mod python_api;
 mod session;
-mod setup_utils;
-mod utils;
 
 pub(crate) use attribute::{Attribute, Attributes};
 pub use edges::Value;
 pub(crate) use edges::{
     channel, value_channel, DataType, Dispatchable, Dispatcher, TaggedReceiver, ValueSender,
 };
-pub(crate) use input_types::HomogeneousNumericFixed;
 pub use opset::get_opset;
 pub use session::Session;
 
