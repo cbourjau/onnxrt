@@ -1,5 +1,4 @@
 use anyhow::{bail, Result};
-use itertools::Itertools;
 use ndarray::Axis;
 
 use crate::opset::utils::*;
@@ -28,7 +27,7 @@ where
 
 pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     // Should use ndarrays instead of vec?
-    let (a_ch,) = ctx.input_channels().into_iter().collect_tuple().unwrap();
+    let a_ch = ctx.input_channels().narrow()?;
     match a_ch {
         TaggedReceiver::F32(a_ch) => {
             if let Ok(Attribute::F32s(_arr)) = ctx.attrs.get("imputed_value_floats") {

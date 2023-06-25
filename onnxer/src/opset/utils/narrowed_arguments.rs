@@ -1,7 +1,7 @@
 // Some helper types for validating inputs.
 use std::sync::mpsc::Receiver;
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Result};
 
 use crate::{ArcArrayD, TaggedReceiver};
 
@@ -73,6 +73,21 @@ trait NarrowFromIterLast {
         Self: Sized;
 }
 
+impl NarrowFromIter for TaggedReceiver {
+    fn parse<I>(mut objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        Ok((
+            match objs.next() {
+                Some(trec) => trec,
+                None => bail!("Insufficient number of inputs"),
+            },
+            objs,
+        ))
+    }
+}
+
 macro_rules! impl_NarrowFromIter {
     ($ty:ty, $var:tt) => {
         impl NarrowFromIter for Receiver<ArcArrayD<$ty>> {
@@ -99,6 +114,18 @@ impl_NarrowFromIter!(f32, F32);
 impl_NarrowFromIter!(f64, F64);
 impl_NarrowFromIter!(u32, U32);
 impl_NarrowFromIter!(String, String);
+
+impl<T> NarrowFromIterLast for T
+where
+    T: NarrowFromIter,
+{
+    fn parse<I>(objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+    {
+        T::parse(objs)
+    }
+}
 
 impl<const N: usize> NarrowFromIterLast for HomogeneousFixed<N> {
     fn parse<I>(mut objs: I) -> Result<(Self, I)>
@@ -267,16 +294,5 @@ where
         }
 
         Ok((out1, out2))
-    }
-}
-
-impl TryFrom<TaggedReceiver> for Receiver<ArcArrayD<bool>> {
-    type Error = Error;
-
-    fn try_from(obj: TaggedReceiver) -> Result<Self, Self::Error> {
-        match obj {
-            TaggedReceiver::Bool(rec) => Ok(rec),
-            t_rec => bail!("{:?}", t_rec),
-        }
     }
 }

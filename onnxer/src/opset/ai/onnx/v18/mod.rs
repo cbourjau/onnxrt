@@ -9,6 +9,7 @@ use crate::session::SetupFnSignature;
 use crate::{channel, value_channel, DataType, Dispatchable, Session};
 
 mod arg_min_max;
+// mod cast_like;
 mod clip;
 mod cumsum;
 mod min;
@@ -72,7 +73,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
 }
 
 fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+    let a_ch = ctx.input_channels().narrow()?;
+
     macro_rules! make_output_fallible {
         ($inp:expr, $cast:expr) => {{
             wrap_1_input($inp, |a| {
@@ -226,18 +228,14 @@ fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
 }
 
 fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
-    let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
+    let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.input_channels().narrow()?;
 
-    if let TaggedReceiver::I64(axes_ch) = axes_ch {
-        setup_all!(
-            TaggedReceiver,
-            data_ch,
-            data_ch,
-            setup((data_ch, axes_ch), unsqueeze)
-        )
-    } else {
-        panic!()
-    }
+    setup_all!(
+        TaggedReceiver,
+        data_ch,
+        data_ch,
+        setup((data_ch, axes_ch), unsqueeze)
+    )
 }
 
 fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {
@@ -302,11 +300,7 @@ impl Concat {
 }
 
 fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
-    let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
-    let axes_ch = match axes_ch {
-        TaggedReceiver::I64(ch) => ch,
-        _ => bail!("Input `axes` of Squeeze must be of type `tensor(int64)`"),
-    };
+    let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.input_channels().narrow()?;
 
     setup_all!(
         TaggedReceiver,
@@ -335,13 +329,7 @@ fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArra
 
 fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
     // Explicit node input
-    let [cond_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-    // Condition must be of type bool
-    let cond_ch = if let TaggedReceiver::Bool(cond_ch) = cond_ch {
-        cond_ch
-    } else {
-        bail!("Conditional tensor must be of type `bool`.")
-    };
+    let cond_ch: Receiver<ArcArrayD<bool>> = ctx.input_channels().narrow()?;
 
     // Create the sessions for the `then` and `else` branch.
     let make_attr_session = |attr_name| {

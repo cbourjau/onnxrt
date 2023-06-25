@@ -1,27 +1,18 @@
 use anyhow::Result;
 
 use super::data_structure::TreeEnsemble;
+use crate::opset::utils::*;
 use crate::session::{ExecutionStep, OpContext};
-use crate::{ArcArrayD, Dispatchable, TaggedReceiver};
+use crate::{ArcArrayD, TaggedReceiver};
 
 pub fn setup_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
-    let mut input_channels = ctx.input_channels().into_iter();
-    let a_ch = input_channels.next().unwrap();
+    let a_ch = ctx.input_channels().narrow()?;
+
     let ensemble = TreeEnsemble::from_attributes(&ctx.attrs).unwrap();
-    let (sdr, rec) = ArcArrayD::<_>::channel();
     match a_ch {
-        TaggedReceiver::F64(a_ch) => {
-            let fun = Box::new(move || {
-                let a = a_ch.recv().unwrap();
-                let out = ensemble.predict(&a);
-                sdr.send(out.into_dyn().into())?;
-                Ok(())
-            });
-            Ok(ExecutionStep {
-                fun,
-                outputs: vec![rec],
-            })
-        }
-        _ => panic!(),
+        TaggedReceiver::F64(a_ch) => setup((a_ch,), move |(a,)| {
+            Ok::<ArcArrayD<_>, _>(ensemble.predict(&a).into())
+        }),
+        _ => bail!("TreeEnsembleRegressor: Unexpected input type"),
     }
 }

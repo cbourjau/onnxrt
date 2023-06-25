@@ -62,7 +62,7 @@ impl State {
 }
 
 pub fn setup_cumsum(ctx: OpContext) -> Result<ExecutionStep> {
-    let [x, axis]: [_; 2] = ctx.input_channels().try_into().unwrap();
+    let (x, axis) = ctx.input_channels().narrow()?;
 
     let exclusive = ctx.attrs.get_with_default("exclusive", 0)? == 1;
     let reverse = ctx.attrs.get_with_default("reverse", 0)? == 1;

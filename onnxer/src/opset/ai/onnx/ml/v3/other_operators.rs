@@ -1,15 +1,10 @@
-use anyhow::{bail, Result};
-use itertools::Itertools;
+use anyhow::Result;
 use ndarray::Axis;
 
 use crate::opset::utils::*;
 
 pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
-    let (data_ch, indices_ch) = ctx.input_channels().into_iter().collect_tuple().unwrap();
-    let indices_ch = match indices_ch {
-        TaggedReceiver::I64(ch) => ch,
-        _ => bail!("Input `Y` of ArrayFeatureExtractor must be of type `tensor(int64)`"),
-    };
+    let (data_ch, indices_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.input_channels().narrow()?;
 
     setup_all!(
         TaggedReceiver,
