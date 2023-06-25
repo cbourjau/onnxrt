@@ -66,11 +66,23 @@ impl<'a> OpContext<'a> {
         out
     }
 
-    /// Subscribe to the input channels for this node
+    /// Subscribe to the input channels for this node.
     pub fn subscribe_to_inputs(self) -> Vec<TaggedReceiver> {
         let mut channels = vec![];
         for input_name in &self.node.input {
             channels.push(self.subscribe(input_name));
+        }
+        channels
+    }
+
+    /// Subscribe to the input channels for this node specified by `indices`.
+    ///
+    /// Always prefer using `subscribe_to_inputs` unless you really want to skip some inputs.
+    pub fn subscribe_to_inputs_by_index(self, indices: &[usize]) -> Vec<TaggedReceiver> {
+        let mut channels = vec![];
+        for idx in indices {
+            let name = self.node.input.get(*idx).unwrap();
+            channels.push(self.subscribe(name));
         }
         channels
     }

@@ -10,8 +10,11 @@ pub fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
 }
 
 pub fn setup_cast_like(ctx: OpContext) -> Result<ExecutionStep> {
-    let (inp, target): (_, TaggedReceiver) = ctx.subscribe_to_inputs().narrow()?;
-    let to_type = target.dtype();
+    // The tricky part here is to avoid actually subscribing to the
+    // target input. We know the dtype without it and that allows us
+    // to reuse the actual `Cast` logic.
+    let to_type = ctx.input_dtypes()[1];
+    let (inp,) = ctx.subscribe_to_inputs_by_index(&[0]).narrow()?;
     setup_cast_(inp, to_type)
 }
 

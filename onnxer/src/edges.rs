@@ -7,7 +7,7 @@ use onnx_protos::onnx_proto3::{type_proto, ValueInfoProto};
 use crate::ArcArrayD;
 
 /// Data types which may be exchange between nodes.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum DataType {
     Bool,
     F32,
