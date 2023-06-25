@@ -29,7 +29,7 @@ where
 }
 
 pub fn setup_min(ctx: OpContext) -> Result<ExecutionStep> {
-    let inputs = HomogeneousNumeric::new_from_iter(ctx.input_channels().into_iter())?;
+    let inputs = ctx.input_channels().narrow()?;
 
     use HomogeneousNumeric::*;
     match inputs {

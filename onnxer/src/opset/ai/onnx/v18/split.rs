@@ -101,7 +101,6 @@ impl Split {
 
         let split = split.into_dimensionality::<Ix1>()?.mapv(|el| el as usize);
         if split.sum() != a.shape()[axis] {
-            dbg!(&split, &a);
             bail!("Split: 'input' and 'split' inputs are incompatible.");
         }
         if split.len() != self.num_outputs {

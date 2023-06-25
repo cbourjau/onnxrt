@@ -60,7 +60,7 @@ macro_rules! binary_op_factory {
     };
     ($fun:expr, $($variant:tt),* | $($rec:tt => $bail:expr)?) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let inputs: HomogeneousNumericFixed<2> = ctx.input_channels().try_into().unwrap();
+            let inputs: HomogeneousNumericFixed<2> = ctx.input_channels().narrow()?;
             use HomogeneousNumericFixed::*;
             match inputs {
                 $($variant([a_ch, b_ch]) => {

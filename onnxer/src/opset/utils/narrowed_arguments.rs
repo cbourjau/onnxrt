@@ -1,9 +1,46 @@
 // Some helper types for validating inputs.
 use std::sync::mpsc::Receiver;
 
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{bail, Error, Result};
 
 use crate::{ArcArrayD, TaggedReceiver};
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
+pub enum Homogeneous {
+    F32(Vec<Receiver<ArcArrayD<f32>>>),
+    F64(Vec<Receiver<ArcArrayD<f64>>>),
+    I32(Vec<Receiver<ArcArrayD<i32>>>),
+    I64(Vec<Receiver<ArcArrayD<i64>>>),
+    U32(Vec<Receiver<ArcArrayD<u32>>>),
+    U64(Vec<Receiver<ArcArrayD<u64>>>),
+    String(Vec<Receiver<ArcArrayD<String>>>),
+    Bool(Vec<Receiver<ArcArrayD<bool>>>),
+}
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
+pub enum HomogeneousNumeric {
+    F32(Vec<Receiver<ArcArrayD<f32>>>),
+    F64(Vec<Receiver<ArcArrayD<f64>>>),
+    I32(Vec<Receiver<ArcArrayD<i32>>>),
+    I64(Vec<Receiver<ArcArrayD<i64>>>),
+    U32(Vec<Receiver<ArcArrayD<u32>>>),
+    U64(Vec<Receiver<ArcArrayD<u64>>>),
+}
+
+/// Homogeneous variadic inputs
+#[derive(Debug)]
+pub enum HomogeneousFixed<const N: usize> {
+    F32([Receiver<ArcArrayD<f32>>; N]),
+    F64([Receiver<ArcArrayD<f64>>; N]),
+    I32([Receiver<ArcArrayD<i32>>; N]),
+    I64([Receiver<ArcArrayD<i64>>; N]),
+    U32([Receiver<ArcArrayD<u32>>; N]),
+    U64([Receiver<ArcArrayD<u64>>; N]),
+    Bool([Receiver<ArcArrayD<bool>>; N]),
+    String([Receiver<ArcArrayD<String>>; N]),
+}
 
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
@@ -16,106 +53,230 @@ pub enum HomogeneousNumericFixed<const N: usize> {
     U64([Receiver<ArcArrayD<u64>>; N]),
 }
 
-impl<const N: usize> TryFrom<Vec<TaggedReceiver>> for HomogeneousNumericFixed<N> {
+pub trait NarrowFromVec<T> {
+    fn narrow(self) -> Result<T>
+    where
+        Self: Sized;
+}
+
+trait NarrowFromIter {
+    fn parse<I>(objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+        Self: Sized;
+}
+
+trait NarrowFromIterLast {
+    fn parse<I>(objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+        Self: Sized;
+}
+
+macro_rules! impl_NarrowFromIter {
+    ($ty:ty, $var:tt) => {
+        impl NarrowFromIter for Receiver<ArcArrayD<$ty>> {
+            fn parse<I>(mut objs: I) -> Result<(Self, I)>
+            where
+                I: Iterator<Item = TaggedReceiver>,
+            {
+                Ok((
+                    match objs.next() {
+                        Some(TaggedReceiver::$var(rec)) => rec,
+                        Some(trec) => bail!("Expected 'tensor(bool)' found {:?}", trec),
+                        None => bail!("Insufficient number of inputs"),
+                    },
+                    objs,
+                ))
+            }
+        }
+    };
+}
+impl_NarrowFromIter!(bool, Bool);
+impl_NarrowFromIter!(i32, I32);
+impl_NarrowFromIter!(i64, I64);
+impl_NarrowFromIter!(f32, F32);
+impl_NarrowFromIter!(f64, F64);
+impl_NarrowFromIter!(u32, U32);
+impl_NarrowFromIter!(String, String);
+
+impl<const N: usize> NarrowFromIterLast for HomogeneousFixed<N> {
+    fn parse<I>(mut objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+    {
+        let first = objs.next().unwrap();
+
+        macro_rules! monomorphize {
+            ($($variant:tt),*) => {
+                match first {
+                    $(TaggedReceiver::$variant(rec) => {
+                        let mut out = vec![rec];
+                        for _ in 1..N {
+                            match objs.next() {
+                                Some(TaggedReceiver::$variant(next)) => {
+                                    out.push(next);
+                                }
+                                Some(_) => panic!(),
+                                None => panic!(),
+                            }
+                        }
+                        Self::$variant(out.try_into().unwrap())
+                    },)*
+                }
+            };
+        }
+
+        Ok((
+            monomorphize!(F32, F64, I32, I64, U32, U64, Bool, String),
+            objs,
+        ))
+    }
+}
+
+impl<const N: usize> NarrowFromIterLast for HomogeneousNumericFixed<N> {
+    fn parse<I>(objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+    {
+        let (vals, objs) = HomogeneousFixed::<N>::parse(objs)?;
+        macro_rules! do_match {
+            ($($variant:tt),*) => {
+                match vals {
+                    $(HomogeneousFixed::$variant(arr) => {
+                        Ok((HomogeneousNumericFixed::$variant(arr), objs))
+                    },)*
+                    HomogeneousFixed::Bool(_) | HomogeneousFixed::String(_) => {
+                        bail!("Expected numeric input")
+                    }
+                }
+            };
+        }
+        do_match!(F32, F64, I32, I64, U32, U64)
+    }
+}
+
+impl NarrowFromIterLast for Homogeneous {
+    fn parse<I>(mut objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+    {
+        let len = objs.len();
+
+        let first = objs.next().unwrap();
+
+        macro_rules! monomorphize {
+            ($($variant:tt),*) => {
+                match first {
+                    $(TaggedReceiver::$variant(rec) => {
+                        let mut out = vec![rec];
+                        for i in 1..len {
+                            match objs.next() {
+                                Some(TaggedReceiver::$variant(next)) => {
+                                    out.push(next);
+                                }
+                                Some(rec) => bail!(
+                                    "Expected homogeneous input of type 'TaggedReceiver::{}'. Found '{:?}'",
+                                    stringify!($variant), rec
+                                ),
+                                None => bail!(
+                                    "Expected {} homogeneous inputs. Found {}",
+                                    len,
+                                    i - 1
+                                ),
+                            }
+                        }
+                        Self::$variant(out.try_into().unwrap())
+                    },)*
+                }
+            };
+        }
+
+        Ok((
+            monomorphize!(F32, F64, I32, I64, U32, U64, Bool, String),
+            objs,
+        ))
+    }
+}
+
+impl NarrowFromIterLast for HomogeneousNumeric {
+    fn parse<I>(objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
+    {
+        let (vals, objs) = Homogeneous::parse(objs)?;
+
+        macro_rules! do_match {
+            ($($variant:tt),*) => {
+                match vals {
+                    $(Homogeneous::$variant(arr) => {
+                        Ok((HomogeneousNumeric::$variant(arr), objs))
+                    },)*
+                    Homogeneous::Bool(_) | Homogeneous::String(_) => {
+                        bail!("Expected numeric input")
+                    }
+                }
+            };
+        }
+        do_match!(F32, F64, I32, I64, U32, U64)
+    }
+}
+
+impl<T1> NarrowFromVec<T1> for Vec<TaggedReceiver>
+where
+    T1: NarrowFromIterLast,
+{
+    fn narrow(self) -> Result<T1> {
+        let iter = self.into_iter();
+        let (out1, iter) = T1::parse(iter)?;
+
+        if iter.count() != 0 {
+            bail!("Unexpected number of inputs.")
+        }
+        Ok(out1)
+    }
+}
+
+impl<T1> NarrowFromVec<(T1,)> for Vec<TaggedReceiver>
+where
+    T1: NarrowFromIterLast,
+{
+    fn narrow(self) -> Result<(T1,)> {
+        let iter = self.into_iter();
+        let (out1, iter) = T1::parse(iter)?;
+
+        if iter.count() != 0 {
+            bail!("Unexpected number of inputs.")
+        }
+        Ok((out1,))
+    }
+}
+
+impl<T1, T2> NarrowFromVec<(T1, T2)> for Vec<TaggedReceiver>
+where
+    T1: NarrowFromIter,
+    T2: NarrowFromIterLast,
+{
+    fn narrow(self) -> Result<(T1, T2)> {
+        let iter = self.into_iter();
+        let (out1, iter) = T1::parse(iter)?;
+        let (out2, iter) = T2::parse(iter)?;
+
+        if iter.count() != 0 {
+            bail!("Unexpected number of inputs.")
+        }
+
+        Ok((out1, out2))
+    }
+}
+
+impl TryFrom<TaggedReceiver> for Receiver<ArcArrayD<bool>> {
     type Error = Error;
 
-    fn try_from(vec: Vec<TaggedReceiver>) -> Result<Self, Self::Error> {
-        let len = vec.len();
-        macro_rules! make_err {
-            () => {
-                |_| anyhow!("Unexpected {} inputs found {}", N, len)
-            };
+    fn try_from(obj: TaggedReceiver) -> Result<Self, Self::Error> {
+        match obj {
+            TaggedReceiver::Bool(rec) => Ok(rec),
+            t_rec => bail!("{:?}", t_rec),
         }
-        Ok(match HomogeneousNumeric::new_from_iter(vec.into_iter())? {
-            HomogeneousNumeric::F32(vec) => Self::F32(vec.try_into().map_err(make_err!())?),
-            HomogeneousNumeric::F64(vec) => Self::F64(vec.try_into().map_err(make_err!())?),
-            HomogeneousNumeric::I32(vec) => Self::I32(vec.try_into().map_err(make_err!())?),
-            HomogeneousNumeric::I64(vec) => Self::I64(vec.try_into().map_err(make_err!())?),
-            HomogeneousNumeric::U32(vec) => Self::U32(vec.try_into().map_err(make_err!())?),
-            HomogeneousNumeric::U64(vec) => Self::U64(vec.try_into().map_err(make_err!())?),
-        })
-    }
-}
-
-/// Homogeneous, numeric variadic inputs
-pub enum Homogeneous {
-    F32(Vec<Receiver<ArcArrayD<f32>>>),
-    F64(Vec<Receiver<ArcArrayD<f64>>>),
-    I32(Vec<Receiver<ArcArrayD<i32>>>),
-    I64(Vec<Receiver<ArcArrayD<i64>>>),
-    U32(Vec<Receiver<ArcArrayD<u32>>>),
-    U64(Vec<Receiver<ArcArrayD<u64>>>),
-    String(Vec<Receiver<ArcArrayD<String>>>),
-    Bool(Vec<Receiver<ArcArrayD<bool>>>),
-}
-
-impl Homogeneous {
-    pub fn new_from_iter<I>(inputs: I) -> Result<Self>
-    where
-        I: IntoIterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        if inputs.len() == 0 {
-            bail!("Construction `HomogeneousChannels` requires at least one input.")
-        }
-
-        let mut inputs = inputs.into_iter().peekable();
-        let first: &TaggedReceiver = inputs.peek().unwrap();
-
-        macro_rules! match_arm {
-            ($variant:tt) => {
-                Homogeneous::$variant({
-                    inputs
-                        .into_iter()
-                        .map(|el| {
-                            if let TaggedReceiver::$variant(el) = el {
-                                Ok(el)
-                            } else {
-                                bail!("Inputs are not homogeneous.")
-                            }
-                        })
-                        .collect::<Result<_>>()?
-                })
-            };
-        }
-
-        Ok(match first {
-            TaggedReceiver::F32(_) => match_arm!(F32),
-            TaggedReceiver::F64(_) => match_arm!(F64),
-            TaggedReceiver::I32(_) => match_arm!(I32),
-            TaggedReceiver::I64(_) => match_arm!(I64),
-            TaggedReceiver::U32(_) => match_arm!(U32),
-            TaggedReceiver::U64(_) => match_arm!(U64),
-            TaggedReceiver::Bool(_) => match_arm!(Bool),
-            TaggedReceiver::String(_) => match_arm!(String),
-        })
-    }
-}
-
-/// Homogeneous, numeric variadic inputs
-pub enum HomogeneousNumeric {
-    F32(Vec<Receiver<ArcArrayD<f32>>>),
-    F64(Vec<Receiver<ArcArrayD<f64>>>),
-    I32(Vec<Receiver<ArcArrayD<i32>>>),
-    I64(Vec<Receiver<ArcArrayD<i64>>>),
-    U32(Vec<Receiver<ArcArrayD<u32>>>),
-    U64(Vec<Receiver<ArcArrayD<u64>>>),
-}
-
-impl HomogeneousNumeric {
-    pub fn new_from_iter<I>(inputs: I) -> Result<Self>
-    where
-        I: IntoIterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        let inputs = Homogeneous::new_from_iter(inputs)?;
-
-        Ok(match inputs {
-            Homogeneous::F32(arrs) => HomogeneousNumeric::F32(arrs),
-            Homogeneous::F64(arrs) => HomogeneousNumeric::F64(arrs),
-            Homogeneous::I32(arrs) => HomogeneousNumeric::I32(arrs),
-            Homogeneous::I64(arrs) => HomogeneousNumeric::I64(arrs),
-            Homogeneous::U32(arrs) => HomogeneousNumeric::U32(arrs),
-            Homogeneous::U64(arrs) => HomogeneousNumeric::U64(arrs),
-            _ => bail!("Inputs are not numeric."),
-        })
     }
 }

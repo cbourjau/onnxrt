@@ -264,7 +264,7 @@ fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArray
 fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Concat::new(&ctx.attrs)?;
 
-    let inputs = Homogeneous::new_from_iter(ctx.input_channels().into_iter())?;
+    let inputs = ctx.input_channels().narrow()?;
 
     use Homogeneous::*;
     match inputs {

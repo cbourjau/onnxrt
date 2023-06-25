@@ -5,7 +5,7 @@ use crate::opset::utils::*;
 pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::new(&ctx.attrs)?;
 
-    match ctx.input_channels().try_into()? {
+    match ctx.input_channels().narrow()? {
         HomogeneousNumericFixed::F32([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
         HomogeneousNumericFixed::F64([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
         HomogeneousNumericFixed::I32([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
@@ -18,7 +18,7 @@ pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
 pub fn setup_argmin(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::new(&ctx.attrs)?;
 
-    match ctx.input_channels().try_into()? {
+    match ctx.input_channels().narrow()? {
         HomogeneousNumericFixed::F32([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
         HomogeneousNumericFixed::F64([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
         HomogeneousNumericFixed::I32([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
