@@ -27,32 +27,33 @@ where
 
 pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     // Should use ndarrays instead of vec?
-    let a_ch = ctx.input_channels().narrow()?;
+    let attrs = ctx.attrs.clone();
+    let a_ch = ctx.subscribe_to_inputs().narrow()?;
     match a_ch {
         TaggedReceiver::F32(a_ch) => {
-            if let Ok(Attribute::F32s(_arr)) = ctx.attrs.get("imputed_value_floats") {
+            if let Ok(Attribute::F32s(_arr)) = attrs.get("imputed_value_floats") {
                 unimplemented!();
             };
-            let keys: Vec<f32> = ctx.attrs.get("imputed_value_floats")?.try_into()?;
-            let value = ctx.attrs.get_with_default("replaced_value_float", 0.0)?;
+            let keys: Vec<f32> = attrs.get("imputed_value_floats")?.try_into()?;
+            let value = attrs.get_with_default("replaced_value_float", 0.0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
         TaggedReceiver::F64(a_ch) => {
-            let keys = Vec::<f32>::try_from(ctx.attrs.get("imputed_value_floats")?)?
+            let keys = Vec::<f32>::try_from(attrs.get("imputed_value_floats")?)?
                 .into_iter()
                 .map(|el| el as f64)
                 .collect::<Vec<_>>();
-            let value = ctx.attrs.get_with_default("replaced_value_float", 0.0)? as f64;
+            let value = attrs.get_with_default("replaced_value_float", 0.0)? as f64;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
         TaggedReceiver::I64(a_ch) => {
-            let keys: Vec<i64> = ctx.attrs.get("imputed_value_int64s")?.try_into()?;
-            let value = ctx.attrs.get_with_default("replaced_value_int64", 0)?;
+            let keys: Vec<i64> = attrs.get("imputed_value_int64s")?.try_into()?;
+            let value = attrs.get_with_default("replaced_value_int64", 0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
         TaggedReceiver::I32(a_ch) => {
-            let keys: Vec<i64> = ctx.attrs.get("imputed_value_int64s")?.try_into()?;
-            let value = ctx.attrs.get_with_default("replaced_value_int64", 0)?;
+            let keys: Vec<i64> = attrs.get("imputed_value_int64s")?.try_into()?;
+            let value = attrs.get_with_default("replaced_value_int64", 0)?;
             wrap_1_input(a_ch, move |a| {
                 impute(a.mapv(|el| el as i64).into(), &keys, value)
             })

@@ -7,7 +7,7 @@ pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
 
     setup_all!(
         HomogeneousNumericFixed,
-        ctx.input_channels().narrow()?,
+        ctx.subscribe_to_inputs().narrow()?,
         [ch],
         setup((ch,), move |(data,)| state.arg_max(&data))
     )
@@ -18,7 +18,7 @@ pub fn setup_argmin(ctx: OpContext) -> Result<ExecutionStep> {
 
     setup_all!(
         HomogeneousNumericFixed,
-        ctx.input_channels().narrow()?,
+        ctx.subscribe_to_inputs().narrow()?,
         [ch],
         setup((ch,), move |(data,)| state.arg_min(&data))
     )

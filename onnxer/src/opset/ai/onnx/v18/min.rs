@@ -29,7 +29,7 @@ where
 }
 
 pub fn setup_min(ctx: OpContext) -> Result<ExecutionStep> {
-    let inputs = ctx.input_channels().narrow()?;
+    let inputs = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(HomogeneousNumeric, inputs, inputs, setup((inputs,), min))
 }

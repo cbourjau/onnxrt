@@ -10,6 +10,7 @@ use onnx_protos::onnx_proto3::{
 };
 
 // Vectors should be ArcArrayD
+#[derive(Clone)]
 pub enum Attribute {
     F32s(ArcArrayD<f32>),
     F64s(ArcArrayD<f64>),
@@ -63,7 +64,7 @@ impl std::fmt::Debug for Attribute {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attributes(HashMap<String, Attribute>);
 
 impl Attributes {

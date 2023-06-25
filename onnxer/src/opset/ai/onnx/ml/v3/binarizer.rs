@@ -13,7 +13,7 @@ where
 
 pub fn setup_binarizer(ctx: OpContext) -> Result<ExecutionStep> {
     let threshold: f32 = ctx.attrs.get("threshold")?.try_into()?;
-    let inputs = ctx.input_channels().narrow()?;
+    let inputs = ctx.subscribe_to_inputs().narrow()?;
 
     use HomogeneousNumericFixed::*;
     match inputs {

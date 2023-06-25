@@ -1,8 +1,9 @@
 use super::*;
 
 pub fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
-    let [indices, depth, values]: [_; 3] = ctx.input_channels().try_into().unwrap();
     let axis = ctx.attrs.get_optional("axis")?;
+
+    let [indices, depth, values]: [_; 3] = ctx.subscribe_to_inputs().try_into().unwrap();
 
     // Cast other types to i64 (as stated in the standard...)
     let map_err = |e| format!("Failed to receive value: {:?}", e);

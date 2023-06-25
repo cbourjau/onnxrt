@@ -62,12 +62,12 @@ impl State {
 }
 
 pub fn setup_cumsum(ctx: OpContext) -> Result<ExecutionStep> {
-    let (x, axis) = ctx.input_channels().narrow()?;
-
     let exclusive = ctx.attrs.get_with_default("exclusive", 0)? == 1;
     let reverse = ctx.attrs.get_with_default("reverse", 0)? == 1;
 
     let state = State { exclusive, reverse };
+
+    let (x, axis) = ctx.subscribe_to_inputs().narrow()?;
 
     macro_rules! match_all {
         ($($x_type:tt),* ) => {

@@ -58,8 +58,16 @@ impl<'a> OpContext<'a> {
         })
     }
 
+    pub fn input_dtypes(&self) -> Vec<DataType> {
+        let mut out = vec![];
+        for name in &self.node.input {
+            out.push(self.scope.get(name).unwrap().dtype());
+        }
+        out
+    }
+
     /// Subscribe to the input channels for this node
-    pub fn input_channels(&self) -> Vec<TaggedReceiver> {
+    pub fn subscribe_to_inputs(self) -> Vec<TaggedReceiver> {
         let mut channels = vec![];
         for input_name in &self.node.input {
             channels.push(self.subscribe(input_name));
@@ -74,7 +82,7 @@ impl<'a> OpContext<'a> {
     ///
     /// Note: If the last input is optional and missing it may be
     /// absent completely in the input list of a node!
-    pub fn input_channels_with_optional(&self) -> Vec<Option<TaggedReceiver>> {
+    pub fn input_channels_with_optional(self) -> Vec<Option<TaggedReceiver>> {
         let mut channels = vec![];
         for input_name in &self.node.input {
             if input_name.is_empty() {

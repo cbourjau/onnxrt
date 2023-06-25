@@ -3,7 +3,7 @@ use ndarray::{IntoDimension, Zip};
 use crate::opset::utils::*;
 
 pub fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
-    let (cond_ch, data_chs): (Receiver<ArcArrayD<bool>>, _) = ctx.input_channels().narrow()?;
+    let (cond_ch, data_chs): (Receiver<ArcArrayD<bool>>, _) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
         HomogeneousFixed,

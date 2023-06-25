@@ -6,7 +6,7 @@ pub fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Split::new(&ctx)?;
 
     // `input_channels` creates channels and must only be called once!
-    let input_channels = ctx.input_channels();
+    let input_channels = ctx.subscribe_to_inputs();
     if input_channels.len() > 2 {
         bail!("Split: Unexpected number of inputs");
     }

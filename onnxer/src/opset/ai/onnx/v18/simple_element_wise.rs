@@ -38,7 +38,7 @@ macro_rules! element_wise {
     };
     ($fun:expr, $($variant:tt),* | $($rec:tt => $bail:expr)?) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+            let [a_ch]: [_; 1] = ctx.subscribe_to_inputs().try_into().unwrap();
             match a_ch {
                 $(TaggedReceiver::$variant(a_ch) => {
                     wrap_1_input(a_ch, |a| Ok(a.mapv($fun).into()))
@@ -103,13 +103,13 @@ pub fn get_setup_dict() -> HashMap<&'static str, SetupFnSignature> {
 }
 
 fn setup_identity(ctx: OpContext) -> Result<ExecutionStep> {
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+    let [a_ch]: [_; 1] = ctx.subscribe_to_inputs().try_into().unwrap();
 
     setup_all!(TaggedReceiver, a_ch, a_ch, wrap_1_input(a_ch, Ok))
 }
 
 fn setup_not(ctx: OpContext) -> Result<ExecutionStep> {
-    let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
+    let [a_ch]: [_; 1] = ctx.subscribe_to_inputs().try_into().unwrap();
     match a_ch {
         TaggedReceiver::Bool(a_ch) => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| !el).into())),
         _ => bail!("`Not` input must be of type bool."),

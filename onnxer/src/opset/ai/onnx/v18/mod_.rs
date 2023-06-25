@@ -75,10 +75,10 @@ impl State {
 }
 
 pub fn setup_mod(ctx: OpContext) -> Result<ExecutionStep> {
-    let inputs: HomogeneousNumericFixed<2> = ctx.input_channels().narrow()?;
-
     let fmod = ctx.attrs.get_with_default("fmod", 0)? == 1;
     let state = State { fmod };
+
+    let inputs: HomogeneousNumericFixed<2> = ctx.subscribe_to_inputs().narrow()?;
 
     use HomogeneousNumericFixed::*;
     match inputs {

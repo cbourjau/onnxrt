@@ -6,10 +6,10 @@ use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::opset::utils::*;
 use crate::session::SetupFnSignature;
-use crate::{channel, value_channel, DataType, Dispatchable, Session};
+use crate::{channel, value_channel, Dispatchable, Session};
 
 mod arg_min_max;
-// mod cast_like;
+mod cast;
 mod clip;
 mod cumsum;
 mod min;
@@ -34,7 +34,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("BitwiseOr", binary_op_factory!(int, |a, b| Ok(a | b)));
     d.insert("BitwiseXor", binary_op_factory!(int, |a, b| Ok(a ^ b)));
     
-    d.insert("Cast", Box::new(setup_cast));
+    d.insert("Cast", Box::new(cast::setup_cast));
+    d.insert("CastLike", Box::new(cast::setup_cast_like));
     d.insert("Clip", Box::new(clip::setup_clip));
     d.insert("CumSum", Box::new(cumsum::setup_cumsum));
     d.insert("Concat", Box::new(setup_concat));
@@ -70,103 +71,6 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Where", Box::new(where_::setup_where));
     d.insert("Xor", binary_op_factory!(boolean, |a, b| Ok(a ^ b)));
     d
-}
-
-fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
-    let a_ch = ctx.input_channels().narrow()?;
-
-    macro_rules! make_output_fallible {
-        ($inp:expr, $cast:expr) => {{
-            wrap_1_input($inp, |a| {
-                let str_vec = a.iter().map($cast).collect::<Result<_, _>>()?;
-                let out = Array::from_vec(str_vec).into_shape(a.shape())?;
-                Ok(out.into())
-            })
-        }};
-    }
-    let to_type = DataType::from_i32(i64::try_from(ctx.attrs.get("to")?)? as i32)?;
-    match a_ch {
-        TaggedReceiver::Bool(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, Ok),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::F32(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0.0).into())),
-            DataType::F32 => wrap_1_input(a_ch, Ok),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::F64(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0.0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, Ok),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::I32(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, Ok),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::I64(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, Ok),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::U32(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, Ok),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::U64(a_ch) => match to_type {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::String(a_ch) => match to_type {
-            DataType::Bool => make_output_fallible!(a_ch, |el| el.parse::<bool>()),
-            DataType::F32 => make_output_fallible!(a_ch, |el| el.parse::<f32>()),
-            DataType::F64 => make_output_fallible!(a_ch, |el| el.parse::<f64>()),
-            DataType::I32 => make_output_fallible!(a_ch, |el| el.parse::<i32>()),
-            DataType::I64 => make_output_fallible!(a_ch, |el| el.parse::<i64>()),
-            DataType::U32 => make_output_fallible!(a_ch, |el| el.parse::<u32>()),
-            DataType::U64 => make_output_fallible!(a_ch, |el| el.parse::<u64>()),
-            DataType::String => wrap_1_input(a_ch, Ok),
-        },
-    }
 }
 
 fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
@@ -228,7 +132,7 @@ fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
 }
 
 fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
-    let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.input_channels().narrow()?;
+    let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
         TaggedReceiver,
@@ -267,7 +171,7 @@ fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArray
 fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Concat::new(&ctx.attrs)?;
 
-    let inputs = ctx.input_channels().narrow()?;
+    let inputs = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
         Homogeneous,
@@ -300,7 +204,7 @@ impl Concat {
 }
 
 fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
-    let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.input_channels().narrow()?;
+    let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
         TaggedReceiver,
@@ -328,9 +232,6 @@ fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArra
 }
 
 fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
-    // Explicit node input
-    let cond_ch: Receiver<ArcArrayD<bool>> = ctx.input_channels().narrow()?;
-
     // Create the sessions for the `then` and `else` branch.
     let make_attr_session = |attr_name| {
         let g: GraphProto = ctx.attrs.get(attr_name)?.try_into()?;
@@ -369,6 +270,10 @@ fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
         out_senders.push(out_sdr);
         out_dispatchers.push(out_disp);
     }
+
+    // Explicit node input
+    let cond_ch: Receiver<ArcArrayD<bool>> = ctx.subscribe_to_inputs().narrow()?;
+
     let fun = move || {
         let cond = {
             let conds = cond_ch.recv().unwrap();

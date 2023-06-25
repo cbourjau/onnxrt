@@ -1,20 +1,9 @@
 use crate::opset::utils::*;
 
 pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
-    let [data, shape]: [_; 2] = ctx.input_channels().try_into().unwrap();
-
     let allow_zero = ctx.attrs.get_with_default("allowzero", 0)? == 1;
 
-    let shape = {
-        if let TaggedReceiver::I64(ch) = shape {
-            ch
-        } else {
-            bail!(
-                "Input 'shape' must be of type int64. Found: {:?}",
-                shape.dtype()
-            )
-        }
-    };
+    let (data, shape): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
         TaggedReceiver,

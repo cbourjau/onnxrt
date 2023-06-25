@@ -139,9 +139,8 @@ impl LabelEncoder {
 }
 
 pub fn setup_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
-    let a_ch = ctx.input_channels().narrow()?;
-
     let label_encoder = LabelEncoder::from_attributes(&ctx.attrs)?;
+    let a_ch = ctx.subscribe_to_inputs().narrow()?;
 
     match (a_ch, label_encoder) {
         (TaggedReceiver::String(a_ch), LabelEncoder::StringToString { dict, default }) => {
@@ -176,8 +175,6 @@ pub fn setup_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
 }
 
 pub fn setup_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
-    let a_ch = ctx.input_channels().narrow()?;
-
     let cats_int64s: Vec<i64> = ctx.attrs.get("cats_int64s")?.try_into()?;
     let cats_strings: Vec<String> = ctx.attrs.get("cats_strings")?.try_into()?;
     let default_int64 = ctx.attrs.get_with_default("default_int64", -1)?;
@@ -197,6 +194,9 @@ pub fn setup_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
             .cloned()
             .zip(cats_int64s.iter().cloned()),
     );
+
+    let a_ch = ctx.subscribe_to_inputs().narrow()?;
+
     match a_ch {
         TaggedReceiver::I64(a_ch) => {
             wrap_1_input(a_ch, move |a| replace(a, &i64_to_string, &default_string))

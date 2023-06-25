@@ -4,7 +4,8 @@ use ndarray::Axis;
 use crate::opset::utils::*;
 
 pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
-    let (data_ch, indices_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.input_channels().narrow()?;
+    let (data_ch, indices_ch): (_, Receiver<ArcArrayD<i64>>) =
+        ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
         TaggedReceiver,

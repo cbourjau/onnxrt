@@ -244,7 +244,7 @@ fn fold_sum<T: Copy + Add<Output = T>>(acc: &T, el: &T) -> T {
 }
 
 fn validate_inputs(ctx: OpContext) -> Result<(TaggedReceiver, Option<Receiver<ArcArrayD<i64>>>)> {
-    let mut inputs = ctx.input_channels().into_iter();
+    let mut inputs = ctx.subscribe_to_inputs().into_iter();
     let data_ch = inputs
         .next()
         .ok_or_else(|| anyhow!("Input `data` is missing"))?;

@@ -46,7 +46,7 @@ macro_rules! binary_op_factory {
     // HomogeneousNumericFixed under the hood
     (boolean, $fun:expr) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let [a_ch, b_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
+            let (a_ch, b_ch) = ctx.subscribe_to_inputs().narrow()?;
             use TaggedReceiver::*;
             match (a_ch, b_ch) {
                 (Bool(a_ch), Bool(b_ch)) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
@@ -84,7 +84,7 @@ macro_rules! binary_op_factory {
     };
     ($fun:expr, $($variant:tt),* | $($rec:tt => $bail:expr)?) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
-            let inputs: HomogeneousNumericFixed<2> = ctx.input_channels().narrow()?;
+            let inputs: HomogeneousNumericFixed<2> = ctx.subscribe_to_inputs().narrow()?;
             use HomogeneousNumericFixed::*;
             match inputs {
                 $($variant([a_ch, b_ch]) => {
