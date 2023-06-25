@@ -29,6 +29,7 @@ pub fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
     match split {
         Some(split) => {
             setup_all!(
+                TaggedReceiver,
                 a_ch,
                 a_ch,
                 setup_variadic_out(
@@ -40,6 +41,7 @@ pub fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
         }
         None => {
             setup_all!(
+                TaggedReceiver,
                 a_ch,
                 a_ch,
                 setup_variadic_out((a_ch,), move |(a,)| state.split(a), n_outputs)

@@ -12,6 +12,7 @@ pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
     };
 
     setup_all!(
+        TaggedReceiver,
         data_ch,
         data_ch,
         setup((data_ch, indices_ch), array_feature_extractor)

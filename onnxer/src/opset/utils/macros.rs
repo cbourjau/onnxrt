@@ -1,15 +1,39 @@
 #[macro_export]
 macro_rules! setup_all {
-    ($tagged_rec:expr, $rec_name:ident, $setup:expr) => {
+    (TaggedReceiver, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            TaggedReceiver, $tagged_rec, $rec_name, $setup,
+            F32, F64, I32, I64, U32, U64, Bool, String
+        )
+    };
+    (Homogeneous, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            Homogeneous, $tagged_rec, $rec_name, $setup,
+            F32, F64, I32, I64, U32, U64, Bool, String
+        )
+    };
+    (HomogeneousFixed, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            HomogeneousFixed, $tagged_rec, $rec_name, $setup,
+            F32, F64, I32, I64, U32, U64, Bool, String
+        )
+    };
+    (HomogeneousNumeric, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            HomogeneousNumeric, $tagged_rec, $rec_name, $setup,
+            F32, F64, I32, I64, U32, U64
+        )
+    };
+    (HomogeneousNumericFixed, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            HomogeneousNumericFixed, $tagged_rec, $rec_name, $setup,
+            F32, F64, I32, I64, U32, U64
+        )
+    };
+    // Common implementation
+    ($enum:tt, $tagged_rec:expr, $rec_name:tt, $setup:expr, $($variant:tt),*) => {
         match $tagged_rec {
-            TaggedReceiver::F32($rec_name) => $setup,
-            TaggedReceiver::F64($rec_name) => $setup,
-            TaggedReceiver::I32($rec_name) => $setup,
-            TaggedReceiver::I64($rec_name) => $setup,
-            TaggedReceiver::U32($rec_name) => $setup,
-            TaggedReceiver::U64($rec_name) => $setup,
-            TaggedReceiver::String($rec_name) => $setup,
-            TaggedReceiver::Bool($rec_name) => $setup,
+            $($enum::$variant($rec_name) => $setup,)*
         }
     };
 }

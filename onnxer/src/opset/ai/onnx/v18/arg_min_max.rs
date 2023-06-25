@@ -5,27 +5,23 @@ use crate::opset::utils::*;
 pub fn setup_argmax(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::new(&ctx.attrs)?;
 
-    match ctx.input_channels().narrow()? {
-        HomogeneousNumericFixed::F32([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
-        HomogeneousNumericFixed::F64([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
-        HomogeneousNumericFixed::I32([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
-        HomogeneousNumericFixed::I64([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
-        HomogeneousNumericFixed::U32([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
-        HomogeneousNumericFixed::U64([ch]) => setup((ch,), move |(data,)| state.arg_max(&data)),
-    }
+    setup_all!(
+        HomogeneousNumericFixed,
+        ctx.input_channels().narrow()?,
+        [ch],
+        setup((ch,), move |(data,)| state.arg_max(&data))
+    )
 }
 
 pub fn setup_argmin(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::new(&ctx.attrs)?;
 
-    match ctx.input_channels().narrow()? {
-        HomogeneousNumericFixed::F32([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
-        HomogeneousNumericFixed::F64([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
-        HomogeneousNumericFixed::I32([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
-        HomogeneousNumericFixed::I64([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
-        HomogeneousNumericFixed::U32([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
-        HomogeneousNumericFixed::U64([ch]) => setup((ch,), move |(data,)| state.arg_min(&data)),
-    }
+    setup_all!(
+        HomogeneousNumericFixed,
+        ctx.input_channels().narrow()?,
+        [ch],
+        setup((ch,), move |(data,)| state.arg_min(&data))
+    )
 }
 
 /// State of the ArgMin and ArgMax operator

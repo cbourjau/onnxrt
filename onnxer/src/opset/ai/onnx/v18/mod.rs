@@ -229,7 +229,12 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     let [data_ch, axes_ch]: [_; 2] = ctx.input_channels().try_into().unwrap();
 
     if let TaggedReceiver::I64(axes_ch) = axes_ch {
-        setup_all!(data_ch, data_ch, setup((data_ch, axes_ch), unsqueeze))
+        setup_all!(
+            TaggedReceiver,
+            data_ch,
+            data_ch,
+            setup((data_ch, axes_ch), unsqueeze)
+        )
     } else {
         panic!()
     }
@@ -266,17 +271,12 @@ fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
 
     let inputs = ctx.input_channels().narrow()?;
 
-    use Homogeneous::*;
-    match inputs {
-        F32(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        F64(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        I32(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        I64(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        U32(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        U64(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        String(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-        Bool(rec) => setup((rec,), move |(inputs,)| state.concat((inputs,))),
-    }
+    setup_all!(
+        Homogeneous,
+        inputs,
+        rec,
+        setup((rec,), move |(inputs,)| state.concat((inputs,)))
+    )
 }
 
 #[derive(Copy, Clone)]
@@ -308,7 +308,12 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
         _ => bail!("Input `axes` of Squeeze must be of type `tensor(int64)`"),
     };
 
-    setup_all!(data_ch, data_ch, setup((data_ch, axes_ch), squeeze))
+    setup_all!(
+        TaggedReceiver,
+        data_ch,
+        data_ch,
+        setup((data_ch, axes_ch), squeeze)
+    )
 }
 
 fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {

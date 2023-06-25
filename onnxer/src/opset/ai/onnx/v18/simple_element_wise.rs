@@ -104,16 +104,8 @@ pub fn get_setup_dict() -> HashMap<&'static str, SetupFnSignature> {
 
 fn setup_identity(ctx: OpContext) -> Result<ExecutionStep> {
     let [a_ch]: [_; 1] = ctx.input_channels().try_into().unwrap();
-    match a_ch {
-        TaggedReceiver::Bool(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::F32(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::F64(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::I32(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::I64(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::U32(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::U64(a_ch) => wrap_1_input(a_ch, Ok),
-        TaggedReceiver::String(a_ch) => wrap_1_input(a_ch, Ok),
-    }
+
+    setup_all!(TaggedReceiver, a_ch, a_ch, wrap_1_input(a_ch, Ok))
 }
 
 fn setup_not(ctx: OpContext) -> Result<ExecutionStep> {

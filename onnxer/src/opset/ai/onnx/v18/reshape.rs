@@ -16,32 +16,14 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
         }
     };
 
-    Ok(match data {
-        TaggedReceiver::Bool(data) => setup((data, shape), move |(data, shape)| {
+    setup_all!(
+        TaggedReceiver,
+        data,
+        data,
+        setup((data, shape), move |(data, shape)| {
             reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::F32(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::F64(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::I32(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::I64(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::U32(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::U64(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-        TaggedReceiver::String(data) => setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
-        })?,
-    })
+        })
+    )
 }
 
 fn reshape<D>(

@@ -3,25 +3,14 @@ use ndarray::{IntoDimension, Zip};
 use crate::opset::utils::*;
 
 pub fn setup_where(ctx: OpContext) -> Result<ExecutionStep> {
-    let [cond_ch, x_ch, y_ch]: [_; 3] = ctx.input_channels().try_into().unwrap();
+    let (cond_ch, data_chs): (Receiver<ArcArrayD<bool>>, _) = ctx.input_channels().narrow()?;
 
-    // Condition must be of type bool
-    let cond_ch = if let TaggedReceiver::Bool(cond_ch) = cond_ch {
-        cond_ch
-    } else {
-        bail!("Conditional tensor must be of type `bool`.")
-    };
-
-    use TaggedReceiver::*;
-    match (x_ch, y_ch) {
-        (F32(x_ch), F32(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
-        (F64(x_ch), F64(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
-        (I32(x_ch), I32(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
-        (I64(x_ch), I64(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
-        (Bool(x_ch), Bool(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
-        (String(x_ch), String(y_ch)) => setup((cond_ch, x_ch, y_ch), where_),
-        _ => bail!("`X` and `Y` must be of identical type."),
-    }
+    setup_all!(
+        HomogeneousFixed,
+        data_chs,
+        [x_ch, y_ch],
+        setup((cond_ch, x_ch, y_ch), where_)
+    )
 }
 
 fn where_<T>((cond, x, y): (ArcArrayD<bool>, ArcArrayD<T>, ArcArrayD<T>)) -> Result<ArcArrayD<T>>

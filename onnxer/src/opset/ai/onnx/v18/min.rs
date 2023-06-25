@@ -31,13 +31,5 @@ where
 pub fn setup_min(ctx: OpContext) -> Result<ExecutionStep> {
     let inputs = ctx.input_channels().narrow()?;
 
-    use HomogeneousNumeric::*;
-    match inputs {
-        F32(inputs) => setup((inputs,), min),
-        F64(inputs) => setup((inputs,), min),
-        I32(inputs) => setup((inputs,), min),
-        I64(inputs) => setup((inputs,), min),
-        U32(inputs) => setup((inputs,), min),
-        U64(inputs) => setup((inputs,), min),
-    }
+    setup_all!(HomogeneousNumeric, inputs, inputs, setup((inputs,), min))
 }
