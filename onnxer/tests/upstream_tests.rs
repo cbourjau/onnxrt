@@ -1,8 +1,8 @@
-use std::collections::HashMap;
 use std::fs::read;
+use std::{collections::HashMap, ops::Mul};
 
 use anyhow::{anyhow, bail, Result};
-use approx::{relative_eq, ulps_eq, AbsDiffEq, RelativeEq, UlpsEq};
+use approx::{abs_diff_eq, relative_eq, ulps_eq, AbsDiffEq, RelativeEq, UlpsEq};
 use num::Float;
 use onnx_protos::onnx_proto3::TensorProto;
 use protobuf::Message;
@@ -39,7 +39,19 @@ macro_rules! unequal_bail {
             "Unequal outputs for `{}`:\n    expected: {:?}\n    observed: {:?}",
             $k,
             $exp,
-            $obs
+            $obs,
+        )
+    };
+}
+
+macro_rules! unequal_bail_numeric {
+    ($k:expr, $exp:expr, $obs:expr) => {
+        bail!(
+            "Unequal outputs for `{}`:\n    expected: {:?}\n    observed: {:?}\n diff: {:?}",
+            $k,
+            $exp,
+            $obs,
+            $exp.to_owned() - $obs,
         )
     };
 }
@@ -53,11 +65,16 @@ where
         bail!("Expected shape {:?} found {:?}", exp.shape(), obs.shape());
     }
 
+    if abs_diff_eq!(exp, obs) {
+        return Ok(());
+    }
+
     if ulps_eq!(exp, obs) {
         return Ok(());
     }
     for (exp_el, obs_el) in exp.iter().zip(obs.iter()) {
-        if relative_eq!(exp_el, obs_el) {
+        let rel = T::default_epsilon();
+        if relative_eq!(exp_el, obs_el, epsilon = rel) {
             continue;
         }
         if exp_el.is_nan() && obs_el.is_nan() {
@@ -96,22 +113,22 @@ impl TestResult {
                 }
                 (Value::I32(exp), Value::I32(obs)) => {
                     if exp != obs {
-                        unequal_bail!(k, exp, obs)
+                        unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 (Value::I64(exp), Value::I64(obs)) => {
                     if exp != obs {
-                        unequal_bail!(k, exp, obs)
+                        unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 (Value::U32(exp), Value::U32(obs)) => {
                     if exp != obs {
-                        unequal_bail!(k, exp, obs)
+                        unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 (Value::U64(exp), Value::U64(obs)) => {
                     if exp != obs {
-                        unequal_bail!(k, exp, obs)
+                        unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 (Value::String(exp), Value::String(obs)) => {
@@ -121,12 +138,12 @@ impl TestResult {
                 }
                 (Value::F32(exp), Value::F32(obs)) => {
                     if check_float_almost_equal(exp, obs).is_err() {
-                        unequal_bail!(k, exp, obs)
+                        unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 (Value::F64(exp), Value::F64(obs)) => {
                     if check_float_almost_equal(exp, obs).is_err() {
-                        unequal_bail!(k, exp, obs)
+                        unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 _ => bail!(

@@ -282,8 +282,7 @@ impl DataType {
     pub fn from_value_info(value_info: &ValueInfoProto) -> Result<DataType> {
         let err_fn = || {
             anyhow!(
-                "Type information is missing from `ValueInfo`: {:#?}",
-                value_info
+                "Type information is missing from `ValueInfo`: [information hidden for brevity]",
             )
         };
         if let type_proto::Value::TensorType(type_proto::Tensor { elem_type, .. }) = value_info
