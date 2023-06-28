@@ -79,10 +79,14 @@ impl TestResult {
         if self.expected.len() != self.observed.len() {
             bail!("Unequal number of outputs.");
         }
-        for (k, v_exp) in self.expected.iter() {
+
+        let mut keys: Vec<_> = self.expected.keys().collect();
+        keys.sort();
+        for k in keys.iter() {
+            let v_exp = self.expected.get(k.as_str()).unwrap();
             let v_obs = self
                 .observed
-                .get(k)
+                .get(k.as_str())
                 .ok_or_else(|| anyhow!("Key {} is not in the observed output.", k))?;
             match (v_exp, v_obs) {
                 (Value::Bool(exp), Value::Bool(obs)) => {
@@ -164,6 +168,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_mod_mixed_sign_int32").unwrap();
+    let tc = get_node_test("test_unique_not_sorted_without_axis").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }

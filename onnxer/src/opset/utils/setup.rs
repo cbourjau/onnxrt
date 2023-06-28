@@ -129,6 +129,24 @@ where
     }
 }
 
+impl<A, B, C, D> MultiOutputSender for (Sender<A>, Sender<B>, Sender<C>, Sender<D>)
+where
+    A: Clone,
+    B: Clone,
+    C: Clone,
+    D: Clone,
+{
+    type Items = (A, B, C, D);
+
+    fn send(&self, items: Self::Items) -> Result<()> {
+        self.0.send(items.0)?;
+        self.1.send(items.1)?;
+        self.2.send(items.2)?;
+        self.3.send(items.3)?;
+        Ok(())
+    }
+}
+
 impl<A> MultiOutputSender for Vec<Sender<A>>
 where
     A: Clone,
@@ -170,6 +188,27 @@ where
     fn channels() -> (Self::Senders, Vec<Dispatcher>) {
         let (sdr, disp) = A::channel();
         ((sdr,), vec![disp])
+    }
+}
+
+impl<A, B, C, D> Dispatchables for (A, B, C, D)
+where
+    A: Dispatchable + Clone,
+    B: Dispatchable + Clone,
+    C: Dispatchable + Clone,
+    D: Dispatchable + Clone,
+{
+    type Senders = (Sender<A>, Sender<B>, Sender<C>, Sender<D>);
+
+    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
+        let pair_a = A::channel();
+        let pair_b = B::channel();
+        let pair_c = C::channel();
+        let pair_d = D::channel();
+        (
+            (pair_a.0, pair_b.0, pair_c.0, pair_d.0),
+            vec![pair_a.1, pair_b.1, pair_c.1, pair_d.1],
+        )
     }
 }
 
