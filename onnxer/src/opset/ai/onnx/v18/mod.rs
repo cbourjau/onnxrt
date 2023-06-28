@@ -17,6 +17,7 @@ mod mod_;
 mod one_hot;
 mod reduce;
 mod reshape;
+mod shape;
 mod simple_element_wise;
 mod split;
 mod unique;
@@ -68,6 +69,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
+    d.insert("Shape", Box::new(shape::setup_shape));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
     d.insert("Unique", Box::new(unique::setup_unique));
     d.insert("Where", Box::new(where_::setup_where));

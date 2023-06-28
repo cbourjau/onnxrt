@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 use std::fs::read;
-use std::{collections::HashMap, ops::Mul};
 
 use anyhow::{anyhow, bail, Result};
 use approx::{abs_diff_eq, relative_eq, ulps_eq, AbsDiffEq, RelativeEq, UlpsEq};
