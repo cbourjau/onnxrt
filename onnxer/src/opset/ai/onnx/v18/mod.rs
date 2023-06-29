@@ -12,6 +12,7 @@ mod arg_min_max;
 mod cast;
 mod clip;
 mod cumsum;
+mod gather;
 mod min;
 mod mod_;
 mod one_hot;
@@ -46,6 +47,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Div", binary_op_factory!(numeric, |a, b| Ok(a / b)));
     d.insert("Equal", bin_numeric_with_co_broadcast!(PartialEq::eq));
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
+    d.insert("Gather", Box::new(gather::setup_gather));
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
     d.insert("If", Box::new(setup_if));
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));

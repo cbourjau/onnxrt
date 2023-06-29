@@ -46,13 +46,21 @@ macro_rules! unequal_bail {
 
 macro_rules! unequal_bail_numeric {
     ($k:expr, $exp:expr, $obs:expr) => {
-        bail!(
-            "Unequal outputs for `{}`:\n    expected: {:?}\n    observed: {:?}\n diff: {:?}",
-            $k,
-            $exp,
-            $obs,
-            $exp.to_owned() - $obs,
-        )
+        if $exp.shape() != $obs.shape() {
+            bail!(
+                "Unequal shapes: exp: {:?}; obs: {:?}",
+                $exp.shape(),
+                $obs.shape()
+            );
+        } else {
+            bail!(
+                "Unequal outputs for `{}`:\n    expected: {:?}\n    observed: {:?}\n diff: {:?}",
+                $k,
+                $exp,
+                $obs,
+                $exp.to_owned() - $obs,
+            )
+        }
     };
 }
 
