@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Result};
-use ndarray::Array;
 use onnx_protos::onnx_proto3::{GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto};
 use protobuf::Message;
 use pyo3::prelude::*;
@@ -351,33 +350,9 @@ fn prepare_initializer(
             );
         }
 
-        let shape: Vec<_> = initializer.dims.iter().map(|el| *el as usize).collect();
         let ty = DataType::from_i32(initializer.data_type)?;
 
-        let value = match ty {
-            DataType::F32 => {
-                let arr = Array::from_vec(initializer.float_data.clone())
-                    .into_shape(shape)?
-                    .into_dyn()
-                    .into();
-                Value::F32(arr)
-            }
-            DataType::F64 => {
-                let arr = Array::from_vec(initializer.double_data.clone())
-                    .into_shape(shape)?
-                    .into_dyn()
-                    .into();
-                Value::F64(arr)
-            }
-            DataType::I64 => {
-                let arr = Array::from_vec(initializer.int64_data.clone())
-                    .into_shape(shape)?
-                    .into_dyn()
-                    .into();
-                Value::I64(arr)
-            }
-            ty => unimplemented!("Unimplemented initializer type: {:?}", ty),
-        };
+        let value: Value = initializer.try_into()?;
 
         // Setup sender/receiver dispatchers
         let (sdr, disp) = value_channel(&ty);

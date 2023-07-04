@@ -69,7 +69,6 @@ impl<'source> FromPyObject<'source> for Value {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
         // Get the GIL marker.
         // TODO: convert scalars and strings
-        let py = ob.py();
         Ok(if let Ok(arr) = ob.extract::<&PyArrayDyn<f32>>() {
             let arr = arr.readonly();
             Value::F32(arr.as_array().to_owned().into())
@@ -83,6 +82,7 @@ impl<'source> FromPyObject<'source> for Value {
             let arr = arr.readonly();
             Value::I64(arr.as_array().to_owned().into())
         } else if let Ok(arr) = ob.extract::<&PyArrayDyn<PyObject>>() {
+            let py = ob.py();
             let arr = arr.readonly().as_array().mapv(|el| el.extract(py).unwrap());
             Value::String(arr.into())
         } else if let Ok(arr) = ob.extract::<&PyArrayDyn<bool>>() {
