@@ -87,9 +87,24 @@ pub fn get_setup_dict() -> HashMap<&'static str, SetupFnSignature> {
     setup_dict.insert("Neg", element_wise!(signed, |a| -a));
     setup_dict.insert("Not", Box::new(setup_not));
 
-    // TODO: Rust's `round` rounds towards 0.0 for half-way
-    // values. ONNX standard rounds to nearest even!
-    setup_dict.insert("Round", element_wise!(float, |el| el.round()));
+    setup_dict.insert(
+        "Round",
+        element_wise!(float, |el| {
+            // Fixme: Rust's `round` rounds away from 0.0 if
+            // tied. ONNX standard rounds to nearest even. This
+            // solution is pretty hacky!
+            let first_try = el.round();
+            // Beware! this constant makes it annoying to implement as a free function.
+            let is_tie = el.fract().abs() == 0.5;
+            let is_odd = (first_try as i64) % 2 != 0;
+            if is_odd && is_tie {
+                // Rounding away from 0 turned out to be wrong. Let's do the opposite then!
+                el.trunc()
+            } else {
+                first_try
+            }
+        }),
+    );
     setup_dict.insert(
         "Sigmoid",
         element_wise!(float, |el| 1. / (1. + (-el).exp())),
