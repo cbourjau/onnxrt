@@ -11,6 +11,7 @@ use crate::{channel, value_channel, Dispatchable, Session};
 mod arg_min_max;
 mod cast;
 mod clip;
+mod constant;
 mod cumsum;
 mod gather;
 mod gather_elements;
@@ -44,7 +45,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Clip", Box::new(clip::setup_clip));
     d.insert("CumSum", Box::new(cumsum::setup_cumsum));
     d.insert("Concat", Box::new(setup_concat));
-    d.insert("Constant", Box::new(setup_constant));
+    d.insert("Constant", Box::new(constant::setup_constant));
     d.insert("Div", binary_op_factory!(numeric, |a, b| Ok(a / b)));
     d.insert("Equal", bin_numeric_with_co_broadcast!(PartialEq::eq));
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
@@ -82,64 +83,6 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Where", Box::new(where_::setup_where));
     d.insert("Xor", binary_op_factory!(boolean, |a, b| Ok(a ^ b)));
     d
-}
-
-fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
-    if ctx.attrs.get("sparse_value").is_ok() {
-        unimplemented!("Sparse tensors are not supported.")
-    }
-    macro_rules! scalar {
-        ($val:expr) => {{
-            let val: ArcArrayD<_> = ndarray::arr0($val).into_dyn().into();
-            setup((), move |()| Ok(val.clone()))
-        }};
-    }
-
-    macro_rules! tensor_attr {
-        ($val:expr) => {{
-            let val = $val.clone();
-            setup((), move |()| Ok(val.clone()))
-        }};
-    }
-
-    // Value could be any of the others
-    if let Ok(attr) = ctx.attrs.get("value").as_ref() {
-        return match attr.clone() {
-            Attribute::Bools(val) => tensor_attr!(val),
-            Attribute::F32s(val) => tensor_attr!(val),
-            Attribute::F64s(val) => tensor_attr!(val),
-            Attribute::I32s(val) => tensor_attr!(val),
-            Attribute::I64s(val) => tensor_attr!(val),
-            Attribute::Strings(val) => tensor_attr!(val),
-            Attribute::ScalarF32(val) => scalar!(*val),
-            Attribute::ScalarI64(val) => scalar!(*val),
-            Attribute::ScalarString(val) => {
-                scalar!(val.to_owned())
-            }
-            // TODO: Support const bools! Needs refactor of attrs
-            _ => todo!("{:?}", attr),
-        };
-    };
-
-    if let Ok(attr) = ctx.attrs.get("value_float") {
-        return scalar!(f32::try_from(attr)?);
-    };
-    if let Ok(attr) = ctx.attrs.get("value_int") {
-        return scalar!(i64::try_from(attr)?);
-    };
-    if let Ok(attr) = ctx.attrs.get("value_string") {
-        return scalar!(String::try_from(attr)?);
-    };
-    if let Ok(attr) = ctx.attrs.get("value_floats") {
-        return tensor_attr!(ArcArrayD::<f32>::try_from(attr)?);
-    };
-    if let Ok(attr) = ctx.attrs.get("value_ints") {
-        return tensor_attr!(ArcArrayD::<i64>::try_from(attr)?);
-    };
-    if let Ok(attr) = ctx.attrs.get("value_strings") {
-        return tensor_attr!(ArcArrayD::<String>::try_from(attr)?);
-    };
-    Err(anyhow!("`Constant` node did not have expected attributes"))
 }
 
 fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {

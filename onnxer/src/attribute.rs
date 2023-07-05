@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{anyhow, bail, Result};
-use ndarray::Array;
+use ndarray::{array, Array};
 use protobuf::MessageField;
 
 use crate::{ArcArrayD, Value};
@@ -395,40 +395,28 @@ impl TryFrom<&TensorProto> for Value {
     }
 }
 
-// enum TensorData {
-//     F32(Vec<f32>),
-//     F64(Vec<f64>),
-//     I32(Vec<i32>),
-//     I64(Vec<i64>),
-//     U64(Vec<u64>),
-//     String(Vec<String>),
-//     Raw(Vec<u8>),
-//     External,
-// }
+impl TryFrom<&Attribute> for Value {
+    type Error = anyhow::Error;
 
-// fn parse(tp: TensorProto) -> Result<TensorData> {
-//     if !tp.float_data.is_empty() {
-//         Ok(TensorData::F32(tp.float_data))
-//     } else if !tp.double_data.is_empty() {
-//         Ok(TensorData::F64(tp.double_data))
-//     } else if !tp.int32_data.is_empty() {
-//         Ok(TensorData::I32(tp.int32_data))
-//     } else if !tp.int64_data.is_empty() {
-//         Ok(TensorData::I64(tp.int64_data))
-//     } else if !tp.uint64_data.is_empty() {
-//         Ok(TensorData::U64(tp.uint64_data))
-//     } else if !tp.string_data.is_empty() {
-//         Ok(TensorData::String(
-//             tp.string_data
-//                 .into_iter()
-//                 .map(|v| String::from_utf8(v).map_err(|e| anyhow!("{:?}", e)))
-//                 .collect::<Result<_>>()?,
-//         ))
-//     } else if !tp.raw_data.is_empty() {
-//         Ok(TensorData::Raw(tp.raw_data))
-//     } else if !tp.external_data.is_empty() {
-//         bail!("External data is not supported.")
-//     } else {
-//         bail!("Empty tensor proto")
-//     }
-// }
+    fn try_from(attr: &Attribute) -> Result<Self> {
+        Ok(match attr.clone() {
+            Attribute::Bools(v) => Value::Bool(v),
+            Attribute::F32s(v) => Value::F32(v),
+            Attribute::F64s(v) => Value::F64(v),
+            Attribute::I32s(v) => Value::I32(v),
+            Attribute::I64s(v) => Value::I64(v),
+            Attribute::ScalarF32(v) => Value::F32(array![v].into_dyn().into()),
+            Attribute::ScalarI64(v) => Value::I64(array![v].into_dyn().into()),
+            Attribute::ScalarString(v) => Value::String(array![v].into_dyn().into()),
+            Attribute::Strings(v) => Value::String(v),
+            Attribute::U32s(v) => Value::U32(v),
+            Attribute::U64s(v) => Value::U64(v),
+            Attribute::TensorUnknown(_) => {
+                bail!("Cannot convert attribute of type 'TensorUnknown' to 'Value'")
+            }
+            Attribute::Graph(_) => {
+                bail!("Cannot convert attribute of type 'Graph' to 'Value'")
+            }
+        })
+    }
+}
