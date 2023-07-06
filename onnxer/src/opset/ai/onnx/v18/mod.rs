@@ -16,7 +16,7 @@ mod constant_of_shape;
 mod cumsum;
 mod gather;
 mod gather_elements;
-mod min;
+mod min_max;
 mod mod_;
 mod one_hot;
 mod reduce;
@@ -59,7 +59,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("Mod", Box::new(mod_::setup_mod));
-    d.insert("Min", Box::new(min::setup_min));
+    d.insert("Min", Box::new(min_max::setup_min));
+    d.insert("Max", Box::new(min_max::setup_max));
     d.insert("Mul", binary_op_factory!(numeric, |a, b| Ok(a * b)));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
     d.insert("Or", binary_op_factory!(boolean, |a, b| Ok(a | b)));
