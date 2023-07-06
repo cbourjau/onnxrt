@@ -12,6 +12,7 @@ mod arg_min_max;
 mod cast;
 mod clip;
 mod constant;
+mod constant_of_shape;
 mod cumsum;
 mod gather;
 mod gather_elements;
@@ -46,6 +47,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("CumSum", Box::new(cumsum::setup_cumsum));
     d.insert("Concat", Box::new(setup_concat));
     d.insert("Constant", Box::new(constant::setup_constant));
+    d.insert("ConstantOfShape", Box::new(constant_of_shape::setup_constant_of_shape));
     d.insert("Div", binary_op_factory!(numeric, |a, b| Ok(a / b)));
     d.insert("Equal", bin_numeric_with_co_broadcast!(PartialEq::eq));
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
