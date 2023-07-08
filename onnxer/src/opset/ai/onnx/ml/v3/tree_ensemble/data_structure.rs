@@ -81,13 +81,13 @@ impl FromStr for NodeType {
 impl FromStr for PostTransform {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "NONE" => Self::None,
-            "SOFTMAX" => Self::Softmax,
-            "LOGISTIC" => Self::Logistic,
-            "SOFTMAX_ZERO" => Self::SoftmaxZero,
-            "PROBIT" => Self::Probit,
-            s => Err(anyhow!("Illegal post transform `{}`.", s))?,
+        Ok(match dbg!(s.to_lowercase()).as_str() {
+            "none" => Self::None,
+            "softmax" => Self::Softmax,
+            "logistic" => Self::Logistic,
+            "softmax_zero" => Self::SoftmaxZero,
+            "probit" => Self::Probit,
+            _ => Err(anyhow!("Illegal post transform `{}`.", s))?,
         })
     }
 }
