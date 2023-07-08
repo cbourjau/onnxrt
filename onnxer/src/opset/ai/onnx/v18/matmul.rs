@@ -11,7 +11,11 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
     match inputs {
         F32([a, b]) => setup((a, b), |(a, b)| {
             if a.ndim() != b.ndim() {
-                bail!("MatMul: Inputs must have equal rank")
+                bail!(
+                    "MatMul: Inputs must have equal rank. Found shapes a: '{:?}', b: '{:?}'",
+                    a.shape(),
+                    b.shape()
+                )
             }
             if a.ndim() > 2 {
                 Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
@@ -21,7 +25,11 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
         }),
         F64([a, b]) => setup((a, b), |(a, b)| {
             if a.ndim() != b.ndim() {
-                bail!("MatMul: Inputs must have equal rank")
+                bail!(
+                    "MatMul: Inputs must have equal rank. Found shapes a: '{:?}', b: '{:?}'",
+                    a.shape(),
+                    b.shape()
+                )
             }
             if a.ndim() > 2 {
                 Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())

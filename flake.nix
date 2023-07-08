@@ -40,10 +40,24 @@
         default = pkgs.mkShell {
           # The Nix packages provided in the environment
           packages = (with pkgs; [
+            clang
+            llvmPackages_latest.llvm
+            llvmPackages_latest.bintools
+            llvmPackages_latest.lld
+            darwin.apple_sdk.frameworks.Security
+            python3
+            python310Packages.flake8
+            python310Packages.pytest
+            python310Packages.numpy
+            mypy
+            # micromamba
+            maturin
+            black
+            py-spy
             # The package provided by our custom overlay. Includes cargo, Clippy, cargo-fmt,
             # rustdoc, rustfmt, and other tools.
             rustToolchain
-          ]) ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs; [ libiconv ]);
+          ]) ++ pkgs.lib.optional pkgs.stdenv.isDarwin pkgs.libiconv;
         };
       });
     };
