@@ -103,7 +103,9 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     )
 }
 
-fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArrayD<D>> {
+fn unsqueeze<D: std::fmt::Debug>(
+    (data, axes): (ArcArrayD<D>, ArcArrayD<i64>),
+) -> Result<ArcArrayD<D>> {
     // Function to compute the output shape
     let compute_expanded = |data_shape: &[usize], axes: &[i64]| {
         let mut shape_expanded = vec![0; data_shape.len() + axes.len()];
@@ -123,8 +125,10 @@ fn unsqueeze<D>((data, axes): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArray
         }
         shape_expanded
     };
+    let axes = axes.as_standard_layout().to_owned();
+    // Safe to unwrap because we ensure standard layout above.
+    let axes = axes.as_slice().unwrap();
 
-    let axes = axes.into_dimensionality::<Ix1>()?.to_vec();
     let new_shape = compute_expanded(data.shape(), &axes);
     Ok(data.into_shape(new_shape)?)
 }
