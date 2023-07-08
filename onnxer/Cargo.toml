@@ -23,6 +23,7 @@ numpy = "0.18"
 onnx_protos = { version = "0.1.0", path = "../onnx_protos" }
 ordered-float = "3.2.0"
 protobuf = "3.1.0"
+rand = "0.8.5"
 
 [dependencies.pyo3]
 version = "0.18"
