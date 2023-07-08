@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 
 use crate::{value_channel, Attributes, DataType, Dispatcher, TaggedReceiver, Value, ValueSender};
 
-#[pyclass]
+#[pyclass(subclass)]
 pub struct Session {
     /// Computational steps as callable functions
     steps: Vec<ExecFnSignature>,
