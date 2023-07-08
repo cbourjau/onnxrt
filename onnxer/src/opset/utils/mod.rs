@@ -11,6 +11,7 @@ pub use ndarray::prelude::*;
 
 pub use self::narrowed_arguments::{
     Homogeneous, HomogeneousFixed, HomogeneousNumeric, HomogeneousNumericFixed, NarrowFromVec,
+    Numeric,
 };
 pub use self::ndarray_utils::{co_broadcast, convert_negative_index, zip_map_with_co_broadcast};
 pub use self::setup::{setup, setup_variadic_out, wrap_1_input};

@@ -187,7 +187,7 @@ fn run_all() {
         "PASSED: {}, FAILED: {}, PERCENTAGE: {}%",
         passed,
         failed,
-        (passed as f64) / (failed as f64) * 100.
+        (passed as f64) / ((passed + failed) as f64) * 100.
     );
 }
 

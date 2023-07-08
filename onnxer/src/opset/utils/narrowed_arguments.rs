@@ -20,6 +20,17 @@ pub enum Homogeneous {
 
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
+pub enum Numeric {
+    F32(Receiver<ArcArrayD<f32>>),
+    F64(Receiver<ArcArrayD<f64>>),
+    I32(Receiver<ArcArrayD<i32>>),
+    I64(Receiver<ArcArrayD<i64>>),
+    U32(Receiver<ArcArrayD<u32>>),
+    U64(Receiver<ArcArrayD<u64>>),
+}
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
 pub enum HomogeneousNumeric {
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
@@ -88,6 +99,28 @@ impl NarrowFromIter for TaggedReceiver {
     }
 }
 
+impl NarrowFromIter for Numeric {
+    fn parse<I>(mut objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        use TaggedReceiver::*;
+        Ok((
+            match objs.next() {
+                Some(F32(trec)) => Self::F32(trec),
+                Some(F64(trec)) => Self::F64(trec),
+                Some(I32(trec)) => Self::I32(trec),
+                Some(I64(trec)) => Self::I64(trec),
+                Some(U32(trec)) => Self::U32(trec),
+                Some(U64(trec)) => Self::U64(trec),
+                Some(String(_)) | Some(Bool(_)) => bail!("Expected numerical input"),
+                None => bail!("Insufficient number of inputs"),
+            },
+            objs,
+        ))
+    }
+}
+
 macro_rules! impl_NarrowFromIter {
     ($ty:ty, $var:tt) => {
         impl NarrowFromIter for Receiver<ArcArrayD<$ty>> {
@@ -144,7 +177,7 @@ impl<const N: usize> NarrowFromIterLast for HomogeneousFixed<N> {
                                 Some(TaggedReceiver::$variant(next)) => {
                                     out.push(next);
                                 }
-                                Some(_) => panic!(),
+                                Some(rec) => bail!("Expected type {}; found {:?}", stringify!($variant), rec),
                                 None => panic!(),
                             }
                         }

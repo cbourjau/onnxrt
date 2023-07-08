@@ -47,14 +47,15 @@ where
     Ok(out)
 }
 
-pub fn zip_map_with_co_broadcast<In, Out, Op>(
-    a: ArcArrayD<In>,
-    b: ArcArrayD<In>,
+pub fn zip_map_with_co_broadcast<A, B, Out, Op>(
+    a: ArcArrayD<A>,
+    b: ArcArrayD<B>,
     op: Op,
 ) -> Result<ArcArrayD<Out>>
 where
-    In: Clone,
-    Op: Fn(&In, &In) -> Out + Send + Sync + 'static + Copy,
+    A: Clone,
+    B: Clone,
+    Op: Fn(&A, &B) -> Out + Send + Sync + 'static + Copy,
 {
     let common_shape: IxDyn =
         co_broadcast(&a.shape().into_dimension(), &b.shape().into_dimension())?;

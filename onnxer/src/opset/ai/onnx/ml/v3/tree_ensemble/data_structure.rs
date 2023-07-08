@@ -81,7 +81,7 @@ impl FromStr for NodeType {
 impl FromStr for PostTransform {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match dbg!(s.to_lowercase()).as_str() {
+        Ok(match s.to_lowercase().as_str() {
             "none" => Self::None,
             "softmax" => Self::Softmax,
             "logistic" => Self::Logistic,
