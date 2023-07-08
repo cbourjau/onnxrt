@@ -10,35 +10,52 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
     use HomogeneousNumericFixed::*;
     match inputs {
         F32([a, b]) => setup((a, b), |(a, b)| {
-            if a.ndim() != b.ndim() {
+            if a.ndim() == 2 && b.ndim() == 1 {
+                Ok::<ArcArrayD<_>, _>(matmul_2d_1d(a.view(), b.view())?.into())
+            } else if a.ndim() == 2 && b.ndim() == 2 {
+                Ok::<ArcArrayD<_>, _>(matmul_2d(a.view(), b.view())?.into())
+            } else if a.ndim() != b.ndim() {
                 bail!(
                     "MatMul: Inputs must have equal rank. Found shapes a: '{:?}', b: '{:?}'",
                     a.shape(),
                     b.shape()
                 )
-            }
-            if a.ndim() > 2 {
-                Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
             } else {
-                Ok::<ArcArrayD<_>, _>(matmul_2d(a.view(), b.view())?.into())
+                Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
             }
         }),
         F64([a, b]) => setup((a, b), |(a, b)| {
-            if a.ndim() != b.ndim() {
+            if a.ndim() == 2 && b.ndim() == 1 {
+                Ok::<ArcArrayD<_>, _>(matmul_2d_1d(a.view(), b.view())?.into())
+            } else if a.ndim() == 2 && b.ndim() == 2 {
+                Ok::<ArcArrayD<_>, _>(matmul_2d(a.view(), b.view())?.into())
+            } else if a.ndim() != b.ndim() {
                 bail!(
                     "MatMul: Inputs must have equal rank. Found shapes a: '{:?}', b: '{:?}'",
                     a.shape(),
                     b.shape()
                 )
-            }
-            if a.ndim() > 2 {
-                Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
             } else {
-                Ok::<ArcArrayD<_>, _>(matmul_2d(a.view(), b.view())?.into())
+                Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
             }
         }),
         _ => bail!("MatMul: Not implemented for integer types."),
     }
+}
+
+fn matmul_2d_1d<'a, 'b, T>(a: ArrayViewD<'a, T>, b: ArrayViewD<'b, T>) -> Result<ArrayD<T>>
+where
+    T: Clone + Float + One + Zero + 'static,
+{
+    let a: ArrayView2<_> = a.into_dimensionality()?;
+    let b: ArrayView1<_> = b.into_dimensionality()?;
+
+    let c_shape = [a.shape()[0]];
+    let mut c = Array1::zeros(c_shape);
+
+    ndarray::linalg::general_mat_vec_mul(T::one(), &a, &b, T::zero(), &mut c);
+
+    Ok(c.into_dyn())
 }
 
 fn matmul_2d<'a, 'b, T>(a: ArrayViewD<'a, T>, b: ArrayViewD<'b, T>) -> Result<ArrayD<T>>
