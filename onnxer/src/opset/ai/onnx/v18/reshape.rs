@@ -10,14 +10,18 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
         data,
         data,
         setup((data, shape), move |(data, shape)| {
-            reshape(data, shape, allow_zero)
+            reshape(
+                data,
+                shape.as_standard_layout().as_slice().unwrap(),
+                allow_zero,
+            )
         })
     )
 }
 
-fn reshape<D>(
+pub(crate) fn reshape<D>(
     data: ArcArrayD<D>,
-    shape: ArcArrayD<i64>,
+    shape: &[i64],
     allow_zero: bool,
 ) -> Result<(ArcArrayD<D>,)>
 where

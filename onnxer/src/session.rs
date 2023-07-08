@@ -218,7 +218,7 @@ impl Session {
         }
 
         for step in &self.steps {
-            step().unwrap();
+            step()?;
         }
 
         self.outputs
