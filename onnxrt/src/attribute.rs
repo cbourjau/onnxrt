@@ -273,93 +273,31 @@ impl TryFrom<&TensorProto> for Value {
             }};
         }
         let shape: Vec<_> = tensor.dims.iter().map(|v| *v as usize).collect();
-
+        macro_rules! match_arm {
+            ($var:tt, $expl_field:expr, $rust_ty:ty) => {{
+                let explicit_field = &$expl_field;
+                let vec: Vec<_> = if !explicit_field.is_empty() {
+                    explicit_field.clone()
+                } else {
+                    read_raw!($rust_ty).collect::<Vec<_>>()
+                };
+                Ok(Value::$var(
+                    Array::from_vec(vec)
+                        .into_dyn()
+                        .into_shape(shape)
+                        .unwrap()
+                        .into(),
+                ))
+            }};
+        }
         match DataType::from_i32(tensor.data_type)? {
-            DataType::F32 => {
-                let explicit_field = &tensor.float_data;
-                let vec: Vec<_> = if !explicit_field.is_empty() {
-                    explicit_field.clone()
-                } else {
-                    read_raw!(f32).collect::<Vec<_>>()
-                };
-                Ok(Value::F32(
-                    Array::from_vec(vec)
-                        .into_dyn()
-                        .into_shape(shape)
-                        .unwrap()
-                        .into(),
-                ))
-            }
-            DataType::F64 => {
-                let explicit_field = &tensor.double_data;
-                let vec: Vec<_> = if !explicit_field.is_empty() {
-                    explicit_field.clone()
-                } else {
-                    read_raw!(f64).collect::<Vec<_>>()
-                };
-                Ok(Value::F64(
-                    Array::from_vec(vec)
-                        .into_dyn()
-                        .into_shape(shape)
-                        .unwrap()
-                        .into(),
-                ))
-            }
-            DataType::I32 => {
-                let explicit_field = &tensor.int32_data;
-                let vec: Vec<_> = if !explicit_field.is_empty() {
-                    explicit_field.clone()
-                } else {
-                    read_raw!(i32).collect::<Vec<_>>()
-                };
-                Ok(Value::I32(
-                    Array::from_vec(vec)
-                        .into_dyn()
-                        .into_shape(shape)
-                        .unwrap()
-                        .into(),
-                ))
-            }
-            DataType::I64 => {
-                let explicit_field = &tensor.int64_data;
-                let vec: Vec<_> = if !explicit_field.is_empty() {
-                    explicit_field.clone()
-                } else {
-                    read_raw!(i64).collect::<Vec<_>>()
-                };
-                Ok(Value::I64(
-                    Array::from_vec(vec)
-                        .into_dyn()
-                        .into_shape(shape)
-                        .unwrap()
-                        .into(),
-                ))
-            }
-            DataType::U64 => {
-                let explicit_field = &tensor.uint64_data;
-                let vec: Vec<_> = if !explicit_field.is_empty() {
-                    explicit_field.clone()
-                } else {
-                    read_raw!(u64).collect::<Vec<_>>()
-                };
-                Ok(Value::U64(
-                    Array::from_vec(vec)
-                        .into_dyn()
-                        .into_shape(shape)
-                        .unwrap()
-                        .into(),
-                ))
-            }
-            DataType::U32 => {
-                let vec = read_raw!(u32).collect::<Vec<_>>();
-                Ok(Value::U32(
-                    Array::from_vec(vec)
-                        .into_dyn()
-                        .into_shape(shape)
-                        .unwrap()
-                        .into(),
-                ))
-            }
+            DataType::F32 => match_arm!(F32, tensor.float_data, f32),
+            DataType::F64 => match_arm!(F64, tensor.double_data, f64),
+            DataType::I32 => match_arm!(I32, tensor.int32_data, i32),
+            DataType::I64 => match_arm!(I64, tensor.int64_data, i64),
+            DataType::U64 => match_arm!(U64, tensor.uint64_data, u64),
+            DataType::U32 => match_arm!(U32, vec![], u32),
+
             DataType::Bool => {
                 let explicit_field = &tensor.int32_data;
                 let vec: Vec<_> = if !explicit_field.is_empty() {
