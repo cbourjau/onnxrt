@@ -49,10 +49,17 @@ pub fn setup_constant(ctx: OpContext) -> Result<ExecutionStep> {
         Value::Bool(v) => setup((), move |()| Ok(v.clone())),
         Value::F32(v) => setup((), move |()| Ok(v.clone())),
         Value::F64(v) => setup((), move |()| Ok(v.clone())),
+
+        Value::I8(v) => setup((), move |()| Ok(v.clone())),
+        Value::I16(v) => setup((), move |()| Ok(v.clone())),
         Value::I32(v) => setup((), move |()| Ok(v.clone())),
         Value::I64(v) => setup((), move |()| Ok(v.clone())),
+
+        Value::U8(v) => setup((), move |()| Ok(v.clone())),
+        Value::U16(v) => setup((), move |()| Ok(v.clone())),
         Value::U32(v) => setup((), move |()| Ok(v.clone())),
         Value::U64(v) => setup((), move |()| Ok(v.clone())),
+
         Value::String(v) => setup((), move |()| Ok(v.clone())),
     }
 }

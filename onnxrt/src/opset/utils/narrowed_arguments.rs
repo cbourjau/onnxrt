@@ -10,10 +10,17 @@ use crate::{ArcArrayD, TaggedReceiver};
 pub enum Homogeneous {
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
+
+    I8(Vec<Receiver<ArcArrayD<i8>>>),
+    I16(Vec<Receiver<ArcArrayD<i16>>>),
     I32(Vec<Receiver<ArcArrayD<i32>>>),
     I64(Vec<Receiver<ArcArrayD<i64>>>),
+
+    U8(Vec<Receiver<ArcArrayD<u8>>>),
+    U16(Vec<Receiver<ArcArrayD<u16>>>),
     U32(Vec<Receiver<ArcArrayD<u32>>>),
     U64(Vec<Receiver<ArcArrayD<u64>>>),
+
     String(Vec<Receiver<ArcArrayD<String>>>),
     Bool(Vec<Receiver<ArcArrayD<bool>>>),
 }
@@ -23,8 +30,14 @@ pub enum Homogeneous {
 pub enum Numeric {
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
+
+    I8(Receiver<ArcArrayD<i8>>),
+    I16(Receiver<ArcArrayD<i16>>),
     I32(Receiver<ArcArrayD<i32>>),
     I64(Receiver<ArcArrayD<i64>>),
+
+    U8(Receiver<ArcArrayD<u8>>),
+    U16(Receiver<ArcArrayD<u16>>),
     U32(Receiver<ArcArrayD<u32>>),
     U64(Receiver<ArcArrayD<u64>>),
 }
@@ -34,8 +47,14 @@ pub enum Numeric {
 pub enum HomogeneousNumeric {
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
+
+    I8(Vec<Receiver<ArcArrayD<i8>>>),
+    I16(Vec<Receiver<ArcArrayD<i16>>>),
     I32(Vec<Receiver<ArcArrayD<i32>>>),
     I64(Vec<Receiver<ArcArrayD<i64>>>),
+
+    U8(Vec<Receiver<ArcArrayD<u8>>>),
+    U16(Vec<Receiver<ArcArrayD<u16>>>),
     U32(Vec<Receiver<ArcArrayD<u32>>>),
     U64(Vec<Receiver<ArcArrayD<u64>>>),
 }
@@ -45,10 +64,17 @@ pub enum HomogeneousNumeric {
 pub enum HomogeneousFixed<const N: usize> {
     F32([Receiver<ArcArrayD<f32>>; N]),
     F64([Receiver<ArcArrayD<f64>>; N]),
+
+    I8([Receiver<ArcArrayD<i8>>; N]),
+    I16([Receiver<ArcArrayD<i16>>; N]),
     I32([Receiver<ArcArrayD<i32>>; N]),
     I64([Receiver<ArcArrayD<i64>>; N]),
+
+    U8([Receiver<ArcArrayD<u8>>; N]),
+    U16([Receiver<ArcArrayD<u16>>; N]),
     U32([Receiver<ArcArrayD<u32>>; N]),
     U64([Receiver<ArcArrayD<u64>>; N]),
+
     Bool([Receiver<ArcArrayD<bool>>; N]),
     String([Receiver<ArcArrayD<String>>; N]),
 }
@@ -58,8 +84,14 @@ pub enum HomogeneousFixed<const N: usize> {
 pub enum HomogeneousNumericFixed<const N: usize> {
     F32([Receiver<ArcArrayD<f32>>; N]),
     F64([Receiver<ArcArrayD<f64>>; N]),
+
+    I8([Receiver<ArcArrayD<i8>>; N]),
+    I16([Receiver<ArcArrayD<i16>>; N]),
     I32([Receiver<ArcArrayD<i32>>; N]),
     I64([Receiver<ArcArrayD<i64>>; N]),
+
+    U8([Receiver<ArcArrayD<u8>>; N]),
+    U16([Receiver<ArcArrayD<u16>>; N]),
     U32([Receiver<ArcArrayD<u32>>; N]),
     U64([Receiver<ArcArrayD<u64>>; N]),
 }
@@ -109,10 +141,17 @@ impl NarrowFromIter for Numeric {
             match objs.next() {
                 Some(F32(trec)) => Self::F32(trec),
                 Some(F64(trec)) => Self::F64(trec),
+
+                Some(I8(trec)) => Self::I8(trec),
+                Some(I16(trec)) => Self::I16(trec),
                 Some(I32(trec)) => Self::I32(trec),
                 Some(I64(trec)) => Self::I64(trec),
+
+                Some(U8(trec)) => Self::U8(trec),
+                Some(U16(trec)) => Self::U16(trec),
                 Some(U32(trec)) => Self::U32(trec),
                 Some(U64(trec)) => Self::U64(trec),
+
                 Some(String(_)) | Some(Bool(_)) => bail!("Expected numerical input"),
                 None => bail!("Insufficient number of inputs"),
             },
@@ -188,7 +227,7 @@ impl<const N: usize> NarrowFromIterLast for HomogeneousFixed<N> {
         }
 
         Ok((
-            monomorphize!(F32, F64, I32, I64, U32, U64, Bool, String),
+            monomorphize!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String),
             objs,
         ))
     }
@@ -212,7 +251,7 @@ impl<const N: usize> NarrowFromIterLast for HomogeneousNumericFixed<N> {
                 }
             };
         }
-        do_match!(F32, F64, I32, I64, U32, U64)
+        do_match!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64)
     }
 }
 
@@ -253,7 +292,7 @@ impl NarrowFromIterLast for Homogeneous {
         }
 
         Ok((
-            monomorphize!(F32, F64, I32, I64, U32, U64, Bool, String),
+            monomorphize!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String),
             objs,
         ))
     }
@@ -278,7 +317,7 @@ impl NarrowFromIterLast for HomogeneousNumeric {
                 }
             };
         }
-        do_match!(F32, F64, I32, I64, U32, U64)
+        do_match!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64)
     }
 }
 

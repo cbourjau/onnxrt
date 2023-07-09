@@ -84,8 +84,14 @@ pub fn setup_mod(ctx: OpContext) -> Result<ExecutionStep> {
     match inputs {
         F32([a, b]) => setup((a, b), move |(a, b)| state.mod_(a, b)),
         F64([a, b]) => setup((a, b), move |(a, b)| state.mod_(a, b)),
+
+        I8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
+        I16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
         I32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
         I64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
+
+        U8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
+        U16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
         U32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
         U64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
     }

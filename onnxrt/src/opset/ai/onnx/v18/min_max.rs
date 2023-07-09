@@ -40,8 +40,14 @@ pub fn setup_min(ctx: OpContext) -> Result<ExecutionStep> {
     match inputs {
         F32(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| min_float(a, b))),
         F64(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| min_float(a, b))),
+
+        I8(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
+        I16(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
         I32(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
         I64(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
+
+        U8(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
+        U16(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
         U32(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
         U64(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
     }
@@ -54,8 +60,14 @@ pub fn setup_max(ctx: OpContext) -> Result<ExecutionStep> {
     match inputs {
         F32(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| max_float(a, b))),
         F64(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| max_float(a, b))),
+
+        I8(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
+        I16(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
         I32(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
         I64(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
+
+        U8(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
+        U16(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
         U32(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
         U64(inputs) => setup((inputs,), |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
     }

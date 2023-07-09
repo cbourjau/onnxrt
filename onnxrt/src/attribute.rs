@@ -14,10 +14,17 @@ use onnx_protos::onnx_proto3::{
 pub enum Attribute {
     F32s(ArcArrayD<f32>),
     F64s(ArcArrayD<f64>),
+
+    I8s(ArcArrayD<i8>),
+    I16s(ArcArrayD<i16>),
     I64s(ArcArrayD<i64>),
     I32s(ArcArrayD<i32>),
-    U64s(ArcArrayD<u64>),
+
+    U8s(ArcArrayD<u8>),
+    U16s(ArcArrayD<u16>),
     U32s(ArcArrayD<u32>),
+    U64s(ArcArrayD<u64>),
+
     Bools(ArcArrayD<bool>),
 
     ScalarF32(f32),
@@ -50,10 +57,17 @@ impl std::fmt::Debug for Attribute {
             Self::F32s(values) => vec_debug!("Attribute::F32s", values),
             Self::F64s(values) => vec_debug!("Attribute::F64s", values),
             Self::Graph(_) => write!(fmt, "Attribute::Graph")?,
+
+            Self::I8s(values) => vec_debug!("Attribute::I8s", values),
+            Self::I16s(values) => vec_debug!("Attribute::I16s", values),
             Self::I32s(values) => vec_debug!("Attribute::I32s", values),
             Self::I64s(values) => vec_debug!("Attribute::I64s", values),
+
+            Self::U8s(values) => vec_debug!("Attribute::U8s", values),
+            Self::U16s(values) => vec_debug!("Attribute::U16s", values),
             Self::U32s(values) => vec_debug!("Attribute::U32s", values),
             Self::U64s(values) => vec_debug!("Attribute::U64s", values),
+
             Self::ScalarF32(val) => write!(fmt, "Attribute::ScalarF32({})", val)?,
             Self::ScalarI64(val) => write!(fmt, "Attribute::ScalarI64({})", val)?,
             Self::ScalarString(val) => write!(fmt, "Attribute::ScalarString({})", val)?,
@@ -245,12 +259,19 @@ impl TryFrom<&TensorProto> for Attribute {
         match value {
             Value::F32(v) => Ok(Attribute::F32s(v)),
             Value::F64(v) => Ok(Attribute::F64s(v)),
+
+            Value::I8(v) => Ok(Attribute::I8s(v)),
+            Value::I16(v) => Ok(Attribute::I16s(v)),
             Value::I32(v) => Ok(Attribute::I32s(v)),
             Value::I64(v) => Ok(Attribute::I64s(v)),
+
+            Value::U8(v) => Ok(Attribute::U8s(v)),
+            Value::U16(v) => Ok(Attribute::U16s(v)),
             Value::U32(v) => Ok(Attribute::U32s(v)),
             Value::U64(v) => Ok(Attribute::U64s(v)),
-            Value::String(v) => Ok(Attribute::Strings(v)),
+
             Value::Bool(v) => Ok(Attribute::Bools(v)),
+            Value::String(v) => Ok(Attribute::Strings(v)),
         }
     }
 }
@@ -293,10 +314,16 @@ impl TryFrom<&TensorProto> for Value {
         match DataType::from_i32(tensor.data_type)? {
             DataType::F32 => match_arm!(F32, tensor.float_data, f32),
             DataType::F64 => match_arm!(F64, tensor.double_data, f64),
+
+            DataType::I8 => match_arm!(I8, vec![], i8),
+            DataType::I16 => match_arm!(I16, vec![], i16),
             DataType::I32 => match_arm!(I32, tensor.int32_data, i32),
             DataType::I64 => match_arm!(I64, tensor.int64_data, i64),
-            DataType::U64 => match_arm!(U64, tensor.uint64_data, u64),
+
+            DataType::U8 => match_arm!(U8, vec![], u8),
+            DataType::U16 => match_arm!(U16, vec![], u16),
             DataType::U32 => match_arm!(U32, vec![], u32),
+            DataType::U64 => match_arm!(U64, tensor.uint64_data, u64),
 
             DataType::Bool => {
                 let explicit_field = &tensor.int32_data;
@@ -339,16 +366,24 @@ impl TryFrom<&Attribute> for Value {
     fn try_from(attr: &Attribute) -> Result<Self> {
         Ok(match attr.clone() {
             Attribute::Bools(v) => Value::Bool(v),
+
             Attribute::F32s(v) => Value::F32(v),
             Attribute::F64s(v) => Value::F64(v),
+
+            Attribute::I8s(v) => Value::I8(v),
+            Attribute::I16s(v) => Value::I16(v),
             Attribute::I32s(v) => Value::I32(v),
             Attribute::I64s(v) => Value::I64(v),
+
+            Attribute::U8s(v) => Value::U8(v),
+            Attribute::U16s(v) => Value::U16(v),
+            Attribute::U32s(v) => Value::U32(v),
+            Attribute::U64s(v) => Value::U64(v),
+
             Attribute::ScalarF32(v) => Value::F32(array![v].into_dyn().into()),
             Attribute::ScalarI64(v) => Value::I64(array![v].into_dyn().into()),
             Attribute::ScalarString(v) => Value::String(array![v].into_dyn().into()),
             Attribute::Strings(v) => Value::String(v),
-            Attribute::U32s(v) => Value::U32(v),
-            Attribute::U64s(v) => Value::U64(v),
             Attribute::TensorUnknown(_) => {
                 bail!("Cannot convert attribute of type 'TensorUnknown' to 'Value'")
             }

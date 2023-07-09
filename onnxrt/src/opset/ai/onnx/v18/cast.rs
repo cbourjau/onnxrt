@@ -29,85 +29,77 @@ fn setup_cast_(input: TaggedReceiver, to: DataType) -> Result<ExecutionStep> {
         }};
     }
 
+    // Match arm for casts from numbers to number
+    macro_rules! num_to_num {
+        ($a_ch:tt) => {{
+            use num::zero;
+            use DataType::*;
+            match to {
+                Bool => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el != zero()).into())),
+                F32 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
+                F64 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
+
+                I8 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as i8).into())),
+                I16 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as i16).into())),
+                I32 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
+                I64 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+
+                U8 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as u8).into())),
+                U16 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as u16).into())),
+                U32 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
+                U64 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
+
+                String => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
+            }
+        }};
+    }
+
     match input {
+        TaggedReceiver::F32(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::F64(a_ch) => num_to_num!(a_ch),
+
+        TaggedReceiver::I8(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::I16(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::I32(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::I64(a_ch) => num_to_num!(a_ch),
+
+        TaggedReceiver::U8(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::U16(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::U32(a_ch) => num_to_num!(a_ch),
+        TaggedReceiver::U64(a_ch) => num_to_num!(a_ch),
+
         TaggedReceiver::Bool(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, Ok),
             DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f32).into())),
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f64).into())),
+
+            DataType::I8 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i8).into())),
+            DataType::I16 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i16).into())),
             DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
+
+            DataType::U8 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8).into())),
+            DataType::U16 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u16).into())),
             DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
             DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::F32(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0.0).into())),
-            DataType::F32 => wrap_1_input(a_ch, Ok),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::F64(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0.0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, Ok),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::I32(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, Ok),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::I64(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, Ok),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::U32(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, Ok),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
-            DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
-        },
-        TaggedReceiver::U64(a_ch) => match to {
-            DataType::Bool => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el != 0).into())),
-            DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f32).into())),
-            DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as f64).into())),
-            DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
-            DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
-            DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el).into())),
+
+            DataType::Bool => wrap_1_input(a_ch, Ok),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::String(a_ch) => match to {
-            DataType::Bool => make_output_fallible!(a_ch, |el| el.parse::<bool>()),
             DataType::F32 => make_output_fallible!(a_ch, |el| el.parse::<f32>()),
             DataType::F64 => make_output_fallible!(a_ch, |el| el.parse::<f64>()),
+
+            DataType::I8 => make_output_fallible!(a_ch, |el| el.parse::<i8>()),
+            DataType::I16 => make_output_fallible!(a_ch, |el| el.parse::<i16>()),
             DataType::I32 => make_output_fallible!(a_ch, |el| el.parse::<i32>()),
             DataType::I64 => make_output_fallible!(a_ch, |el| el.parse::<i64>()),
+
+            DataType::U8 => make_output_fallible!(a_ch, |el| el.parse::<u8>()),
+            DataType::U16 => make_output_fallible!(a_ch, |el| el.parse::<u16>()),
             DataType::U32 => make_output_fallible!(a_ch, |el| el.parse::<u32>()),
             DataType::U64 => make_output_fallible!(a_ch, |el| el.parse::<u64>()),
+
+            DataType::Bool => make_output_fallible!(a_ch, |el| el.parse::<bool>()),
             DataType::String => wrap_1_input(a_ch, Ok),
         },
     }

@@ -26,7 +26,7 @@ Out of scope for now
 Standard coverage
 -----------------
 
-The coverage is still fairly small. Onnxrt passes 40% of the upstream test, but that metric is not very useful.
+The coverage is still fairly small. Onnxrt passes around 40% of the upstream test, but that metric is not very useful.
 
 
 ### Supported types
@@ -34,14 +34,18 @@ The coverage is still fairly small. Onnxrt passes 40% of the upstream test, but 
 Currently, onnxrt only supports a subset of the [standard types](https://github.com/onnx/onnx/blob/main/docs/IR.md#input--output-data-types):
 
 - Tensors
-  - Bool
-  - F32
-  - F64
-  - I32
-  - I64
-  - String
-  - U32
-  - U64
+  - `String`
+  - `bool`
+  - `f32`
+  - `f64`
+  - `i16`
+  - `i32`
+  - `i64`
+  - `i8`
+  - `u16`
+  - `u32`
+  - `u64`
+  - `u8`
 - Maps
   - Unsupported
 - Optional

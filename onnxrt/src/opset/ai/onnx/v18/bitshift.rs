@@ -38,6 +38,8 @@ pub fn setup_bishift(ctx: OpContext) -> Result<ExecutionStep> {
 
     use HomogeneousNumericFixed::*;
     match inputs {
+        U8([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
+        U16([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
         U32([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
         U64([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
         _ => bail!("BitShift: Expected unsigned input found: {:?}", inputs),

@@ -34,12 +34,19 @@ impl Session {
             .iter()
             .map(|(k, _)| (k, outs.remove(k).unwrap()))
             .map(|(k, v)| match v {
-                Value::F64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::F32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::I64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::F64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+
+                Value::I8(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::I16(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::I32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::U64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::I64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+
+                Value::U8(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::U16(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
                 Value::U32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::U64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+
                 Value::String(v) => (
                     k.to_string(),
                     v.mapv(|el| el.into_py(py))

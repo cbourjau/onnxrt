@@ -12,33 +12,23 @@ pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     let min = inputs.next().flatten();
     let max = inputs.next().flatten();
 
-    use TaggedReceiver::*;
-    match (input, min, max) {
-        // F32
-        (F32(input), Some(F32(min)), Some(F32(max))) => match_arm(input, Some(min), Some(max)),
-        (F32(input), None, Some(F32(max))) => match_arm(input, None, Some(max)),
-        (F32(input), Some(F32(min)), None) => match_arm(input, Some(min), None),
-        (F32(input), None, None) => match_arm(input, None, None),
-
-        // F64
-        (F64(input), Some(F64(min)), Some(F64(max))) => match_arm(input, Some(min), Some(max)),
-        (F64(input), None, Some(F64(max))) => match_arm(input, None, Some(max)),
-        (F64(input), Some(F64(min)), None) => match_arm(input, Some(min), None),
-        (F64(input), None, None) => match_arm(input, None, None),
-
-        // I32
-        (I32(input), Some(I32(min)), Some(I32(max))) => match_arm(input, Some(min), Some(max)),
-        (I32(input), None, Some(I32(max))) => match_arm(input, None, Some(max)),
-        (I32(input), Some(I32(min)), None) => match_arm(input, Some(min), None),
-        (I32(input), None, None) => match_arm(input, None, None),
-
-        // I64
-        (I64(input), Some(I64(min)), Some(I64(max))) => match_arm(input, Some(min), Some(max)),
-        (I64(input), None, Some(I64(max))) => match_arm(input, None, Some(max)),
-        (I64(input), Some(I64(min)), None) => match_arm(input, Some(min), None),
-        (I64(input), None, None) => match_arm(input, None, None),
-        inputs => bail!("Unexpected input for operator 'Clip': {:?}", inputs),
+    macro_rules! match_vars {
+        ($($var:tt),*) => {{
+            use TaggedReceiver::*;
+            match (input, min, max) {
+                $(
+                    ($var(input), Some($var(min)), Some($var(max))) => {
+                        match_arm(input, Some(min), Some(max))
+                    }
+                    ($var(input), None, Some($var(max))) => match_arm(input, None, Some(max)),
+                    ($var(input), Some($var(min)), None) => match_arm(input, Some(min), None),
+                    ($var(input), None, None) => match_arm(input, None, None),
+                )*
+                    inputs => bail!("Clip: Unexpected input {:?}", inputs),
+            }
+        }};
     }
+    match_vars!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64)
 }
 
 fn match_arm<T>(

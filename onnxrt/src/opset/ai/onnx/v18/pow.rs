@@ -15,10 +15,24 @@ pub fn setup_pow(ctx: OpContext) -> Result<ExecutionStep> {
                 F64(y) => setup(($x, y), |(x, y)| {
                     zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powf(y) as $ty)
                 }),
+
+                I8(y) => setup(($x, y), |(x, y)| {
+                    zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powi(y as i32) as $ty)
+                }),
+                I16(y) => setup(($x, y), |(x, y)| {
+                    zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powi(y as i32) as $ty)
+                }),
                 I32(y) => setup(($x, y), |(x, y)| {
                     zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powi(y) as $ty)
                 }),
                 I64(y) => setup(($x, y), |(x, y)| {
+                    zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powi(y as i32) as $ty)
+                }),
+
+                U8(y) => setup(($x, y), |(x, y)| {
+                    zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powi(y as i32) as $ty)
+                }),
+                U16(y) => setup(($x, y), |(x, y)| {
                     zip_map_with_co_broadcast(x, y, |&x, &y| (x as f64).powi(y as i32) as $ty)
                 }),
                 U32(y) => setup(($x, y), |(x, y)| {
@@ -38,5 +52,6 @@ pub fn setup_pow(ctx: OpContext) -> Result<ExecutionStep> {
         I64(x) => match_arm!(x, i64),
         U32(x) => match_arm!(x, u32),
         U64(x) => match_arm!(x, u64),
+        _ => bail!("Pow: Unsupported type for input 'x': {:?}", x),
     }
 }

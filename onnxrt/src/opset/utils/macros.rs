@@ -3,31 +3,31 @@ macro_rules! setup_all {
     (TaggedReceiver, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             TaggedReceiver, $tagged_rec, $rec_name, $setup,
-            F32, F64, I32, I64, U32, U64, Bool, String
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String
         )
     };
     (Homogeneous, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             Homogeneous, $tagged_rec, $rec_name, $setup,
-            F32, F64, I32, I64, U32, U64, Bool, String
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String
         )
     };
     (HomogeneousFixed, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             HomogeneousFixed, $tagged_rec, $rec_name, $setup,
-            F32, F64, I32, I64, U32, U64, Bool, String
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String
         )
     };
     (HomogeneousNumeric, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             HomogeneousNumeric, $tagged_rec, $rec_name, $setup,
-            F32, F64, I32, I64, U32, U64
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64
         )
     };
     (HomogeneousNumericFixed, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             HomogeneousNumericFixed, $tagged_rec, $rec_name, $setup,
-            F32, F64, I32, I64, U32, U64
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64
         )
     };
     // Common implementation
@@ -58,14 +58,14 @@ macro_rules! binary_op_factory {
     (int, $fun:expr) => {
         binary_op_factory!(
             $fun,
-            I32, I64, U32, U64 |
+            I8, I16, I32, I64, U8, U16, U32, U64 |
             rec => bail!("Expected integer input, found: '{:?}'", rec)
         )
     };
     (numeric, $fun:expr) => {
         binary_op_factory!(
             $fun,
-            F32, F64, I32, I64, U32, U64 |
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64 |
         )
     };
     (float, $fun:expr) => {

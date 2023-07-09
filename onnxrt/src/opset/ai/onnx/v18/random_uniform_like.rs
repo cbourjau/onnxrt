@@ -123,8 +123,13 @@ pub fn setup_random_uniform_like(ctx: OpContext) -> Result<ExecutionStep> {
             }),
         },
         Bool(rec) => non_float_arm!(rec),
+        U8(rec) => non_float_arm!(rec),
+        U16(rec) => non_float_arm!(rec),
         U32(rec) => non_float_arm!(rec),
         U64(rec) => non_float_arm!(rec),
+
+        I8(rec) => non_float_arm!(rec),
+        I16(rec) => non_float_arm!(rec),
         I32(rec) => non_float_arm!(rec),
         I64(rec) => non_float_arm!(rec),
         String(rec) => non_float_arm!(rec),

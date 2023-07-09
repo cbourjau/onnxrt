@@ -11,14 +11,14 @@ macro_rules! element_wise {
     (int, $fun:expr) => {
         element_wise!(
             $fun,
-            I32, I64, U32, U64 |
+            I8, I16, I32, I64, U8, U16, U32, U64 |
             rec => bail!("Expected integer input, found: '{:?}'", rec)
         )
     };
     (numeric, $fun:expr) => {
         element_wise!(
             $fun,
-            F32, F64, I32, I64, U32, U64 |
+            F32, F64, I8, I16, I32, I64, U8, U16, U32, U64 |
             rec => bail!("Expected numeric input, found: '{:?}'", rec)
         )
     };
@@ -32,7 +32,7 @@ macro_rules! element_wise {
     (signed, $fun:expr) => {
         element_wise!(
             $fun,
-            I32, I64, F32, F64 |
+            I8, I16, I32, I64, F32, F64 |
             rec => bail!("Expected signed input, found: '{:?}'", rec)
         )
     };

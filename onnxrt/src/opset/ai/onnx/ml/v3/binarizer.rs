@@ -23,7 +23,7 @@ pub fn setup_binarizer(ctx: OpContext) -> Result<ExecutionStep> {
         // round up (for negative numbers).
         I32([rec]) => setup((rec,), move |(a,)| binarize(a, threshold.floor() as i32)),
         I64([rec]) => setup((rec,), move |(a,)| binarize(a, threshold.floor() as i64)),
-        U32([rec]) => setup((rec,), move |(a,)| binarize(a, threshold.floor() as u32)),
-        U64([rec]) => setup((rec,), move |(a,)| binarize(a, threshold.floor() as u64)),
+        // The standard only supports the above four types
+        _ => bail!("Binarizer: Unsupported input types {:?}", inputs),
     }
 }

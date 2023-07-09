@@ -124,7 +124,6 @@ pub fn setup_unique(ctx: OpContext) -> Result<ExecutionStep> {
 
     use TaggedReceiver::*;
     match x {
-        Bool(rec) => setup((rec,), move |x| state.compute(x)),
         F32(rec) => setup((rec,), move |(x,)| {
             let (a, b, c, d) = state.compute((x.mapv(OrderedFloat).into(),))?;
             let a: ArcArrayD<_> = a.mapv(|el| el.0).into();
@@ -135,10 +134,18 @@ pub fn setup_unique(ctx: OpContext) -> Result<ExecutionStep> {
             let a: ArcArrayD<_> = a.mapv(|el| el.0).into();
             Ok((a, b, c, d))
         }),
+
+        I8(rec) => setup((rec,), move |x| state.compute(x)),
+        I16(rec) => setup((rec,), move |x| state.compute(x)),
         I32(rec) => setup((rec,), move |x| state.compute(x)),
         I64(rec) => setup((rec,), move |x| state.compute(x)),
-        String(rec) => setup((rec,), move |x| state.compute(x)),
+
+        U8(rec) => setup((rec,), move |x| state.compute(x)),
+        U16(rec) => setup((rec,), move |x| state.compute(x)),
         U32(rec) => setup((rec,), move |x| state.compute(x)),
         U64(rec) => setup((rec,), move |x| state.compute(x)),
+
+        Bool(rec) => setup((rec,), move |x| state.compute(x)),
+        String(rec) => setup((rec,), move |x| state.compute(x)),
     }
 }

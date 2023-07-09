@@ -119,12 +119,32 @@ impl TestResult {
                         unequal_bail!(k, exp, obs)
                     }
                 }
+                (Value::I8(exp), Value::I8(obs)) => {
+                    if exp != obs {
+                        unequal_bail_numeric!(k, exp, obs)
+                    }
+                }
+                (Value::I16(exp), Value::I16(obs)) => {
+                    if exp != obs {
+                        unequal_bail_numeric!(k, exp, obs)
+                    }
+                }
                 (Value::I32(exp), Value::I32(obs)) => {
                     if exp != obs {
                         unequal_bail_numeric!(k, exp, obs)
                     }
                 }
                 (Value::I64(exp), Value::I64(obs)) => {
+                    if exp != obs {
+                        unequal_bail_numeric!(k, exp, obs)
+                    }
+                }
+                (Value::U8(exp), Value::U8(obs)) => {
+                    if exp != obs {
+                        unequal_bail_numeric!(k, exp, obs)
+                    }
+                }
+                (Value::U16(exp), Value::U16(obs)) => {
                     if exp != obs {
                         unequal_bail_numeric!(k, exp, obs)
                     }
