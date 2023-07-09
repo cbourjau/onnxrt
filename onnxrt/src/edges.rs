@@ -299,7 +299,7 @@ impl DataType {
         }
     }
 
-    pub fn to_standard_name(&self) -> &str {
+    pub fn standard_name(&self) -> &str {
         match self {
             DataType::Bool => "tensor(bool)",
             DataType::I32 => "tensor(int32)",

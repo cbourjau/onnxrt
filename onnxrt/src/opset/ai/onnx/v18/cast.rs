@@ -97,7 +97,7 @@ fn setup_cast_(input: TaggedReceiver, to: DataType) -> Result<ExecutionStep> {
             DataType::I32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i32).into())),
             DataType::I64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as i64).into())),
             DataType::U32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u32).into())),
-            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u64).into())),
+            DataType::U64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el).into())),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
         TaggedReceiver::String(a_ch) => match to {

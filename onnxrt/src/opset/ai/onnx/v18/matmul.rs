@@ -43,7 +43,7 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
     }
 }
 
-fn matmul_2d_1d<'a, 'b, T>(a: ArrayViewD<'a, T>, b: ArrayViewD<'b, T>) -> Result<ArrayD<T>>
+fn matmul_2d_1d<T>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> Result<ArrayD<T>>
 where
     T: Clone + Float + One + Zero + 'static,
 {
@@ -58,7 +58,7 @@ where
     Ok(c.into_dyn())
 }
 
-fn matmul_2d<'a, 'b, T>(a: ArrayViewD<'a, T>, b: ArrayViewD<'b, T>) -> Result<ArrayD<T>>
+fn matmul_2d<T>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> Result<ArrayD<T>>
 where
     T: Clone + Float + One + Zero + 'static,
 {
@@ -73,7 +73,7 @@ where
     Ok(c.into_dyn())
 }
 
-fn matmul_nd<'a, 'b, T>(a: ArrayViewD<'a, T>, b: ArrayViewD<'b, T>) -> Result<ArrayD<T>>
+fn matmul_nd<T>(a: ArrayViewD<'_, T>, b: ArrayViewD<'_, T>) -> Result<ArrayD<T>>
 where
     T: Clone + Float + One + Zero + 'static,
 {
@@ -102,7 +102,7 @@ where
     Ok(c.into_shape(out_shape.as_slice())?)
 }
 
-fn to_3d<'inp, T>(a: ArrayViewD<'inp, T>) -> Result<Array3<T>>
+fn to_3d<T>(a: ArrayViewD<'_, T>) -> Result<Array3<T>>
 where
     T: Clone,
 {

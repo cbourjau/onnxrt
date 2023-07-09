@@ -58,7 +58,7 @@ impl Session {
         let hm: HashMap<String, String> = self
             .input_dtypes()
             .iter()
-            .map(|(k, v)| (k.to_string(), v.to_standard_name().to_string()))
+            .map(|(k, v)| (k.to_string(), v.standard_name().to_string()))
             .collect();
         hm
     }

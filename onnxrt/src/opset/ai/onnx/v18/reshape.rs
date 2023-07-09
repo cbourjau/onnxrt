@@ -71,5 +71,5 @@ where
         bail!("Reshaped tensor must have same number of elements as input tensor")
     }
 
-    Ok((data.reshape(fixed).into(),))
+    Ok((data.reshape(fixed),))
 }

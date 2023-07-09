@@ -49,7 +49,7 @@ impl RandomUniformLike {
     fn from_attrs(attrs: &Attributes) -> Result<Self> {
         let dtype = {
             let dtype: Option<i64> = attrs.get_optional("dtype")?;
-            dtype.map(|el| FloatDataType::from_i64(el)).transpose()?
+            dtype.map(FloatDataType::from_i64).transpose()?
         };
 
         let high = attrs.get_with_default("high", 1.0f32)?;

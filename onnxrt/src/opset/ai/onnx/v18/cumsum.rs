@@ -25,7 +25,7 @@ impl State {
         let axis = convert_negative_index(axis, rank);
         let axis = Axis(axis);
 
-        let mut out = x.clone();
+        let mut out = x;
 
         // Flip exclusive when in reverse
         let exclusive = if self.reverse {

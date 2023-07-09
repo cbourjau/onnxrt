@@ -15,14 +15,14 @@ impl ConstantOfShape {
         // Validate that it is rank-0 tensor
         use Value::*;
         let value = match value {
-            Bool(t) => Bool(t.into_shape((1,))?.into_dyn().into()),
-            F32(t) => F32(t.into_shape((1,))?.into_dyn().into()),
-            F64(t) => F64(t.into_shape((1,))?.into_dyn().into()),
-            I32(t) => I32(t.into_shape((1,))?.into_dyn().into()),
-            I64(t) => I64(t.into_shape((1,))?.into_dyn().into()),
-            U32(t) => U32(t.into_shape((1,))?.into_dyn().into()),
-            U64(t) => U64(t.into_shape((1,))?.into_dyn().into()),
-            String(t) => String(t.into_shape((1,))?.into_dyn().into()),
+            Bool(t) => Bool(t.into_shape((1,))?.into_dyn()),
+            F32(t) => F32(t.into_shape((1,))?.into_dyn()),
+            F64(t) => F64(t.into_shape((1,))?.into_dyn()),
+            I32(t) => I32(t.into_shape((1,))?.into_dyn()),
+            I64(t) => I64(t.into_shape((1,))?.into_dyn()),
+            U32(t) => U32(t.into_shape((1,))?.into_dyn()),
+            U64(t) => U64(t.into_shape((1,))?.into_dyn()),
+            String(t) => String(t.into_shape((1,))?.into_dyn()),
         };
 
         Ok(Self { value })

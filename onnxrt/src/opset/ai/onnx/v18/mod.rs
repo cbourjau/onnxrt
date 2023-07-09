@@ -134,7 +134,7 @@ fn unsqueeze<D: std::fmt::Debug>(
     // Safe to unwrap because we ensure standard layout above.
     let axes = axes.as_slice().unwrap();
 
-    let new_shape = compute_expanded(data.shape(), &axes);
+    let new_shape = compute_expanded(data.shape(), axes);
     Ok(data.into_shape(new_shape)?)
 }
 

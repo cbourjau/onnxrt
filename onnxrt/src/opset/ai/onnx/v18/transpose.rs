@@ -16,13 +16,13 @@ impl Transpose {
         let rank = data.ndim();
 
         if self.perm.is_empty() {
-            Ok(data.reversed_axes().into())
+            Ok(data.reversed_axes())
         } else {
             if *self.perm.iter().reduce(Ord::max).unwrap() as usize > rank {
                 bail!("Transpose: 'axes' index is out of range")
             }
             let new_axes: Vec<_> = self.perm.iter().map(|el| *el as usize).collect();
-            Ok(data.permuted_axes(new_axes).into())
+            Ok(data.permuted_axes(new_axes))
         }
     }
 }

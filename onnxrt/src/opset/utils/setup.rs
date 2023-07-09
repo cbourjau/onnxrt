@@ -248,7 +248,7 @@ where
     type Item = T::Item;
 
     fn recv(&self) -> Result<Self::Item> {
-        Ok(self.recv()?)
+        self.recv()
     }
 }
 

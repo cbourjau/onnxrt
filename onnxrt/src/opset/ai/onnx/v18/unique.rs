@@ -17,27 +17,7 @@ impl Unique {
         Ok(Self { axis, sorted })
     }
 
-    // Y (non-differentiable) : T
-    //     A tensor of the same type as 'X' containing all the unique
-    //     values or subtensors sliced along a provided 'axis' in 'X',
-    //     either sorted or maintained in the same order they occur in
-    //     input 'X'
-    // indices (optional, non-differentiable) : tensor(int64)
-    //     A 1-D INT64 tensor containing indices of 'Y' elements'
-    //     first occurance in 'X'. When 'axis' is provided, it
-    //     contains indices to subtensors in input 'X' on the
-    //     'axis'. When 'axis' is not provided, it contains indices to
-    //     values in the flattened input tensor.
-    // inverse_indices (optional, non-differentiable) : tensor(int64)
-    //     A 1-D INT64 tensor containing, for elements of 'X', its
-    //     corresponding indices in 'Y'. When 'axis' is provided, it
-    //     contains indices to subtensors in output 'Y' on the
-    //     'axis'. When 'axis' is not provided, it contains indices to
-    //     values in output 'Y'.
-    // counts (optional, non-differentiable) : tensor(int64)
-    //     A 1-D INT64 tensor containing the count of each element of
-    //     'Y' in input 'X'
-
+    #[allow(clippy::type_complexity)]
     fn compute<T>(
         &self,
         (x,): (ArcArrayD<T>,),
@@ -146,12 +126,12 @@ pub fn setup_unique(ctx: OpContext) -> Result<ExecutionStep> {
     match x {
         Bool(rec) => setup((rec,), move |x| state.compute(x)),
         F32(rec) => setup((rec,), move |(x,)| {
-            let (a, b, c, d) = state.compute((x.mapv(|el| OrderedFloat(el)).into(),))?;
+            let (a, b, c, d) = state.compute((x.mapv(OrderedFloat).into(),))?;
             let a: ArcArrayD<_> = a.mapv(|el| el.0).into();
             Ok((a, b, c, d))
         }),
         F64(rec) => setup((rec,), move |(x,)| {
-            let (a, b, c, d) = state.compute((x.mapv(|el| OrderedFloat(el)).into(),))?;
+            let (a, b, c, d) = state.compute((x.mapv(OrderedFloat).into(),))?;
             let a: ArcArrayD<_> = a.mapv(|el| el.0).into();
             Ok((a, b, c, d))
         }),

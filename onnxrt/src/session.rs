@@ -263,9 +263,10 @@ impl Session {
 /// scope by the time this function is called. It is up to the caller
 /// side to ensure that the execution steps for the variables in the
 /// outer scope are called.
-fn setup_steps<'a>(
+#[allow(clippy::type_complexity)]
+fn setup_steps(
     mut scope: HashMap<String, Dispatcher>,
-    nodes: &'a [NodeProto],
+    nodes: &[NodeProto],
     output_names: &[String],
     setup_dict: &HashMap<&'static str, SetupFnSignature>,
 ) -> Result<(Vec<ExecFnSignature>, Vec<(String, TaggedReceiver)>)> {
@@ -334,6 +335,7 @@ fn prepare_inputs(
 
 /// Process initializers returning dispatchers and their input
 /// channels and default values.
+#[allow(clippy::type_complexity)]
 fn prepare_initializer(
     initializers: &[TensorProto],
     mut scope: HashMap<String, Dispatcher>,

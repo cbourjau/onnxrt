@@ -15,21 +15,21 @@ impl Constant {
                 .get_optional("value_float")?
                 .map(|el| ndarray::arr0(el).into_dyn().into())
                 .or(attrs.get_optional("value_floats")?)
-                .map(|v| Value::F32(v))
+                .map(Value::F32)
         };
         let ints = {
             attrs
                 .get_optional("value_int")?
                 .map(|el| ndarray::arr0(el).into_dyn().into())
                 .or(attrs.get_optional("value_ints")?)
-                .map(|v| Value::I64(v))
+                .map(Value::I64)
         };
         let strings = {
             attrs
                 .get_optional("value_string")?
                 .map(|el| ndarray::arr0(el).into_dyn().into())
                 .or(attrs.get_optional("value_string")?)
-                .map(|v| Value::String(v))
+                .map(Value::String)
         };
 
         let value = attrs
