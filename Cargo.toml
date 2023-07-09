@@ -1,4 +1,6 @@
 [workspace]
 members = [
- "onnxer"
+ "onnx_protos",
+ "onnxer",
+ "upstream_test_data"
 ]

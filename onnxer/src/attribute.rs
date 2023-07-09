@@ -4,10 +4,10 @@ use anyhow::{anyhow, bail, Result};
 use ndarray::Array;
 use protobuf::MessageField;
 
-use crate::protos::onnx_proto3::{
+use crate::{ArcArrayD, Value};
+use onnx_protos::onnx_proto3::{
     attribute_proto::AttributeType, AttributeProto, GraphProto, NodeProto, TensorProto,
 };
-use crate::{ArcArrayD, Value};
 
 // Vectors should be ArcArrayD
 pub enum Attribute {
@@ -210,7 +210,7 @@ impl TryFrom<&AttributeProto> for Attribute {
                     ..
                 },
             ) => Attribute::Graph(*gp.clone()),
-            (_, ap) => bail!("Cannot handle {:#?}", ap),
+            (ty, ap) => bail!("Cannot handle type `{:#?}` for `{:#?}`", ty, ap),
         })
     }
 }

@@ -2,8 +2,8 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Result};
+use onnx_protos::onnx_proto3::{type_proto, ValueInfoProto};
 
-use crate::protos::onnx_proto3::{type_proto, ValueInfoProto};
 use crate::ArcArrayD;
 
 /// Data types which may be exchange between nodes.

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use ndarray::Array;
+use onnx_protos::onnx_proto3::{GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto};
 use protobuf::Message;
 use pyo3::prelude::*;
 
-use crate::protos::onnx_proto3::{GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto};
 use crate::{value_channel, Attributes, DataType, Dispatcher, EnumReceiver, Value, ValueSender};
 
 #[pyclass]
@@ -46,13 +46,13 @@ impl<'a> OpContext<'a> {
         node: &'a NodeProto,
         scope: &'a HashMap<String, Dispatcher>,
         opset: &'a HashMap<&'static str, SetupFnSignature>,
-    ) -> Self {
-        Self {
-            attrs: Attributes::from_node(node).unwrap(),
+    ) -> Result<Self> {
+        Ok(Self {
+            attrs: Attributes::from_node(node)?,
             node,
             scope,
             opset,
-        }
+        })
     }
 
     /// Subscribe to the input channels for this node
@@ -86,7 +86,7 @@ impl Session {
     pub fn from_file<P: AsRef<Path>>(
         path: P,
         wire_dict: &HashMap<&'static str, SetupFnSignature>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let bytes = std::fs::read(path).unwrap();
         let model_proto: ModelProto = Message::parse_from_bytes(&bytes[..]).unwrap();
         Self::from_model_proto(&model_proto, wire_dict)
@@ -95,7 +95,7 @@ impl Session {
     pub fn from_model_proto(
         model: &ModelProto,
         wire_dict: &HashMap<&'static str, SetupFnSignature>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let graph = model.graph.as_ref().unwrap();
         Self::from_graph_proto(graph, wire_dict)
     }
@@ -110,14 +110,14 @@ impl Session {
     pub fn from_graph_proto(
         graph: &GraphProto,
         wire_dict: &HashMap<&'static str, SetupFnSignature>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         // External inputs and initializers
-        let (input_senders, scope) = prepare_inputs(&graph.input);
+        let (input_senders, scope) = prepare_inputs(&graph.input)?;
         let (initializers, scope) = prepare_initializer(&graph.initializer, scope)?;
 
         let output_names: Vec<_> = graph.output.iter().map(|el| el.name.clone()).collect();
 
-        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, wire_dict).unwrap();
+        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, wire_dict)?;
 
         Ok(Self {
             steps,
@@ -134,13 +134,13 @@ impl Session {
         outer_scope: &HashMap<String, Dispatcher>,
     ) -> anyhow::Result<Self> {
         // External inputs and initializers
-        let (input_senders, scope) = prepare_inputs(&graph.input);
+        let (input_senders, scope) = prepare_inputs(&graph.input)?;
         let (initializers, scope) = prepare_initializer(&graph.initializer, scope)?;
         let (implicit_input_senders, scope) = prepare_implicit_inputs(outer_scope, scope, graph);
 
         let output_names: Vec<_> = graph.output.iter().map(|el| el.name.clone()).collect();
 
-        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, wire_dict).unwrap();
+        let (steps, outputs) = setup_steps(scope, &graph.node, &output_names, wire_dict)?;
 
         Ok(Self {
             steps,
@@ -151,7 +151,7 @@ impl Session {
         })
     }
 
-    pub fn run(&self, input_values: &HashMap<&str, Value>) -> Result<HashMap<String, Value>> {
+    pub fn run(&self, input_values: &HashMap<String, Value>) -> Result<HashMap<String, Value>> {
         if input_values.len() != (self.inputs.len() + self.implicit_inputs.len()) {
             bail!("Unexpected number of inputs.")
         }
@@ -219,10 +219,10 @@ fn setup_steps<'a>(
     let mut steps = vec![];
 
     for node in nodes {
-        let ctx = OpContext::new(node, &scope, wire_dict);
+        let ctx = OpContext::new(node, &scope, wire_dict)?;
         let wire_fn = wire_dict
             .get(&node.op_type.as_str())
-            .unwrap_or_else(|| panic!("Unimplemented operator: {}", node.op_type));
+            .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
         let (op, outputs) = wire_fn(ctx)?;
 
         steps.push(op);
@@ -258,20 +258,18 @@ fn setup_steps<'a>(
 /// Create input `ValueDispatcher` and scope hashmap from graph.
 fn prepare_inputs(
     inputs: &[ValueInfoProto],
-) -> (HashMap<String, ValueSender>, HashMap<String, Dispatcher>) {
+) -> Result<(HashMap<String, ValueSender>, HashMap<String, Dispatcher>)> {
     let mut input_senders = HashMap::new();
     let mut scope = HashMap::new();
     for input in inputs {
         let input_name = &input.name;
-        let data_type = DataType::from_value_info(input).unwrap();
+        let data_type = DataType::from_value_info(input)?;
         let (sdr, disp) = value_channel(&data_type);
         input_senders.insert(input_name.to_string(), sdr);
         scope.insert(input_name.to_string(), disp);
     }
-
     // Add initializers to scope. Overriding initializers is not supported
-
-    (input_senders, scope)
+    Ok((input_senders, scope))
 }
 
 /// Process initializers returning dispatchers and their input

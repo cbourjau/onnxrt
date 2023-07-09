@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
-use crate::protos::onnx_proto3::GraphProto;
 use anyhow::{anyhow, bail, Result};
 use ndarray::{Array, Axis, IntoDimension, Ix1, IxDyn, Zip};
+use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::attribute::Attribute;
 use crate::session::{OpContext, SetupFnSignature, SetupResult};
@@ -278,7 +278,7 @@ fn wire_split(ctx: OpContext) -> SetupResult {
     // `input_channels` creates channels and must only be called once!
     let input_channels = ctx.input_channels();
     if input_channels.len() > 1 {
-        unimplemented!("`split` input of `Split` operator is not supported");
+        bail!("`split` input of `Split` operator is not supported");
     }
 
     let [a_ch]: [_; 1] = input_channels.try_into().unwrap();
@@ -572,12 +572,12 @@ fn wire_if(ctx: OpContext) -> SetupResult {
                 if conds.len() != 1 {
                     return Err(anyhow!("`Cond` input of `If` must be a scalar."));
                 }
-                conds[0]
+                conds.to_owned().into_shape([])?.into_scalar()
             };
 
             let graph_inputs = graph_input_channels
                 .iter()
-                .map(|(k, ch)| (k.as_str(), ch.recv().unwrap()))
+                .map(|(k, ch)| (k.clone(), ch.recv().unwrap()))
                 .collect();
             // If-graphs do not have explicit inputs; only the implicit ones
             if cond {

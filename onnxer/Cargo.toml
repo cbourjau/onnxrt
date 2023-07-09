@@ -7,7 +7,10 @@ edition = "2021"
 [lib]
 name = "onnxer"
 # "cdylib" is necessary to produce a shared library for Python to import from.
-crate-type = ["cdylib"]
+crate-type = [
+ "cdylib",
+ "rlib", # Needed for the tests to link correctly
+ ]
 
 
 [dependencies]
@@ -16,6 +19,7 @@ itertools = "0.10.5"
 ndarray = "0.15.6"
 num = "0.4.0"
 numpy = "0.17"
+onnx_protos = { version = "0.1.0", path = "../onnx_protos" }
 ordered-float = "3.2.0"
 protobuf = "3.1.0"
 
@@ -30,4 +34,9 @@ features = ["extension-module", "abi3-py38"]
 [build-dependencies]
 protobuf-codegen = "3.1.0"
 pyo3-build-config = "0.17"
+
+[dev-dependencies]
+approx = "0.5.1"
+ndarray = { version = "0.15.6", features = ["approx-0_5"] }
+upstream_test_data = { path = "../upstream_test_data" }
 

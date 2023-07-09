@@ -25,7 +25,7 @@ impl Session {
     #[pyo3(name = "run")]
     pub fn py_run(&self, inputs: &PyDict) -> HashMap<String, PyObject> {
         let py = inputs.py();
-        let inputs: HashMap<&str, Value> = inputs.extract().unwrap();
+        let inputs: HashMap<String, Value> = inputs.extract().unwrap();
 
         self.run(&inputs)
             .unwrap()

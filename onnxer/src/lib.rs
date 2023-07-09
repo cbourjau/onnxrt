@@ -3,14 +3,14 @@ use ndarray::{ArcArray, IxDyn};
 mod attribute;
 mod edges;
 mod opset;
-mod protos;
 mod python_api;
 mod session;
 mod utils;
 
 pub(crate) use attribute::{Attribute, Attributes};
+pub use edges::Value;
 pub(crate) use edges::{
-    channel, value_channel, DataType, Dispatchable, Dispatcher, EnumReceiver, Value, ValueSender,
+    channel, value_channel, DataType, Dispatchable, Dispatcher, EnumReceiver, ValueSender,
 };
 pub use opset::get_opset;
 pub use session::Session;
@@ -40,7 +40,7 @@ mod tests {
         ]
         .into_dyn()
         .into();
-        let inputs = HashMap::from_iter([("X", Value::F64(input))]);
+        let inputs = HashMap::from_iter([("X".to_string(), Value::F64(input))]);
 
         let expected: HashMap<_, _> = [(
             "variable".to_string(),
