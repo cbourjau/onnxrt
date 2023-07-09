@@ -8,7 +8,7 @@ use onnx_protos::onnx_proto3::TensorProto;
 use protobuf::Message;
 use upstream_test_data::{all_node_tests, get_node_test, TestCase};
 
-use ::onnxer::{get_opset, ArcArrayD, Session, Value};
+use ::onnxrt::{get_opset, ArcArrayD, Session, Value};
 
 struct TestResult {
     expected: HashMap<String, Value>,

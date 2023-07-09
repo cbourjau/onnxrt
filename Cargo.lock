@@ -386,7 +386,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "onnxer"
+name = "onnxrt"
 version = "0.1.0"
 dependencies = [
  "anyhow",

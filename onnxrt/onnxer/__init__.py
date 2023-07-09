@@ -1,7 +1,7 @@
-from onnxer import onnxer
+from onnxrt import onnxrt
 
 
-class Session(onnxer.Session):
+class Session(onnxrt.Session):
     def run(self, inputs):
         casted = {}
         for k, v in inputs.items():

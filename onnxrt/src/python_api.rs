@@ -10,7 +10,7 @@ use crate::opset::get_opset;
 use crate::{Session, Value};
 
 #[pymodule]
-pub fn onnxer(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+pub fn onnxrt(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<Session>()?;
     Ok(())
 }
