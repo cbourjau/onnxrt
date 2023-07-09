@@ -7,6 +7,30 @@ use crate::{ArcArrayD, TaggedReceiver};
 
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
+pub enum Numeric {
+    F32(Receiver<ArcArrayD<f32>>),
+    F64(Receiver<ArcArrayD<f64>>),
+
+    I8(Receiver<ArcArrayD<i8>>),
+    I16(Receiver<ArcArrayD<i16>>),
+    I32(Receiver<ArcArrayD<i32>>),
+    I64(Receiver<ArcArrayD<i64>>),
+
+    U8(Receiver<ArcArrayD<u8>>),
+    U16(Receiver<ArcArrayD<u16>>),
+    U32(Receiver<ArcArrayD<u32>>),
+    U64(Receiver<ArcArrayD<u64>>),
+}
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
+pub enum FloatingPoint {
+    F32(Receiver<ArcArrayD<f32>>),
+    F64(Receiver<ArcArrayD<f64>>),
+}
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
 pub enum Homogeneous {
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
@@ -23,23 +47,6 @@ pub enum Homogeneous {
 
     String(Vec<Receiver<ArcArrayD<String>>>),
     Bool(Vec<Receiver<ArcArrayD<bool>>>),
-}
-
-/// Homogeneous, numeric variadic inputs
-#[derive(Debug)]
-pub enum Numeric {
-    F32(Receiver<ArcArrayD<f32>>),
-    F64(Receiver<ArcArrayD<f64>>),
-
-    I8(Receiver<ArcArrayD<i8>>),
-    I16(Receiver<ArcArrayD<i16>>),
-    I32(Receiver<ArcArrayD<i32>>),
-    I64(Receiver<ArcArrayD<i64>>),
-
-    U8(Receiver<ArcArrayD<u8>>),
-    U16(Receiver<ArcArrayD<u16>>),
-    U32(Receiver<ArcArrayD<u32>>),
-    U64(Receiver<ArcArrayD<u64>>),
 }
 
 /// Homogeneous, numeric variadic inputs
@@ -153,6 +160,24 @@ impl NarrowFromIter for Numeric {
                 Some(U64(trec)) => Self::U64(trec),
 
                 Some(String(_)) | Some(Bool(_)) => bail!("Expected numerical input"),
+                None => bail!("Insufficient number of inputs"),
+            },
+            objs,
+        ))
+    }
+}
+
+impl NarrowFromIter for FloatingPoint {
+    fn parse<I>(mut objs: I) -> Result<(Self, I)>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        use TaggedReceiver::*;
+        Ok((
+            match objs.next() {
+                Some(F32(trec)) => Self::F32(trec),
+                Some(F64(trec)) => Self::F64(trec),
+                Some(_) => bail!("Expected numerical input"),
                 None => bail!("Insufficient number of inputs"),
             },
             objs,
@@ -366,5 +391,31 @@ where
         }
 
         Ok((out1, out2))
+    }
+}
+
+// FIXME: `parse` should mutate the iterator to make this
+// pattern more amenable to macros
+impl<T1, T2, T3, T4, Z> NarrowFromVec<(T1, T2, T3, T4, Z)> for Vec<TaggedReceiver>
+where
+    T1: NarrowFromIter,
+    T2: NarrowFromIter,
+    T3: NarrowFromIter,
+    T4: NarrowFromIter,
+    Z: NarrowFromIterLast,
+{
+    fn narrow(self) -> Result<(T1, T2, T3, T4, Z)> {
+        let iter = self.into_iter();
+        let (out1, iter) = T1::parse(iter)?;
+        let (out2, iter) = T2::parse(iter)?;
+        let (out3, iter) = T3::parse(iter)?;
+        let (out4, iter) = T4::parse(iter)?;
+        let (out5, iter) = Z::parse(iter)?;
+
+        if iter.count() != 0 {
+            bail!("Unexpected number of inputs.")
+        }
+
+        Ok((out1, out2, out3, out4, out5))
     }
 }

@@ -278,6 +278,22 @@ impl InChannels for () {
     }
 }
 
+macro_rules! impl_InChannels {
+    ($($Ts:tt),* | Z | $($idx:tt),* ) => {
+        impl<$( $Ts ,)* Z> InChannels for ($($Ts,)* Z)
+        where
+            $($Ts: InChannel,)*
+            Z: LastInChannel,
+        {
+            type Items = ($(<$Ts>::Item,)* Z::Item);
+
+            fn recv(&self) -> Result<Self::Items> {
+                Ok(($(self.$idx.recv()?,)* ))
+            }
+        }
+    };
+}
+
 impl<A> InChannels for (A,)
 where
     A: LastInChannel,
@@ -289,27 +305,8 @@ where
     }
 }
 
-impl<A, B> InChannels for (A, B)
-where
-    A: InChannel,
-    B: LastInChannel,
-{
-    type Items = (A::Item, B::Item);
-
-    fn recv(&self) -> Result<Self::Items> {
-        Ok((self.0.recv()?, self.1.recv()?))
-    }
-}
-
-impl<A, B, C> InChannels for (A, B, C)
-where
-    A: InChannel,
-    B: InChannel,
-    C: LastInChannel,
-{
-    type Items = (A::Item, B::Item, C::Item);
-
-    fn recv(&self) -> Result<Self::Items> {
-        Ok((self.0.recv()?, self.1.recv()?, self.2.recv()?))
-    }
-}
+impl_InChannels!(T1 | Z | 0, 1);
+impl_InChannels!(T1, T2 | Z | 0, 1, 2);
+impl_InChannels!(T1, T2, T3 | Z | 0, 1, 2, 3);
+impl_InChannels!(T1, T2, T3, T4 | Z | 0, 1, 2, 3, 4);
+impl_InChannels!(T1, T2, T3, T4, T5 | Z | 0, 1, 2, 3, 4, 5);

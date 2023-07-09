@@ -9,6 +9,7 @@ use crate::session::SetupFnSignature;
 use crate::{channel, value_channel, Dispatchable, Session};
 
 mod arg_min_max;
+mod batch_normalization;
 mod bitshift;
 mod cast;
 mod clip;
@@ -43,6 +44,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("And", binary_op_factory!(boolean, |a, b| Ok(a & b)));
     d.insert("ArgMax", Box::new(arg_min_max::setup_argmax));
     d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
+    d.insert("BatchNormalization", Box::new(batch_normalization::setup_bn));
     d.insert("BitwiseAnd", binary_op_factory!(int, |a, b| Ok(a & b)));
     d.insert("BitwiseOr", binary_op_factory!(int, |a, b| Ok(a | b)));
     d.insert("BitwiseXor", binary_op_factory!(int, |a, b| Ok(a ^ b)));
