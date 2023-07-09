@@ -27,7 +27,7 @@ mod tests {
     fn test_tree_ensemble_regressor() {
         let setup_dict = get_opset();
         let session = Session::from_file(
-            "../../../onnxruntime/onnxruntime/test/testdata/tree_ensemble_as_tensor.onnx",
+            "../onnxruntime/onnxruntime/test/testdata/tree_ensemble_as_tensor.onnx",
             &setup_dict,
         )
         .unwrap();

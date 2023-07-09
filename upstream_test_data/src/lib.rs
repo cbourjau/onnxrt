@@ -6,7 +6,7 @@ use anyhow::Result;
 fn node_tests_folder() -> PathBuf {
     concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../upstream_test_data/onnx/onnx/backend/test/data/node"
+        "/../onnx/onnx/backend/test/data/node"
     )
     .into()
 }

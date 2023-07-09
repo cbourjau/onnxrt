@@ -1,3 +1,6 @@
-[submodule "upstream_test_data/onnx"]
-	path = upstream_test_data/onnx
+[submodule "onnxruntime"]
+	path = onnxruntime
+	url = https://github.com/microsoft/onnxruntime.git
+[submodule "onnx"]
+	path = onnx
 	url = https://github.com/onnx/onnx.git

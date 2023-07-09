@@ -4,7 +4,7 @@ fn main() {
     Codegen::new()
         .pure()
         .cargo_out_dir("generated_with_pure")
-        .input("src/protos/onnx.proto3")
-        .include("src/protos")
+        .input("../onnx/onnx/onnx.proto3")
+        .include("../onnx/onnx/")
         .run_from_script();
 }
