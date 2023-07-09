@@ -60,6 +60,7 @@
             libiconv
             darwin.apple_sdk.frameworks.Security
           ]);
+          RUST_BACKTRACE=1;
           shellHook = ''
               python -m venv .venv
               source .venv/bin/activate

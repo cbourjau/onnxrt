@@ -9,7 +9,8 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-
+    env:
+      RUSTFLAGS: "-Dwarnings"  # Fail on warnings
     steps:
       - uses: actions/checkout@v3
 
@@ -21,13 +22,21 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
       - name: Setup cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Rustfmt
+        run: |
+          nix develop --command \
+          cargo fmt --check --all
+      - name: Clippy
+        run: |
+          nix develop --command \
+          cargo clippy
       - name: Build
         run: |
           nix develop --command \
           cargo build --all
       - name: Run tests
         run: |
-          RUST_BACKTRACE=1 nix develop --command \
+          nix develop --command \
           cargo test -- --nocapture
       - name: Build Python package
         run: |
@@ -35,11 +44,11 @@ jobs:
           maturin build -m ./onnxrt/Cargo.toml
       - name: Install Python package
         run: |
-          RUST_BACKTRACE=1 nix develop --command \
+          nix develop --command \
           maturin develop -m ./onnxrt/Cargo.toml
       - name: Run Python tests
         if: false  # skip for now :(
         run: |
-          RUST_BACKTRACE=1 nix develop --command \
+          nix develop --command \
           pip install onnxruntime pytest numpy && \
           python -m pytest onnxrt/test_python/test.py -s
