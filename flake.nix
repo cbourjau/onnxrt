@@ -44,7 +44,6 @@
             llvmPackages_latest.llvm
             llvmPackages_latest.bintools
             llvmPackages_latest.lld
-            darwin.apple_sdk.frameworks.Security
             python3
             python310Packages.flake8
             python310Packages.pytest
@@ -57,7 +56,14 @@
             # The package provided by our custom overlay. Includes cargo, Clippy, cargo-fmt,
             # rustdoc, rustfmt, and other tools.
             rustToolchain
-          ]) ++ pkgs.lib.optional pkgs.stdenv.isDarwin pkgs.libiconv;
+          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            libiconv
+            darwin.apple_sdk.frameworks.Security
+          ]);
+          shellHook = ''
+              python -m venv .venv
+              source .venv/bin/activate
+        '';
         };
       });
     };
