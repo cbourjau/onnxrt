@@ -80,7 +80,6 @@ pub fn get_setup_dict() -> HashMap<&'static str, SetupFnSignature> {
     setup_dict.insert("Cosh", element_wise!(float, |el| el.cosh()));
     setup_dict.insert("Exp", element_wise!(float, |el| el.exp()));
     setup_dict.insert("Floor", element_wise!(float, |el| el.floor()));
-    // setup_dict.insert("IsInf", element_wise!(float, |el| dbg!(el).is_infinite())); // FIXME
     setup_dict.insert("Identity", Box::new(setup_identity));
     setup_dict.insert("IsNaN", element_wise!(float, |el| el.is_nan()));
     setup_dict.insert("Log", element_wise!(float, |el| el.ln()));
