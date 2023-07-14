@@ -28,6 +28,7 @@ mod one_hot;
 mod pow;
 mod random_uniform_like;
 mod reduce;
+mod relu_with_attr;
 mod reshape;
 mod shape;
 mod simple_element_wise;
@@ -67,6 +68,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
     d.insert("If", Box::new(setup_if));
     d.insert("IsInf", Box::new(isinf::setup_isinf));
+    d.insert("LeakyRelu", Box::new(relu_with_attr::setup_leaky_relu));
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("MatMul", Box::new(matmul::setup_matmul));
@@ -95,6 +97,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
     d.insert("Sum", Box::new(sum::setup_sum));
+    d.insert("ThresholdedRelu", Box::new(relu_with_attr::setup_thresholded_relu));
     d.insert("Transpose", Box::new(transpose::setup_transpose));
     d.insert("Unique", Box::new(unique::setup_unique));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
