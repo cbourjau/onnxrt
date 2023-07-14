@@ -20,6 +20,7 @@ mod cumsum;
 mod equal;
 mod gather;
 mod gather_elements;
+mod isinf;
 mod matmul;
 mod min_max;
 mod mod_;
@@ -65,6 +66,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
     d.insert("If", Box::new(setup_if));
+    d.insert("IsInf", Box::new(isinf::setup_isinf));
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("MatMul", Box::new(matmul::setup_matmul));
