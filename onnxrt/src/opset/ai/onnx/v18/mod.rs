@@ -15,6 +15,7 @@ mod cast;
 mod clip;
 mod constant;
 mod constant_of_shape;
+mod conv;
 mod cumsum;
 mod equal;
 mod gather;
@@ -50,6 +51,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("BitwiseXor", binary_op_factory!(int, |a, b| Ok(a ^ b)));
     d.insert("BitShift", Box::new(bitshift::setup_bishift));
     d.insert("Cast", Box::new(cast::setup_cast));
+    d.insert("Conv", Box::new(conv::setup_conv));
     d.insert("CastLike", Box::new(cast::setup_cast_like));
     d.insert("Clip", Box::new(clip::setup_clip));
     d.insert("Concat", Box::new(setup_concat));

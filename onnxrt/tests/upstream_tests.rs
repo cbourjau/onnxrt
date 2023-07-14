@@ -213,6 +213,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_unique_not_sorted_without_axis").unwrap();
+    let tc = get_node_test("test_basic_conv_without_padding").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }

@@ -394,6 +394,26 @@ where
     }
 }
 
+impl<T1, T2, Z> NarrowFromVec<(T1, T2, Z)> for Vec<TaggedReceiver>
+where
+    T1: NarrowFromIter,
+    T2: NarrowFromIter,
+    Z: NarrowFromIterLast,
+{
+    fn narrow(self) -> Result<(T1, T2, Z)> {
+        let iter = self.into_iter();
+        let (out1, iter) = T1::parse(iter)?;
+        let (out2, iter) = T2::parse(iter)?;
+        let (out3, iter) = Z::parse(iter)?;
+
+        if iter.count() != 0 {
+            bail!("Unexpected number of inputs.")
+        }
+
+        Ok((out1, out2, out3))
+    }
+}
+
 // FIXME: `parse` should mutate the iterator to make this
 // pattern more amenable to macros
 impl<T1, T2, T3, T4, Z> NarrowFromVec<(T1, T2, T3, T4, Z)> for Vec<TaggedReceiver>

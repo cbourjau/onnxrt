@@ -48,6 +48,7 @@
             python310Packages.flake8
             python310Packages.pytest
             python310Packages.numpy
+            python310Packages.pip
             mypy
             # micromamba
             maturin
@@ -62,7 +63,7 @@
           ]);
           RUST_BACKTRACE=1;
           shellHook = ''
-              python -m venv .venv
+              python -m venv .venv --system-site-package
               source .venv/bin/activate
         '';
         };
