@@ -35,7 +35,7 @@ struct Pads {
 
 impl PaddingType {
     fn from_attrs(attrs: &Attributes) -> Result<Self> {
-        let auto_pad = attrs.get_optional::<String>("auto_pad")?;
+        let auto_pad = attrs.get_with_default("auto_pad", "NOTSET".to_string())?;
 
         let pads: Option<Vec<Pads>> = attrs.get_optional::<Vec<i64>>("pads")?.map(|vec| {
             let (lows, highs) = vec.as_slice().split_at(vec.len() / 2);
@@ -48,15 +48,15 @@ impl PaddingType {
                 .collect()
         });
 
-        Ok(match (auto_pad.as_ref().map(|el| el.as_str()), pads) {
-            (None, Some(pads)) => Self::Explicit((pads[0], pads[1])),
-            (Some("SAME_UPPER"), None) => Self::SameUpper,
-            (Some("SAME_LOWER"), None) => Self::SameLower,
-            (Some("VALID"), None) => Self::Valid,
-            (None, None) | (Some(_), Some(_)) => {
+        Ok(match (auto_pad.as_str(), pads) {
+            ("NOTSET", Some(pads)) => Self::Explicit((pads[0], pads[1])),
+            ("SAME_UPPER", None) => Self::SameUpper,
+            ("SAME_LOWER", None) => Self::SameLower,
+            ("VALID", None) => Self::Valid,
+            ("NOTSET", None) => {
                 bail!("Conv: Either 'auto_pad' or 'pads' must be set.")
             }
-            (Some(s), None) => bail!("Conv: Invalid argument for 'auto_pad': '{}'", s),
+            (s, _) => bail!("Conv: Invalid argument for 'auto_pad': '{}'", s),
         })
     }
 }
@@ -111,15 +111,18 @@ impl Conv {
         w: ArrayView4<T>,
         b: Option<ArrayView1<T>>,
     ) -> Result<()> {
-        let n_chs = x.shape()[1];
-        let m = w.shape()[1];
-        if n_chs / self.group != m {
+        let in_channels = x.shape()[1];
+        let in_ch_per_group = w.shape()[1];
+
+        if in_channels / self.group != in_ch_per_group {
             bail!("Conv: Inconsistent input shapes. The second dimension of 'X' times the number of groups given in the 'group' attribute must match the second dimension of 'W'. ")
         };
 
+        let out_channels = w.shape()[0];
+
         if let Some(b) = b {
-            if m != b.shape()[0] {
-                bail!("Conv: Inconsistent input shapes. The length of the bias tensor must match the second dimension of the weight tensor.")
+            if out_channels != b.shape()[0] {
+                bail!("Conv: Inconsistent input shapes. The length of the bias tensor must match the first dimension of the weight tensor.")
             }
         };
 
@@ -180,7 +183,10 @@ impl Conv {
             ),
         })
     }
-
+    /// X-shape: (N, C_in​,  x0, x1)
+    /// w-shape: (C_out, C_in / groups, w0, w1)
+    /// b-shape: (C_out,)
+    /// Return shape: (N, C_out​, out0, out1)
     fn compute<T>(
         &self,
         x: ArrayViewD<T>,
@@ -199,48 +205,36 @@ impl Conv {
         let kernel_size = &w.shape()[2..];
         let (pads0, pads1) = self.padding(x, w)?;
 
-        let x_shape = &x.shape();
         let len0 = x.shape()[2];
-        let len1 = x_shape[3];
+        let len1 = x.shape()[3];
         let strides = &[self.stride_axis(0), self.stride_axis(1)];
-
-        let group_chunk = {
-            let n_ch_in = x.shape()[1];
-            n_ch_in / self.group
-        };
 
         let mut out = Array4::<T>::zeros(self.output_shape(x, w)?);
 
         // Batch iteration
         for (x, mut out) in x.axis_iter(Axis(0)).zip(out.axis_iter_mut(Axis(0))) {
-            // Output channel iteration
-            for (g_idx, (w, mut out)) in w
-                .axis_iter(Axis(0))
-                .zip(out.axis_iter_mut(Axis(0)))
-                .enumerate()
+            // Iterate through input/output channels in group chunks
+            for ((x, w), mut out) in x
+                .axis_chunks_iter(Axis(0), x.shape()[0] / self.group)
+                .zip(w.axis_chunks_iter(Axis(0), w.shape()[0] / self.group))
+                .zip(out.axis_chunks_iter_mut(Axis(0), out.shape()[0] / self.group))
             {
-                let group_info_slice =
-                    ndarray::s![g_idx * group_chunk..((g_idx + 1) * group_chunk), .., ..,];
-                let x = x.slice(group_info_slice);
-                for (i, mut out_lane) in out.lanes_mut(Axis(1)).into_iter().enumerate() {
-                    for (j, el) in out_lane.iter_mut().enumerate() {
+                for (i, mut out) in out.axis_iter_mut(Axis(1)).into_iter().enumerate() {
+                    for (j, mut out) in out.axis_iter_mut(Axis(1)).enumerate() {
                         let s_x =
                             slice_info_x(i, len0, j, len1, kernel_size, pads0, pads1, strides);
                         let s_w =
                             slice_info_w(i, len0, j, len1, kernel_size, pads0, pads1, strides);
-                        *el = x
-                            .slice(s_x)
-                            .iter()
-                            .zip(w.slice(s_w).iter())
-                            .map(|(&a, &b)| a * b)
-                            .sum();
+                        let tmp = x.slice(s_x).to_owned() * w.slice(s_w);
+                        out.assign(&tmp.sum_axis(Axis(1)).sum_axis(Axis(1)).sum_axis(Axis(1)));
                     }
                 }
             }
         }
         if let Some(b) = b {
             let b_len = b.len();
-            out += &b.into_shape((1, b_len, 1, 1))?;
+            let b = b.into_shape((1, b_len, 1, 1))?;
+            out += &b;
         }
 
         Ok(out.into_dyn())
@@ -256,7 +250,7 @@ fn slice_info_x(
     padding_i: Pads,
     padding_j: Pads,
     stride: &[usize],
-) -> SliceInfo<[SliceInfoElem; 3], Dim<[usize; 3]>, Dim<[usize; 3]>> {
+) -> SliceInfo<[SliceInfoElem; 4], ndarray::Dim<[usize; 3]>, ndarray::Dim<[usize; 4]>> {
     // Compute slices to be applied to the input x
     let compute_1d_x_slice = |stride, pad, idx, max, k_size| {
         let start = (stride * idx) as i64 - pad as i64;
@@ -265,6 +259,7 @@ fn slice_info_x(
     };
 
     ndarray::s![
+        NewAxis,
         ..,
         compute_1d_x_slice(stride[0], padding_i.low, i, max_i, k_size[0]),
         compute_1d_x_slice(stride[1], padding_j.low, j, max_j, k_size[1])
@@ -280,7 +275,7 @@ fn slice_info_w(
     padding_i: Pads,
     padding_j: Pads,
     stride: &[usize],
-) -> SliceInfo<[SliceInfoElem; 3], Dim<[usize; 3]>, Dim<[usize; 3]>> {
+) -> SliceInfo<[SliceInfoElem; 4], ndarray::Dim<[usize; 4]>, ndarray::Dim<[usize; 4]>> {
     // Compute slices of the kernel
     let compute_1d_w_slice = |stride, pad, idx, max, k_size| {
         let start = (stride * idx) as i64 - pad as i64;
@@ -290,6 +285,7 @@ fn slice_info_w(
     };
 
     ndarray::s![
+        ..,
         ..,
         compute_1d_w_slice(stride[0], padding_i.low, i, max_i, k_size[0]),
         compute_1d_w_slice(stride[1], padding_j.low, j, max_j, k_size[1])

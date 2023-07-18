@@ -22,9 +22,8 @@ def predict_and_compare(fn, kwargs):
 
     print("CPP: ", delta_cpp)
 
-    out_cpp = {
-        outname.name: v for outname, v in zip(sess_cpp.get_outputs(), out_cpp)
-    }
+    out_cpp = {outname.name: v for outname, v in zip(sess_cpp.get_outputs(), out_cpp)}
+    print({k: arr.shape for k, arr in out_cpp.items()})
 
     sess_rs = ortrs.Session(fn)
 
@@ -38,16 +37,19 @@ def predict_and_compare(fn, kwargs):
     print("cpp / rust", delta_cpp / delta_rust)
 
     for k, v in out_rs.items():
+        print(k)
+        print(v.shape, v)
+        print(out_cpp[k].shape, out_cpp[k])
         np.testing.assert_array_almost_equal(v, out_cpp[k])
 
 
-def make_model(tmp_path, x_np, w_np, b_np, auto_pad, strides):
+def make_model(tmp_path, x_np, w_np, b_np, auto_pad, pads, strides):
     n_groups = int(x_np.shape[1] / w_np.shape[1])
     # Create Spox inputs from numpy arrays
     x = argument(Tensor(np.float32, x_np.shape))
     w = argument(Tensor(np.float32, w_np.shape))
     b = argument(Tensor(np.float32, b_np.shape))
-    y = op.conv(x, w, b, auto_pad=auto_pad, group=n_groups, strides=strides)
+    y = op.conv(x, w, b, auto_pad=auto_pad, pads=pads, group=n_groups, strides=strides)
 
     model = build({"x": x, "w": w, "b": b}, {"y": y})
 
@@ -69,29 +71,48 @@ def test_error_msg():
     build({"a": a}, {"out": out})
 
 
-@pytest.mark.parametrize("auto_pad", ["VALID", "SAME_LOWER", "SAME_UPPER"])
-@pytest.mark.parametrize("len_x, len_w, n_channels, n_groups, strides", [
-    (1, 1, 1, 1, 1),
-    (5, 3, 2, 2, 1),
-
-    (2, 1, 1, 1, 2),
-    (5, 3, 1, 1, 2),
-    (5, 3, 4, 2, 2),
-])
-def test_conv_with_groups(tmp_path, len_x, len_w, n_channels, n_groups, auto_pad, strides):
+@pytest.mark.parametrize(
+    "auto_pad,pads",
+    [
+        ("VALID", None),
+        ("SAME_LOWER", None),
+        ("SAME_UPPER", None),
+        ("NOTSET", (0, 0, 0, 0)),
+        ("NOTSET", (1, 1, 1, 1)),
+    ],
+)
+@pytest.mark.parametrize("len_x, len_w", [(1, 1), (2, 1), (2, 2)])  # x >= 2
+@pytest.mark.parametrize("strides", [1, 2])
+@pytest.mark.parametrize(
+    "in_channels, out_channels, n_groups",
+    [
+        (1, 1, 1),
+        (1, 2, 1),
+        (2, 1, 1),
+        (2, 2, 2),
+        (2, 2, 2),
+        (2, 2, 2),
+        (1, 1, 1),
+        (1, 1, 1),
+        (4, 2, 2),
+    ],
+)
+def test_conv_with_groups(
+        tmp_path, len_x, len_w, in_channels, out_channels, n_groups, auto_pad, strides, pads
+):
     # Unclear at the moment how the interplay between strides and
     # padding should be...
-    if auto_pad != "VALID" and strides != 1:
+    if auto_pad not in ["VALID", "NOTSET"] and strides != 1:
         pytest.skip()
 
-    BATCH = 2
-    NX = BATCH * n_channels * len_x * len_x
-    M = n_channels // n_groups
-    NW = n_groups * M * len_w * len_w
-    x = np.arange(0, NX, dtype=np.float32).reshape(BATCH, n_channels, len_x, len_x)
-    w = np.arange(0, NW, dtype=np.float32).reshape(n_groups, M, len_w, len_w)
-    b = np.arange(0, M, dtype=np.float32) * 10000
+    BATCH = 1
+    NX = BATCH * in_channels * len_x * len_x
+    ch_per_gr = in_channels // n_groups
+    NW = out_channels * ch_per_gr * len_w * len_w
+    x = np.arange(0, NX, dtype=np.float32).reshape(BATCH, in_channels, len_x, len_x)
+    w = np.arange(0, NW, dtype=np.float32).reshape(out_channels, ch_per_gr, len_w, len_w)
+    b = np.zeros((out_channels,), dtype=np.float32)
 
-    model = make_model(tmp_path, x, w, b, auto_pad, [strides] * 2)
+    model = make_model(tmp_path, x, w, b, auto_pad, pads, [strides] * 2)
 
     predict_and_compare(model, {"x": x, "w": w, "b": b})
