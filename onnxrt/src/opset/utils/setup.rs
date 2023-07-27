@@ -8,6 +8,12 @@ use crate::{
     Dispatchable,
 };
 
+pub trait FromAttributes {
+    fn from_attrs(attrs: &Attributes) -> Result<Self>
+    where
+        Self: Sized;
+}
+
 // Deprecated. Use 'setup' directly
 pub fn wrap_1_input<In, Out, Op>(input: Receiver<ArcArrayD<In>>, f: Op) -> Result<ExecutionStep>
 where

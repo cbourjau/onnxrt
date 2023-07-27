@@ -70,7 +70,7 @@ impl Conv {
             .get_optional::<Vec<i64>>("strides")?
             .map(|vec| vec.into_iter().map(|el| el as usize).collect());
 
-        let padding = PaddingType::from_attrs(&attrs)?;
+        let padding = PaddingType::from_attrs(attrs)?;
         match padding {
             PaddingType::SameUpper | PaddingType::SameLower => {
                 if let Some(strides) = strides.as_ref() {
@@ -219,7 +219,7 @@ impl Conv {
                 .zip(w.axis_chunks_iter(Axis(0), w.shape()[0] / self.group))
                 .zip(out.axis_chunks_iter_mut(Axis(0), out.shape()[0] / self.group))
             {
-                for (i, mut out) in out.axis_iter_mut(Axis(1)).into_iter().enumerate() {
+                for (i, mut out) in out.axis_iter_mut(Axis(1)).enumerate() {
                     for (j, mut out) in out.axis_iter_mut(Axis(1)).enumerate() {
                         let s_x =
                             slice_info_x(i, len0, j, len1, kernel_size, pads0, pads1, strides);
@@ -241,6 +241,7 @@ impl Conv {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn slice_info_x(
     i: usize,
     max_i: usize,
@@ -266,6 +267,7 @@ fn slice_info_x(
     ]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn slice_info_w(
     i: usize,
     max_i: usize,
@@ -281,7 +283,7 @@ fn slice_info_w(
         let start = (stride * idx) as i64 - pad as i64;
         let end = (max as i64 - start).min(k_size as i64) as usize;
 
-        (start.min(0).abs() as usize)..end
+        (start.min(0).unsigned_abs() as usize)..end
     };
 
     ndarray::s![
@@ -355,6 +357,11 @@ pub fn setup_conv(ctx: OpContext) -> Result<ExecutionStep> {
         (F64(x), F64(w), Some(F64(b))) => setup((x, w, b), move |(x, w, b)| {
             Ok::<ArcArrayD<_>, _>(state.compute(x.view(), w.view(), Some(b.view()))?.into())
         }),
-        _ => panic!(),
+        (x, w, b) => bail!(
+            "Conv: Unimplemented input types: x: {:?}, w: {:?} and b:{:?}",
+            &x,
+            &w,
+            &b
+        ),
     }
 }
