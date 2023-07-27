@@ -4,3 +4,6 @@ members = [
  "onnxrt",
  "upstream_test_data"
 ]
+
+[profile.release]
+debug = true

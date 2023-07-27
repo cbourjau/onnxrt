@@ -40,6 +40,7 @@
         default = pkgs.mkShell {
           # The Nix packages provided in the environment
           packages = (with pkgs; [
+            cargo-flamegraph
             clang
             llvmPackages_latest.llvm
             llvmPackages_latest.bintools
@@ -50,7 +51,6 @@
             python310Packages.numpy
             python310Packages.pip
             mypy
-            # micromamba
             maturin
             black
             py-spy
@@ -60,6 +60,7 @@
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             libiconv
             darwin.apple_sdk.frameworks.Security
+            darwin.dtrace
           ]);
           RUST_BACKTRACE=1;
           shellHook = ''

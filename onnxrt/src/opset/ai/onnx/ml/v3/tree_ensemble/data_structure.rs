@@ -279,7 +279,7 @@ impl TreeEnsemble {
         let n_classes = self.n_classes();
         let mut output = Array2::<f64>::zeros((input.shape()[0], n_classes));
 
-        let input = input.clone().into_dimensionality::<ndarray::Ix2>().unwrap();
+        let input = input.view().into_dimensionality::<ndarray::Ix2>().unwrap();
 
         // Assumption: It is more expensive to fetch the tree than the data
         // FIXME: It turns out to be slower to have the trees in
@@ -290,9 +290,9 @@ impl TreeEnsemble {
             .zip(self.trees_per_class.iter())
         {
             for tree in trees {
-                // The compiler seems smart enough to optimize out
-                // allocating in each loop.
-                out += &input.map_axis(Axis(1), |row| tree.predict(&row));
+                for (row, out) in input.axis_iter(Axis(0)).zip(out.iter_mut()) {
+                    *out += tree.predict(&row);
+                }
             }
         }
         output.mapv(|el| el as f32).into_dyn()
