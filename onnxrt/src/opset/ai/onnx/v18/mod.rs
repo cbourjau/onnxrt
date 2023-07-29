@@ -33,6 +33,7 @@ mod random_uniform_like;
 mod reduce;
 mod relu_with_attr;
 mod reshape;
+mod scatter;
 mod shape;
 mod simple_element_wise;
 mod size;
@@ -97,6 +98,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ReduceSum", Box::new(reduce::setup_reducesum));
     d.insert("ReduceSumSquare", Box::new(reduce::setup_reducesumsquare));
     d.insert("Reshape", Box::new(reshape::setup_reshape));
+    d.insert("ScatterElements", Box::new(scatter::elements::setup_scatter_elements));
+    d.insert("ScatterND", Box::new(scatter::nd::setup_scatter_nd));
     d.insert("Shape", Box::new(shape::setup_shape));
     d.insert("Size", Box::new(size::setup_size));
     d.insert("Split", Box::new(split::setup_split));

@@ -7,6 +7,33 @@ use ndarray::{Dimension, IntoDimension, IxDyn, Zip};
 
 use crate::ArcArrayD;
 
+/// Index types as used in the ONNX standard. Namely i32 and
+/// i64. Negative values are counted from the end of a dimension's
+/// length.
+pub trait Index {
+    fn for_len(&self, len: usize) -> usize;
+}
+
+impl Index for i32 {
+    fn for_len(&self, len: usize) -> usize {
+        (if *self < 0 {
+            len as Self + *self
+        } else {
+            *self
+        }) as _
+    }
+}
+
+impl Index for i64 {
+    fn for_len(&self, len: usize) -> usize {
+        (if *self < 0 {
+            len as Self + *self
+        } else {
+            *self
+        }) as _
+    }
+}
+
 /// Convert a negative index to a positive one under the assumption
 /// that it applies to a dimension of length `len`.
 pub fn convert_negative_index(idx: i64, len: usize) -> usize {
