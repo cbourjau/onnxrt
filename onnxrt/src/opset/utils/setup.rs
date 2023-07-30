@@ -197,6 +197,20 @@ where
     }
 }
 
+impl<A, B> Dispatchables for (A, B)
+where
+    A: Dispatchable + Clone,
+    B: Dispatchable + Clone,
+{
+    type Senders = (Sender<A>, Sender<B>);
+
+    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
+        let pair_a = A::channel();
+        let pair_b = B::channel();
+        ((pair_a.0, pair_b.0), vec![pair_a.1, pair_b.1])
+    }
+}
+
 impl<A, B, C, D> Dispatchables for (A, B, C, D)
 where
     A: Dispatchable + Clone,
