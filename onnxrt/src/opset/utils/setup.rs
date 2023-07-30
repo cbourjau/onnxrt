@@ -30,15 +30,14 @@ where
     InCh: InChannels<Items = In> + Send + 'static,
     F: Fn(In) -> Result<Out> + Send + 'static,
     // We must be able to create channels for the output of 'F'
-    Out: Clone + Dispatchables + Send + 'static,
+    Out: Clone + SendableOutputs + Send + 'static,
     // The Senders produced for 'Out' must be able to consume 'Out'
-    <Out as Dispatchables>::Senders: MultiOutputSender<Items = Out> + Send + 'static,
+    <Out as SendableOutputs>::Senders: Send + 'static,
 {
     let (sdrs, recs) = Out::channels();
     let fun = Box::new(move || {
         let inputs = in_channels.recv().unwrap();
-        let out = fun(inputs)?;
-        sdrs.send(out)?;
+        fun(inputs)?.send_via(&sdrs)?;
         Ok(())
     });
     Ok(ExecutionStep { fun, outputs: recs })
@@ -54,13 +53,12 @@ where
     F: Fn(In) -> Result<Out> + Send + 'static,
     // We must be able to create channels for the output of 'F'
     Out: Clone + VariadicDispatchable + Send + 'static,
-    <Out as VariadicDispatchable>::Senders: MultiOutputSender<Items = Out> + Send + 'static,
+    <Out as VariadicDispatchable>::Senders: Send + 'static,
 {
     let (sdrs, recs) = Out::channels(n_outputs);
     let fun = Box::new(move || {
         let inputs = in_channels.recv().unwrap();
-        let out = fun(inputs)?;
-        sdrs.send(out)?;
+        fun(inputs)?.send_via(&sdrs)?;
         Ok(())
     });
     Ok(ExecutionStep { fun, outputs: recs })
@@ -70,6 +68,13 @@ pub trait VariadicDispatchable {
     type Senders;
 
     fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>);
+
+    /// Send the outputs through the created channels. This could be
+    /// it's own trait on `Self::Senders` but it might be easier to
+    /// have it all in one place.
+    fn send_via(self, _senders: &Self::Senders) -> Result<()>
+    where
+        Self: Sized;
 }
 
 impl<T> VariadicDispatchable for Vec<T>
@@ -89,91 +94,31 @@ where
         }
         (sdrs, recs)
     }
-}
 
-pub trait MultiOutputSender {
-    type Items;
-
-    fn send(&self, items: Self::Items) -> Result<()>;
-}
-
-impl<A> MultiOutputSender for Sender<A>
-where
-    A: Clone + Sendable,
-{
-    type Items = A;
-
-    fn send(&self, items: Self::Items) -> Result<()> {
-        self.send(items)?;
-        Ok(())
-    }
-}
-
-impl<A> MultiOutputSender for (Sender<A>,)
-where
-    A: Clone + Sendable,
-{
-    type Items = (A,);
-
-    fn send(&self, items: Self::Items) -> Result<()> {
-        self.0.send(items.0)?;
-        Ok(())
-    }
-}
-
-impl<A, B> MultiOutputSender for (Sender<A>, Sender<B>)
-where
-    A: Clone,
-    B: Clone,
-{
-    type Items = (A, B);
-
-    fn send(&self, items: Self::Items) -> Result<()> {
-        self.0.send(items.0)?;
-        self.1.send(items.1)?;
-        Ok(())
-    }
-}
-
-impl<A, B, C, D> MultiOutputSender for (Sender<A>, Sender<B>, Sender<C>, Sender<D>)
-where
-    A: Clone,
-    B: Clone,
-    C: Clone,
-    D: Clone,
-{
-    type Items = (A, B, C, D);
-
-    fn send(&self, items: Self::Items) -> Result<()> {
-        self.0.send(items.0)?;
-        self.1.send(items.1)?;
-        self.2.send(items.2)?;
-        self.3.send(items.3)?;
-        Ok(())
-    }
-}
-
-impl<A> MultiOutputSender for Vec<Sender<A>>
-where
-    A: Clone,
-{
-    type Items = Vec<A>;
-
-    fn send(&self, items: Self::Items) -> Result<()> {
-        for (item, sdr) in items.into_iter().zip(self.iter()) {
+    fn send_via(self, senders: &Self::Senders) -> Result<()> {
+        for (item, sdr) in self.into_iter().zip(senders.iter()) {
             sdr.send(item)?;
         }
         Ok(())
     }
 }
 
-pub trait Dispatchables {
+/// Output types of a compute function which can be processed by the `setup` function
+pub trait SendableOutputs {
     type Senders;
 
+    /// Create `Sender`s and `Receiver`s (`Dispatcher`s) for the implementing output type.
     fn channels() -> (Self::Senders, Vec<Dispatcher>);
+
+    /// Send the outputs through the created channels. This could be
+    /// it's own trait on `Self::Senders` but it might be easier to
+    /// have it all in one place.
+    fn send_via(self, _senders: &Self::Senders) -> Result<()>
+    where
+        Self: Sized;
 }
 
-impl<A> Dispatchables for A
+impl<A> SendableOutputs for A
 where
     A: Sendable + Clone,
 {
@@ -183,54 +128,43 @@ where
         let (sdr, disp) = A::channel();
         (sdr, vec![disp])
     }
-}
 
-impl<A> Dispatchables for (A,)
-where
-    A: Sendable + Clone,
-{
-    type Senders = (Sender<A>,);
-
-    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
-        let (sdr, disp) = A::channel();
-        ((sdr,), vec![disp])
+    fn send_via(self, sender: &Self::Senders) -> Result<()> {
+        sender.send(self)?;
+        Ok(())
     }
 }
 
-impl<A, B> Dispatchables for (A, B)
-where
-    A: Sendable + Clone,
-    B: Sendable + Clone,
-{
-    type Senders = (Sender<A>, Sender<B>);
+macro_rules! impl_SendableOutputs_for_tuples {
+    ($($ty:tt),* | $($name:ident),* | $($idx:tt),*) => {
+        impl<$($ty),*> SendableOutputs for ($($ty,)*)
+        where
+            $($ty: Sendable + Clone),*
+        {
+            type Senders = ($(Sender<$ty>,)*);
 
-    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
-        let pair_a = A::channel();
-        let pair_b = B::channel();
-        ((pair_a.0, pair_b.0), vec![pair_a.1, pair_b.1])
-    }
+            fn channels() -> (Self::Senders, Vec<Dispatcher>) {
+                $(
+                    let $name = $ty::channel();
+                )*
+                (($($name.0,)*), vec![$($name.1),*])
+            }
+
+            fn send_via(self, sender: &Self::Senders) -> Result<()> {
+                $(sender.$idx.send(self.$idx)?;)*
+                Ok(())
+            }
+        }
+    };
 }
 
-impl<A, B, C, D> Dispatchables for (A, B, C, D)
-where
-    A: Sendable + Clone,
-    B: Sendable + Clone,
-    C: Sendable + Clone,
-    D: Sendable + Clone,
-{
-    type Senders = (Sender<A>, Sender<B>, Sender<C>, Sender<D>);
-
-    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
-        let pair_a = A::channel();
-        let pair_b = B::channel();
-        let pair_c = C::channel();
-        let pair_d = D::channel();
-        (
-            (pair_a.0, pair_b.0, pair_c.0, pair_d.0),
-            vec![pair_a.1, pair_b.1, pair_c.1, pair_d.1],
-        )
-    }
-}
+// Implement for up to 6 outputs
+impl_SendableOutputs_for_tuples!(A | a | 0);
+impl_SendableOutputs_for_tuples!(A, B | a, b | 0, 1);
+impl_SendableOutputs_for_tuples!(A, B, C | a, b, c | 0, 1, 2);
+impl_SendableOutputs_for_tuples!(A, B, C, D | a, b, c, d | 0, 1, 2, 3);
+impl_SendableOutputs_for_tuples!(A, B, C, D, E | a, b, c, d, e | 0, 1, 2, 3, 4);
+impl_SendableOutputs_for_tuples!(A, B, C, D, E, F | a, b, c, d, e, f | 0, 1, 2, 3, 4, 5);
 
 pub trait InChannel {
     type Item;
