@@ -21,5 +21,5 @@ pub use crate::edges::TaggedReceiver;
 pub use crate::session::ExecutionStep;
 pub use crate::session::OpContext;
 pub use crate::ArcArrayD;
+pub(crate) use crate::Attributes;
 pub use crate::{bin_numeric_with_co_broadcast, binary_op_factory, setup_all};
-pub(crate) use crate::{Attribute, Attributes};

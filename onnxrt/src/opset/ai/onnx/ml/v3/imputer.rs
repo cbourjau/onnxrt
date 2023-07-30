@@ -31,9 +31,6 @@ pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     let a_ch = ctx.subscribe_to_inputs().narrow()?;
     match a_ch {
         TaggedReceiver::F32(a_ch) => {
-            if let Ok(Attribute::F32s(_arr)) = attrs.get("imputed_value_floats") {
-                unimplemented!();
-            };
             let keys: Vec<f32> = attrs.get("imputed_value_floats")?.try_into()?;
             let value = attrs.get_with_default("replaced_value_float", 0.0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
