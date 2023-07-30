@@ -50,7 +50,7 @@ fn match_arm<Vals>(
     axis: Option<i64>,
 ) -> Result<ExecutionStep>
 where
-    ArcArrayD<Vals>: Dispatchable,
+    ArcArrayD<Vals>: Sendable,
     Vals: 'static + Copy + std::fmt::Debug + Sync + Send,
 {
     let (sdr, rec) = channel();

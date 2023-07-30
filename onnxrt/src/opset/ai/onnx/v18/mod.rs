@@ -6,7 +6,7 @@ use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::opset::utils::*;
 use crate::session::SetupFnSignature;
-use crate::{channel, value_channel, Dispatchable, Session};
+use crate::{channel, value_channel, Sendable, Session};
 
 mod arg_min_max;
 mod batch_normalization;

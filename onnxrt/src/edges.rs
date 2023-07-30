@@ -113,7 +113,7 @@ pub enum TaggedReceiver {
 }
 
 /// Create a typed sender and dispatcher. Used inside "wire" functions.
-pub fn channel<T: Dispatchable>() -> (Sender<T>, Dispatcher) {
+pub fn channel<T: Sendable>() -> (Sender<T>, Dispatcher) {
     T::channel()
 }
 
@@ -270,7 +270,7 @@ impl TaggedReceiver {
     }
 }
 
-pub trait Dispatchable {
+pub trait Sendable {
     fn channel() -> (Sender<Self>, Dispatcher)
     where
         Self: Sized;
@@ -278,7 +278,7 @@ pub trait Dispatchable {
 
 macro_rules! impl_dispatchable {
     ($ty:ty, $dispatcher:path) => {
-        impl Dispatchable for ArcArrayD<$ty> {
+        impl Sendable for ArcArrayD<$ty> {
             fn channel() -> (Sender<Self>, Dispatcher)
             where
                 Self: Sized,

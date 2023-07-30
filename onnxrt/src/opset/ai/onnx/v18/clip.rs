@@ -1,7 +1,7 @@
 use std::sync::mpsc::Receiver;
 
 use crate::opset::utils::*;
-use crate::Dispatchable;
+use crate::Sendable;
 
 pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     let mut inputs = ctx.input_channels_with_optional().into_iter();
@@ -37,7 +37,7 @@ fn match_arm<T>(
     max: Option<Receiver<ArcArrayD<T>>>,
 ) -> Result<ExecutionStep>
 where
-    ArcArrayD<T>: Dispatchable,
+    ArcArrayD<T>: Sendable,
     T: Sync + Send + 'static + Copy + PartialOrd,
 {
     setup((input, min, max), move |(input, min, max)| {

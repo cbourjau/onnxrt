@@ -5,7 +5,7 @@ use std::sync::mpsc::Receiver;
 use crate::opset::utils::*;
 use crate::{
     edges::{Dispatcher, Sender},
-    Dispatchable,
+    Sendable,
 };
 
 pub trait FromAttributes {
@@ -17,7 +17,7 @@ pub trait FromAttributes {
 // Deprecated. Use 'setup' directly
 pub fn wrap_1_input<In, Out, Op>(input: Receiver<ArcArrayD<In>>, f: Op) -> Result<ExecutionStep>
 where
-    ArcArrayD<Out>: Dispatchable,
+    ArcArrayD<Out>: Sendable,
     In: Sync + Send + 'static,
     Out: Sync + Send + 'static,
     Op: Fn(ArcArrayD<In>) -> Result<ArcArrayD<Out>> + Send + Sync + 'static,
@@ -74,7 +74,7 @@ pub trait VariadicDispatchable {
 
 impl<T> VariadicDispatchable for Vec<T>
 where
-    T: Dispatchable + Clone,
+    T: Sendable + Clone,
 {
     type Senders = Vec<Sender<T>>;
 
@@ -99,7 +99,7 @@ pub trait MultiOutputSender {
 
 impl<A> MultiOutputSender for Sender<A>
 where
-    A: Clone + Dispatchable,
+    A: Clone + Sendable,
 {
     type Items = A;
 
@@ -111,7 +111,7 @@ where
 
 impl<A> MultiOutputSender for (Sender<A>,)
 where
-    A: Clone + Dispatchable,
+    A: Clone + Sendable,
 {
     type Items = (A,);
 
@@ -175,7 +175,7 @@ pub trait Dispatchables {
 
 impl<A> Dispatchables for A
 where
-    A: Dispatchable + Clone,
+    A: Sendable + Clone,
 {
     type Senders = Sender<A>;
 
@@ -187,7 +187,7 @@ where
 
 impl<A> Dispatchables for (A,)
 where
-    A: Dispatchable + Clone,
+    A: Sendable + Clone,
 {
     type Senders = (Sender<A>,);
 
@@ -199,8 +199,8 @@ where
 
 impl<A, B> Dispatchables for (A, B)
 where
-    A: Dispatchable + Clone,
-    B: Dispatchable + Clone,
+    A: Sendable + Clone,
+    B: Sendable + Clone,
 {
     type Senders = (Sender<A>, Sender<B>);
 
@@ -213,10 +213,10 @@ where
 
 impl<A, B, C, D> Dispatchables for (A, B, C, D)
 where
-    A: Dispatchable + Clone,
-    B: Dispatchable + Clone,
-    C: Dispatchable + Clone,
-    D: Dispatchable + Clone,
+    A: Sendable + Clone,
+    B: Sendable + Clone,
+    C: Sendable + Clone,
+    D: Sendable + Clone,
 {
     type Senders = (Sender<A>, Sender<B>, Sender<C>, Sender<D>);
 
