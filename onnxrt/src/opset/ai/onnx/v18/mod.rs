@@ -19,6 +19,8 @@ mod constant_of_shape;
 mod conv;
 mod cumsum;
 mod equal;
+mod expand;
+mod eye_like;
 mod gather;
 mod gather_elements;
 mod gather_nd;
@@ -68,6 +70,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("CumSum", Box::new(cumsum::setup_cumsum));
     d.insert("Div", binary_op_factory!(numeric, |a, b| Ok(a / b)));
     d.insert("Equal", Box::new(equal::setup_equal));
+    d.insert("EyeLike", Box::new(eye_like::setup_eyelike));
+    d.insert("Expand", Box::new(expand::setup_expand));
     d.insert("Gather", Box::new(gather::setup_gather));
     d.insert("GatherElements", Box::new(gather_elements::setup_gather_elements));
     d.insert("GatherND", Box::new(gather_nd::setup_gather_nd));

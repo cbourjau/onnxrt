@@ -6,7 +6,7 @@ mod opset;
 mod python_api;
 mod session;
 
-pub(crate) use attribute::{Attribute, Attributes};
+pub(crate) use attribute::Attributes;
 pub use edges::Value;
 pub(crate) use edges::{
     channel, value_channel, DataType, Dispatcher, Sendable, TaggedReceiver, ValueSender,
