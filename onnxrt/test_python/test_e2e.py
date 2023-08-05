@@ -4,6 +4,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import onnxrt as ortrs
+import onnxruntime as ort
+
+
 _N_LOOPS = 1000
 
 
@@ -40,15 +44,12 @@ def onnx_file():
 
 
 def test_inference_onnxrs(inputs, expected_output, onnx_file):
-    import onnxrt as ortrs
     sess_rs = ortrs.Session(str(onnx_file))
-
-    # warm up
-    sess_rs.run(inputs)
 
     t0 = perf_counter()
     for _ in range(_N_LOOPS):
         outputs_rs = sess_rs.run(inputs)
+
     t1 = perf_counter()
     print("Rust: ", t1 - t0)
 
@@ -62,8 +63,6 @@ def test_inference_onnxrs(inputs, expected_output, onnx_file):
 
 
 def test_inference_onnxruntime(inputs, expected_output, onnx_file):
-    import onnxruntime as ort
-
     sess_options = ort.SessionOptions()
     sess_options.intra_op_num_threads = 1
     sess_options.inter_op_num_threads = 1
@@ -74,3 +73,4 @@ def test_inference_onnxruntime(inputs, expected_output, onnx_file):
         ort_sess.run(None, inputs)
     t1 = perf_counter()
     print("onnxruntime: ", t1 - t0)
+

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use numpy::IntoPyArray;
 use numpy::PyReadonlyArrayDyn;
+use numpy::ToPyArray;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -28,36 +28,34 @@ impl Session {
         let inputs: HashMap<String, Value> = inputs.extract().unwrap();
 
         let mut outs = self.run(&inputs).unwrap();
+        let out_dict = PyDict::new(py);
 
-        let py_outs: Vec<(String, PyObject)> = self
-            .outputs
-            .iter()
-            .map(|(k, _)| (k, outs.remove(k).unwrap()))
-            .map(|(k, v)| match v {
-                Value::F32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::F64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+        for (k, _) in &self.outputs {
+            let v = match outs.remove(k).unwrap() {
+                Value::F32(v) => v.view().to_pyarray(py).to_object(py),
+                Value::F64(v) => v.view().to_pyarray(py).to_object(py),
 
-                Value::I8(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::I16(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::I32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::I64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::I8(v) => v.view().to_pyarray(py).to_object(py),
+                Value::I16(v) => v.view().to_pyarray(py).to_object(py),
+                Value::I32(v) => v.view().to_pyarray(py).to_object(py),
+                Value::I64(v) => v.view().to_pyarray(py).to_object(py),
 
-                Value::U8(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::U16(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::U32(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-                Value::U64(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
+                Value::U8(v) => v.view().to_pyarray(py).to_object(py),
+                Value::U16(v) => v.view().to_pyarray(py).to_object(py),
+                Value::U32(v) => v.view().to_pyarray(py).to_object(py),
+                Value::U64(v) => v.view().to_pyarray(py).to_object(py),
 
-                Value::String(v) => (
-                    k.to_string(),
-                    v.mapv(|el| el.into_py(py))
-                        .to_owned()
-                        .into_pyarray(py)
-                        .into_py(py),
-                ),
-                Value::Bool(v) => (k.to_string(), v.to_owned().into_pyarray(py).into_py(py)),
-            })
-            .collect();
-        PyDict::from_sequence(py, py_outs.into_py(py))
+                Value::String(v) => v
+                    .mapv(|el| el.to_object(py))
+                    .view()
+                    .to_pyarray(py)
+                    .to_object(py),
+                Value::Bool(v) => v.view().to_pyarray(py).to_object(py),
+            };
+            out_dict.set_item(k, v)?;
+        }
+
+        Ok(out_dict)
     }
 
     #[pyo3(name = "input_types")]
