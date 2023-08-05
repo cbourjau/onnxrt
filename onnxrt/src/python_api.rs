@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use numpy::IntoPyArray;
-use numpy::PyArrayDyn;
+use numpy::PyReadonlyArrayDyn;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -76,24 +76,19 @@ impl<'source> FromPyObject<'source> for Value {
     fn extract(ob: &'source PyAny) -> PyResult<Self> {
         // Get the GIL marker.
         // TODO: convert scalars and strings
-        Ok(if let Ok(arr) = ob.extract::<&PyArrayDyn<f32>>() {
-            let arr = arr.readonly();
+        Ok(if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<f32>>() {
             Value::F32(arr.as_array().to_owned().into())
-        } else if let Ok(arr) = ob.extract::<&PyArrayDyn<f64>>() {
-            let arr = arr.readonly();
+        } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<f64>>() {
             Value::F64(arr.as_array().to_owned().into())
-        } else if let Ok(arr) = ob.extract::<&PyArrayDyn<i32>>() {
-            let arr = arr.readonly();
+        } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<i32>>() {
             Value::I32(arr.as_array().to_owned().into())
-        } else if let Ok(arr) = ob.extract::<&PyArrayDyn<i64>>() {
-            let arr = arr.readonly();
+        } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<i64>>() {
             Value::I64(arr.as_array().to_owned().into())
-        } else if let Ok(arr) = ob.extract::<&PyArrayDyn<PyObject>>() {
+        } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<PyObject>>() {
             let py = ob.py();
-            let arr = arr.readonly().as_array().mapv(|el| el.extract(py).unwrap());
+            let arr = arr.as_array().mapv(|el| el.extract(py).unwrap());
             Value::String(arr.into())
-        } else if let Ok(arr) = ob.extract::<&PyArrayDyn<bool>>() {
-            let arr = arr.readonly();
+        } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<bool>>() {
             Value::Bool(arr.as_array().to_owned().into())
         } else {
             return Err(PyTypeError::new_err(format!(
