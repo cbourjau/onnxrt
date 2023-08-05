@@ -34,40 +34,71 @@
         pkgs = import nixpkgs { inherit overlays system; };
       });
     in
-    {
-      # Development environment output
-      devShells = forAllSystems ({ pkgs }: {
-        default = pkgs.mkShell {
-          # The Nix packages provided in the environment
-          packages = (with pkgs; [
-            cargo-flamegraph
-            clang
-            llvmPackages_latest.llvm
-            llvmPackages_latest.bintools
-            llvmPackages_latest.lld
-            python3
-            python310Packages.flake8
-            python310Packages.pytest
-            python310Packages.numpy
-            python310Packages.pip
-            mypy
-            maturin
-            black
-            py-spy
-            # The package provided by our custom overlay. Includes cargo, Clippy, cargo-fmt,
-            # rustdoc, rustfmt, and other tools.
-            rustToolchain
-          ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-            libiconv
-            darwin.apple_sdk.frameworks.Security
-            darwin.dtrace
-          ]);
-          RUST_BACKTRACE=1;
-          shellHook = ''
-              python -m venv .venv --system-site-package
-              source .venv/bin/activate
-        '';
-        };
-      });
-    };
+      {
+        # Development environment output
+        devShells = forAllSystems ({ pkgs }: let
+          python-packages = ps: with ps; [
+            (
+              buildPythonPackage rec {
+                pname = "spox";
+                version = "0.9.0";
+                src = fetchPypi {
+                  inherit pname version;
+                  sha256 = "sha256-LqIufgNC4xK/puqAxhRI14vIZOnKZiRRLd1gqLl3Qe4=";
+                };
+                format="pyproject";
+                doCheck = false;
+                nativeBuildInputs=[setuptools];
+                propagatedBuildInputs = [
+                  numpy onnx
+                ];
+              }
+            )
+            flake8
+            numpy
+            onnx
+            onnxruntime
+            pip
+            pytest
+            setuptools
+          ];
+          python = pkgs.python310;
+        in
+          {
+            default = pkgs.mkShell
+              {
+                # The Nix packages provided in the environment
+                packages = (with pkgs; [
+                  (python.withPackages python-packages)
+                  cargo-flamegraph
+                  clang
+                  llvmPackages_latest.llvm
+                  llvmPackages_latest.bintools
+                  llvmPackages_latest.lld
+                  mypy
+                  maturin
+                  black
+                  py-spy
+                  # The package provided by our custom overlay. Includes cargo, Clippy, cargo-fmt,
+                  # rustdoc, rustfmt, and other tools.
+                  rustToolchain
+                ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+                  libiconv
+                  darwin.apple_sdk.frameworks.Security
+                  darwin.dtrace
+                ]);
+                RUST_BACKTRACE=1;
+
+                shellHook = ''
+                    # Setup the virtual environment if it doesn't already exist.
+                    VENV=.venv
+                    if test ! -d $VENV; then
+                        python -m venv $VENV --system-site-package
+                    fi
+                    source ./$VENV/bin/activate
+                    export PYTHONPATH=`pwd`/$VENV/${python.sitePackages}/:$PYTHONPATH
+                '';
+              };
+          });
+      };
 }

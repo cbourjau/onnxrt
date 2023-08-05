@@ -47,8 +47,6 @@ jobs:
           nix develop --command \
           maturin develop -m ./onnxrt/Cargo.toml
       - name: Run Python tests
-        if: false  # skip for now :(
         run: |
           nix develop --command \
-          pip install onnxruntime pytest numpy && \
-          python -m pytest onnxrt/test_python/test.py -s
+          pytest onnxrt/test_python/test.py -s
