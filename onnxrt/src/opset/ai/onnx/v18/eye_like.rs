@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use num::Zero;
 
 use crate::opset::utils::*;
@@ -11,12 +13,10 @@ where
     if k >= shape[0] as isize || k <= -(shape[1] as isize) {
         bail!("Parameter 'k={}' is out-of-bounds for shape {:?}", k, shape)
     }
-    if k == 0 {
-        a.diag_mut().fill(elem);
-    } else if k < 0 {
-        a.slice_mut(s![-k.., ..]).diag_mut().fill(elem);
-    } else {
-        a.slice_mut(s![.., k..]).diag_mut().fill(elem);
+    match k.cmp(&0) {
+        Ordering::Equal => a.diag_mut().fill(elem),
+        Ordering::Less => a.slice_mut(s![-k.., ..]).diag_mut().fill(elem),
+        Ordering::Greater => a.slice_mut(s![.., k..]).diag_mut().fill(elem),
     }
     Ok(a)
 }
