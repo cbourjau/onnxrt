@@ -38,15 +38,11 @@ jobs:
         run: |
           nix develop --command \
           cargo test -- --nocapture
-      - name: Build Python package
+      - name: Build & install Python package
         run: |
           nix develop --command \
-          maturin build -m ./onnxrt/Cargo.toml
-      - name: Install Python package
-        run: |
-          nix develop --command \
-          maturin develop -m ./onnxrt/Cargo.toml
+          maturin develop -m ./onnxrt/Cargo.toml --release
       - name: Run Python tests
         run: |
           nix develop --command \
-          pytest onnxrt/test_python/test.py -s
+          pytest onnxrt/test_python -s
