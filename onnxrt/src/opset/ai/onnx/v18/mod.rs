@@ -40,6 +40,7 @@ mod scatter;
 mod shape;
 mod simple_element_wise;
 mod size;
+mod slice;
 mod split;
 mod sum;
 mod topk;
@@ -109,6 +110,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ScatterND", Box::new(scatter::nd::setup_scatter_nd));
     d.insert("Shape", Box::new(shape::setup_shape));
     d.insert("Size", Box::new(size::setup_size));
+    d.insert("Slice", Box::new(slice::setup_slice));
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
