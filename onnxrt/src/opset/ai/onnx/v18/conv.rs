@@ -331,16 +331,11 @@ pub fn setup_conv(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Conv::from_attrs(&ctx.attrs)?;
 
     // The `narrow` traits are not implemented for optional inputs
-    let mut inputs = ctx.input_channels_with_optional().into_iter();
-    let x = inputs
-        .next()
-        .flatten()
-        .ok_or_else(|| anyhow!("Conv: Mandatory input 'x' is missing"))?;
-    let w = inputs
-        .next()
-        .flatten()
-        .ok_or_else(|| anyhow!("Conv: Mandatory input 'x' is missing"))?;
-    let b = inputs.next().flatten();
+    let (x, w, b): (Option<_>, Option<_>, Option<TaggedReceiver>) =
+        ctx.input_channels_with_optional().narrow()?;
+
+    let x = x.ok_or_else(|| anyhow!("Conv: Mandatory input 'x' is missing"))?;
+    let w = w.ok_or_else(|| anyhow!("Conv: Mandatory input 'w' is missing"))?;
 
     use TaggedReceiver::*;
     match (x, w, b) {

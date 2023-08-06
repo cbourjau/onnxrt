@@ -1,9 +1,435 @@
 // Some helper types for validating inputs.
 use std::sync::mpsc::Receiver;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 
-use crate::{ArcArrayD, TaggedReceiver};
+use crate::{edges::DataType, ArcArrayD, TaggedReceiver};
+
+/// Narrow inputs into a smaller subset of expected types
+/// This trait should not be implemented direct. Instead,
+/// `PartialNarrow` or `PartialNarrowLast` should be implemented which
+/// are used by `Narrow` via generic implementations.
+pub trait Narrow<To> {
+    fn narrow(self) -> Result<To>
+    where
+        Self: Sized;
+}
+
+/// Narrow into a smaller type set consuming a statically known number
+/// of input items (i.e. all but variadic input type sets).
+trait PartialNarrow<Item> {
+    /// Number of items that will be consumed by parse
+    const N_ITEMS: usize = 1;
+
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = Item>;
+}
+
+/// Greedily parse all remaining input items. All types that implement
+/// `PartialNarrow` also implement `PartialNarrowLast`, but not vice
+/// versa. This trait should be implemented directly for variadic type
+/// sets.
+trait PartialNarrowLast<Item> {
+    fn parse<I>(it: I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = Item>;
+}
+
+///////////// Implementations of `Narrow`
+
+impl<A> Narrow<A> for Vec<TaggedReceiver>
+where
+    A: PartialNarrowLast<TaggedReceiver>,
+{
+    fn narrow(self) -> Result<A>
+    where
+        Self: Sized,
+    {
+        let mut it = self.into_iter();
+        A::parse(&mut it)
+    }
+}
+
+impl<A> Narrow<Option<A>> for Vec<Option<TaggedReceiver>>
+where
+    Option<A>: PartialNarrowLast<Option<TaggedReceiver>>,
+{
+    fn narrow(self) -> Result<Option<A>>
+    where
+        Self: Sized,
+    {
+        let mut it = self.into_iter();
+        Option::<A>::parse(&mut it)
+    }
+}
+
+/// Implementation macro for `Narrow` on tuples. Currently up to
+/// 6-tuples are supported.
+macro_rules! impl_Narrow_for_tuples {
+    ($($ty:ident),* | Z) => {
+        impl<$($ty,)* Z, T> Narrow<($($ty,)* Z,)> for Vec<T>
+        where
+            $($ty: PartialNarrow<T>,)*
+            Z: PartialNarrowLast<T>,
+        {
+            #[allow(unused_mut)]
+            fn narrow(self) -> Result<($($ty,)* Z,)>
+            where
+                Self: Sized,
+            {
+                let mut it = self.into_iter();
+                Ok(($($ty::parse(&mut it)?,)* Z::parse(it)?,))
+            }
+        }
+    };
+}
+impl_Narrow_for_tuples!(| Z);
+impl_Narrow_for_tuples!(A | Z);
+impl_Narrow_for_tuples!(A, B | Z);
+impl_Narrow_for_tuples!(A, B, C | Z);
+impl_Narrow_for_tuples!(A, B, C, D | Z);
+impl_Narrow_for_tuples!(A, B, C, D, E | Z);
+
+//////////////// Implementations of `PartialNarrow`
+
+impl<T> PartialNarrow<Option<TaggedReceiver>> for Option<T>
+where
+    T: PartialNarrow<TaggedReceiver>,
+{
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = Option<TaggedReceiver>>,
+    {
+        let mut items = vec![];
+        for _ in 0..T::N_ITEMS {
+            let item = it
+                .next()
+                .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+            items.push(item);
+        }
+
+        let all_some = items.iter().all(|el| el.is_some());
+        let all_none = items.iter().all(|el| el.is_none());
+
+        if all_none || items.is_empty() {
+            Ok(None)
+        } else if all_some {
+            let mut iter = items.into_iter().flatten();
+            Ok(Some(T::parse(&mut iter)?))
+        } else {
+            bail!("Optional inputs parsed as a block must either all be missing or present")
+        }
+    }
+}
+
+impl PartialNarrow<TaggedReceiver> for TaggedReceiver {
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = it
+            .next()
+            .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+        Ok(item)
+    }
+}
+
+macro_rules! impl_PartialNarrow_for_Receiver {
+    ($variant:ident, $ty:ty) => {
+        impl PartialNarrow<TaggedReceiver> for Receiver<ArcArrayD<$ty>> {
+            fn parse<I>(it: &mut I) -> Result<Self>
+            where
+                I: Iterator<Item = TaggedReceiver>,
+            {
+                let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
+                match item {
+                    TaggedReceiver::$variant(value) => Ok(value),
+                    tr => bail!(
+                        "Expected data type '{:?}', found '{:?}'",
+                        DataType::$variant,
+                        tr.dtype()
+                    ),
+                }
+            }
+        }
+    };
+}
+
+impl_PartialNarrow_for_Receiver!(Bool, bool);
+impl_PartialNarrow_for_Receiver!(F32, f32);
+impl_PartialNarrow_for_Receiver!(F64, f64);
+impl_PartialNarrow_for_Receiver!(I16, i16);
+impl_PartialNarrow_for_Receiver!(I32, i32);
+impl_PartialNarrow_for_Receiver!(I64, i64);
+impl_PartialNarrow_for_Receiver!(I8, i8);
+impl_PartialNarrow_for_Receiver!(String, String);
+impl_PartialNarrow_for_Receiver!(U16, u16);
+impl_PartialNarrow_for_Receiver!(U32, u32);
+impl_PartialNarrow_for_Receiver!(U64, u64);
+impl_PartialNarrow_for_Receiver!(U8, u8);
+
+macro_rules! map_to_sub_set {
+    ($item:expr, $from:tt, $to:ty, $msg:expr, $($variant:ident),*) => {
+        match $item {
+            $(
+                $from::$variant(rec) => <$to>::$variant(rec),
+            )*
+                item => bail!("{}. Found '{:?}'", $msg, item.dtype()),
+        }
+    }
+}
+
+macro_rules! map_to_sub_set_fixed_array {
+    ($item:expr, $from:tt, $to:ty, $($msg:literal,)? $($variant:ident),*) => {
+        match $item {
+            $(
+                $from::$variant(rec) => <$to>::$variant(rec.try_into().map_err(|e| anyhow!("{:?}", e))?),
+            )*
+            $(
+                item => bail!("{}. Found '{:?}'", $msg, item.dtype()),
+            )?
+        }
+    }
+}
+
+impl PartialNarrow<TaggedReceiver> for Numeric {
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
+        Ok(map_to_sub_set!(
+            item,
+            TaggedReceiver,
+            Self,
+            "Expected numeric input",
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64,
+            F32,
+            F64
+        ))
+    }
+}
+
+impl PartialNarrow<TaggedReceiver> for FloatingPoint {
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
+        Ok(map_to_sub_set!(
+            item,
+            TaggedReceiver,
+            Self,
+            "Expected floating point input",
+            F32,
+            F64
+        ))
+    }
+}
+
+impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousFixed<N> {
+    const N_ITEMS: usize = N;
+
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let mut items = Vec::with_capacity(N);
+        for _ in 0..N {
+            items.push(
+                it.next()
+                    .ok_or_else(|| anyhow!("Insufficient number of inputs"))?,
+            );
+        }
+        let item = <Homogeneous as PartialNarrowLast<_>>::parse(items.into_iter())?;
+        Ok(map_to_sub_set_fixed_array!(
+            item,
+            Homogeneous,
+            Self,
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64,
+            F32,
+            F64,
+            Bool,
+            String
+        ))
+    }
+}
+
+impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousNumericFixed<N> {
+    const N_ITEMS: usize = N;
+
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <HomogeneousFixed<N> as PartialNarrowLast<_>>::parse(it)?;
+        Ok(map_to_sub_set_fixed_array!(
+            item,
+            HomogeneousFixed,
+            Self,
+            "Expected numerical input",
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64,
+            F32,
+            F64
+        ))
+    }
+}
+
+//////////////// Implementations of `PartialNarrowLast`
+
+// Parse mandatory to mandatory
+impl<T> PartialNarrowLast<TaggedReceiver> for T
+where
+    T: PartialNarrow<TaggedReceiver>,
+{
+    fn parse<I>(mut it: I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let out = T::parse(&mut it)?;
+        if it.count() != 0 {
+            bail!("All subscribed inputs must be used")
+        }
+        Ok(out)
+    }
+}
+
+// Parse optional to optional
+impl<T> PartialNarrowLast<Option<TaggedReceiver>> for Option<T>
+where
+    T: PartialNarrowLast<TaggedReceiver>,
+{
+    fn parse<I>(it: I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = Option<TaggedReceiver>>,
+    {
+        let items: Vec<_> = it.collect();
+
+        let all_some = items.iter().all(|el| el.is_some());
+        let all_none = items.iter().all(|el| el.is_none());
+
+        if all_none || items.is_empty() {
+            Ok(None)
+        } else if all_some {
+            let it = items.into_iter().flatten();
+            Ok(Some(T::parse(it)?))
+        } else {
+            bail!("Missing mandetory inputs")
+        }
+    }
+}
+
+impl PartialNarrowLast<TaggedReceiver> for Homogeneous {
+    fn parse<I>(mut it: I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let first = it
+            .next()
+            .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+
+        macro_rules! match_all_variants {
+            ($($variant:tt),* ) => {
+                match first {
+                    $(
+                    TaggedReceiver::$variant(first) => {
+                        let mut items = vec![first];
+                        for item in it {
+                            if let TaggedReceiver::$variant(item) = item {
+                                items.push(item);
+                            } else {
+                                bail!(
+                                    "Expected homogeneous input of data type '{:?}' found '{:?}'",
+                                    stringify!($variant),
+                                    item.dtype()
+                                )
+                            }
+                        }
+                        Ok(Self::$variant(items))
+                    },
+                )*}
+            };
+        }
+        match_all_variants!(U8, U16, U32, U64, I8, I16, I32, I64, F32, F64, Bool, String)
+    }
+}
+
+impl PartialNarrowLast<TaggedReceiver> for HomogeneousNumeric {
+    fn parse<I>(it: I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <Homogeneous as PartialNarrowLast<_>>::parse(it)?;
+
+        Ok(map_to_sub_set_fixed_array!(
+            item,
+            Homogeneous,
+            Self,
+            "Expected numerical input",
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64,
+            F32,
+            F64
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn narrow_optionals() {
+        let dummy: Vec<Option<TaggedReceiver>> = vec![];
+
+        // Test compilation
+        let _: Result<(
+            Option<HomogeneousFixed<2>>,
+            Option<TaggedReceiver>,
+            Option<Homogeneous>,
+        )> = dummy.narrow();
+    }
+
+    #[test]
+    fn narrow_required() {
+        let dummy: Vec<TaggedReceiver> = vec![];
+
+        // Test compilation
+        let _: Result<(HomogeneousFixed<2>, TaggedReceiver, Homogeneous)> = dummy.narrow();
+    }
+}
 
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
@@ -103,339 +529,42 @@ pub enum HomogeneousNumericFixed<const N: usize> {
     U64([Receiver<ArcArrayD<u64>>; N]),
 }
 
-pub trait NarrowFromVec<T> {
-    fn narrow(self) -> Result<T>
-    where
-        Self: Sized;
-}
-
-trait NarrowFromIter {
-    fn parse<I>(objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-        Self: Sized;
-}
-
-trait NarrowFromIterLast {
-    fn parse<I>(objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-        Self: Sized;
-}
-
-impl NarrowFromIter for TaggedReceiver {
-    fn parse<I>(mut objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver>,
-    {
-        Ok((
-            match objs.next() {
-                Some(trec) => trec,
-                None => bail!("Insufficient number of inputs"),
-            },
-            objs,
-        ))
-    }
-}
-
-impl NarrowFromIter for Numeric {
-    fn parse<I>(mut objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver>,
-    {
-        use TaggedReceiver::*;
-        Ok((
-            match objs.next() {
-                Some(F32(trec)) => Self::F32(trec),
-                Some(F64(trec)) => Self::F64(trec),
-
-                Some(I8(trec)) => Self::I8(trec),
-                Some(I16(trec)) => Self::I16(trec),
-                Some(I32(trec)) => Self::I32(trec),
-                Some(I64(trec)) => Self::I64(trec),
-
-                Some(U8(trec)) => Self::U8(trec),
-                Some(U16(trec)) => Self::U16(trec),
-                Some(U32(trec)) => Self::U32(trec),
-                Some(U64(trec)) => Self::U64(trec),
-
-                Some(String(_)) | Some(Bool(_)) => bail!("Expected numerical input"),
-                None => bail!("Insufficient number of inputs"),
-            },
-            objs,
-        ))
-    }
-}
-
-impl NarrowFromIter for FloatingPoint {
-    fn parse<I>(mut objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver>,
-    {
-        use TaggedReceiver::*;
-        Ok((
-            match objs.next() {
-                Some(F32(trec)) => Self::F32(trec),
-                Some(F64(trec)) => Self::F64(trec),
-                Some(_) => bail!("Expected numerical input"),
-                None => bail!("Insufficient number of inputs"),
-            },
-            objs,
-        ))
-    }
-}
-
-macro_rules! impl_NarrowFromIter {
-    ($ty:ty, $var:tt) => {
-        impl NarrowFromIter for Receiver<ArcArrayD<$ty>> {
-            fn parse<I>(mut objs: I) -> Result<(Self, I)>
-            where
-                I: Iterator<Item = TaggedReceiver>,
-            {
-                Ok((
-                    match objs.next() {
-                        Some(TaggedReceiver::$var(rec)) => rec,
-                        Some(trec) => bail!("Expected 'tensor(bool)' found {:?}", trec),
-                        None => bail!("Insufficient number of inputs"),
-                    },
-                    objs,
-                ))
-            }
+impl Homogeneous {
+    fn dtype(&self) -> DataType {
+        use Homogeneous::*;
+        match self {
+            U8(_) => DataType::U8,
+            U16(_) => DataType::U16,
+            U32(_) => DataType::U32,
+            U64(_) => DataType::U64,
+            I8(_) => DataType::I8,
+            I16(_) => DataType::I16,
+            I32(_) => DataType::I32,
+            I64(_) => DataType::I64,
+            F32(_) => DataType::F32,
+            F64(_) => DataType::F64,
+            Bool(_) => DataType::Bool,
+            String(_) => DataType::String,
         }
-    };
-}
-impl_NarrowFromIter!(bool, Bool);
-impl_NarrowFromIter!(i32, I32);
-impl_NarrowFromIter!(i64, I64);
-impl_NarrowFromIter!(f32, F32);
-impl_NarrowFromIter!(f64, F64);
-impl_NarrowFromIter!(u32, U32);
-impl_NarrowFromIter!(String, String);
-
-impl<T> NarrowFromIterLast for T
-where
-    T: NarrowFromIter,
-{
-    fn parse<I>(objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        T::parse(objs)
     }
 }
 
-impl<const N: usize> NarrowFromIterLast for HomogeneousFixed<N> {
-    fn parse<I>(mut objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        let first = objs.next().unwrap();
-
-        macro_rules! monomorphize {
-            ($($variant:tt),*) => {
-                match first {
-                    $(TaggedReceiver::$variant(rec) => {
-                        let mut out = vec![rec];
-                        for _ in 1..N {
-                            match objs.next() {
-                                Some(TaggedReceiver::$variant(next)) => {
-                                    out.push(next);
-                                }
-                                Some(rec) => bail!("Expected type {}; found {:?}", stringify!($variant), rec),
-                                None => panic!(),
-                            }
-                        }
-                        Self::$variant(out.try_into().unwrap())
-                    },)*
-                }
-            };
+impl<const N: usize> HomogeneousFixed<N> {
+    fn dtype(&self) -> DataType {
+        use HomogeneousFixed::*;
+        match self {
+            U8(_) => DataType::U8,
+            U16(_) => DataType::U16,
+            U32(_) => DataType::U32,
+            U64(_) => DataType::U64,
+            I8(_) => DataType::I8,
+            I16(_) => DataType::I16,
+            I32(_) => DataType::I32,
+            I64(_) => DataType::I64,
+            F32(_) => DataType::F32,
+            F64(_) => DataType::F64,
+            Bool(_) => DataType::Bool,
+            String(_) => DataType::String,
         }
-
-        Ok((
-            monomorphize!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String),
-            objs,
-        ))
-    }
-}
-
-impl<const N: usize> NarrowFromIterLast for HomogeneousNumericFixed<N> {
-    fn parse<I>(objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        let (vals, objs) = HomogeneousFixed::<N>::parse(objs)?;
-        macro_rules! do_match {
-            ($($variant:tt),*) => {
-                match vals {
-                    $(HomogeneousFixed::$variant(arr) => {
-                        Ok((HomogeneousNumericFixed::$variant(arr), objs))
-                    },)*
-                    HomogeneousFixed::Bool(_) | HomogeneousFixed::String(_) => {
-                        bail!("Expected numeric input")
-                    }
-                }
-            };
-        }
-        do_match!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64)
-    }
-}
-
-impl NarrowFromIterLast for Homogeneous {
-    fn parse<I>(mut objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        let len = objs.len();
-
-        let first = objs.next().unwrap();
-
-        macro_rules! monomorphize {
-            ($($variant:tt),*) => {
-                match first {
-                    $(TaggedReceiver::$variant(rec) => {
-                        let mut out = vec![rec];
-                        for i in 1..len {
-                            match objs.next() {
-                                Some(TaggedReceiver::$variant(next)) => {
-                                    out.push(next);
-                                }
-                                Some(rec) => bail!(
-                                    "Expected homogeneous input of type 'TaggedReceiver::{}'. Found '{:?}'",
-                                    stringify!($variant), rec
-                                ),
-                                None => bail!(
-                                    "Expected {} homogeneous inputs. Found {}",
-                                    len,
-                                    i - 1
-                                ),
-                            }
-                        }
-                        Self::$variant(out.try_into().unwrap())
-                    },)*
-                }
-            };
-        }
-
-        Ok((
-            monomorphize!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String),
-            objs,
-        ))
-    }
-}
-
-impl NarrowFromIterLast for HomogeneousNumeric {
-    fn parse<I>(objs: I) -> Result<(Self, I)>
-    where
-        I: Iterator<Item = TaggedReceiver> + ExactSizeIterator,
-    {
-        let (vals, objs) = Homogeneous::parse(objs)?;
-
-        macro_rules! do_match {
-            ($($variant:tt),*) => {
-                match vals {
-                    $(Homogeneous::$variant(arr) => {
-                        Ok((HomogeneousNumeric::$variant(arr), objs))
-                    },)*
-                    Homogeneous::Bool(_) | Homogeneous::String(_) => {
-                        bail!("Expected numeric input")
-                    }
-                }
-            };
-        }
-        do_match!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64)
-    }
-}
-
-impl<T1> NarrowFromVec<T1> for Vec<TaggedReceiver>
-where
-    T1: NarrowFromIterLast,
-{
-    fn narrow(self) -> Result<T1> {
-        let iter = self.into_iter();
-        let (out1, iter) = T1::parse(iter)?;
-
-        if iter.count() != 0 {
-            bail!("Unexpected number of inputs.")
-        }
-        Ok(out1)
-    }
-}
-
-impl<T1> NarrowFromVec<(T1,)> for Vec<TaggedReceiver>
-where
-    T1: NarrowFromIterLast,
-{
-    fn narrow(self) -> Result<(T1,)> {
-        let iter = self.into_iter();
-        let (out1, iter) = T1::parse(iter)?;
-
-        if iter.count() != 0 {
-            bail!("Unexpected number of inputs.")
-        }
-        Ok((out1,))
-    }
-}
-
-impl<T1, T2> NarrowFromVec<(T1, T2)> for Vec<TaggedReceiver>
-where
-    T1: NarrowFromIter,
-    T2: NarrowFromIterLast,
-{
-    fn narrow(self) -> Result<(T1, T2)> {
-        let iter = self.into_iter();
-        let (out1, iter) = T1::parse(iter)?;
-        let (out2, iter) = T2::parse(iter)?;
-
-        if iter.count() != 0 {
-            bail!("Unexpected number of inputs.")
-        }
-
-        Ok((out1, out2))
-    }
-}
-
-impl<T1, T2, Z> NarrowFromVec<(T1, T2, Z)> for Vec<TaggedReceiver>
-where
-    T1: NarrowFromIter,
-    T2: NarrowFromIter,
-    Z: NarrowFromIterLast,
-{
-    fn narrow(self) -> Result<(T1, T2, Z)> {
-        let iter = self.into_iter();
-        let (out1, iter) = T1::parse(iter)?;
-        let (out2, iter) = T2::parse(iter)?;
-        let (out3, iter) = Z::parse(iter)?;
-
-        if iter.count() != 0 {
-            bail!("Unexpected number of inputs.")
-        }
-
-        Ok((out1, out2, out3))
-    }
-}
-
-// FIXME: `parse` should mutate the iterator to make this
-// pattern more amenable to macros
-impl<T1, T2, T3, T4, Z> NarrowFromVec<(T1, T2, T3, T4, Z)> for Vec<TaggedReceiver>
-where
-    T1: NarrowFromIter,
-    T2: NarrowFromIter,
-    T3: NarrowFromIter,
-    T4: NarrowFromIter,
-    Z: NarrowFromIterLast,
-{
-    fn narrow(self) -> Result<(T1, T2, T3, T4, Z)> {
-        let iter = self.into_iter();
-        let (out1, iter) = T1::parse(iter)?;
-        let (out2, iter) = T2::parse(iter)?;
-        let (out3, iter) = T3::parse(iter)?;
-        let (out4, iter) = T4::parse(iter)?;
-        let (out5, iter) = Z::parse(iter)?;
-
-        if iter.count() != 0 {
-            bail!("Unexpected number of inputs.")
-        }
-
-        Ok((out1, out2, out3, out4, out5))
     }
 }

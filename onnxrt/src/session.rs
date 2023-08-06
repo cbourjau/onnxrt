@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use onnx_protos::onnx_proto3::{GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto};
 use protobuf::Message;
 use pyo3::prelude::*;
@@ -267,13 +267,10 @@ fn setup_steps(
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
 
-        let ExecutionStep { fun: op, outputs } = setup_fn(ctx).map_err(|e| {
-            anyhow!(
-                "During setup of '{}' the following error occurred: {:?}",
-                node.op_type,
-                e.to_string()
-            )
-        })?;
+        let ExecutionStep { fun: op, outputs } = setup_fn(ctx).context(format!(
+            "An error occurred during the setup of a '{}' node.",
+            node.op_type
+        ))?;
 
         steps.push(op);
 

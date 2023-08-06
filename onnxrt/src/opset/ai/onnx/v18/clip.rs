@@ -4,17 +4,12 @@ use crate::opset::utils::*;
 use crate::Sendable;
 
 pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
-    let mut inputs = ctx.input_channels_with_optional().into_iter();
-    let input = inputs
-        .next()
-        .flatten()
-        .ok_or_else(|| anyhow!("Mandatory input 'input' is missing"))?;
-    let min = inputs.next().flatten();
-    let max = inputs.next().flatten();
+    let (input, min, max): (Option<_>, _, _) = ctx.input_channels_with_optional().narrow()?;
+    let input = input.ok_or_else(|| anyhow!("Mandatory input 'input' is missing"))?;
 
     macro_rules! match_vars {
         ($($var:tt),*) => {{
-            use TaggedReceiver::*;
+            use Numeric::*;
             match (input, min, max) {
                 $(
                     ($var(input), Some($var(min)), Some($var(max))) => {

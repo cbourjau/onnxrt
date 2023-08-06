@@ -244,19 +244,9 @@ fn fold_sum<T: Copy + Add<Output = T>>(acc: &T, el: &T) -> T {
 }
 
 fn validate_inputs(ctx: OpContext) -> Result<(TaggedReceiver, Option<Receiver<ArcArrayD<i64>>>)> {
-    let mut inputs = ctx.subscribe_to_inputs().into_iter();
-    let data_ch = inputs
-        .next()
-        .ok_or_else(|| anyhow!("Input `data` is missing"))?;
-    let axes_ch = match inputs.next() {
-        Some(TaggedReceiver::I64(ch)) => Some(ch),
-        None => None,
-        Some(_) => bail!("Input `axes` must be of type `int64`"),
-    };
-    if inputs.len() != 0 {
-        bail!("Unexpected inputs");
-    }
-    Ok((data_ch, axes_ch))
+    let (data, axes): (Option<_>, _) = ctx.input_channels_with_optional().narrow()?;
+    let data = data.ok_or_else(|| anyhow!("Input `data` is missing"))?;
+    Ok((data, axes))
 }
 
 macro_rules! create_setup_function {
