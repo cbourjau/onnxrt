@@ -6,6 +6,221 @@ use crate::attribute::Attributes;
 
 use super::*;
 
+fn reduce_max<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd,
+{
+    reduce(data, axes, D::min_value(), fold_max, keep_dims, noop_empty)
+}
+
+fn reduce_min<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd,
+{
+    reduce(data, axes, D::max_value(), fold_min, keep_dims, noop_empty)
+}
+
+fn reduce_sum<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero,
+{
+    reduce(data, axes, D::zero(), fold_sum, keep_dims, noop_empty)
+}
+
+fn reduce_sum_square<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero + Mul<Output = D>,
+{
+    let sq_data: ArcArrayD<_> = data.mapv(|el| el * el).into();
+    reduce_sum(sq_data, axes, keep_dims, noop_empty)
+}
+
+fn reduce_l1<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero + Signed,
+{
+    let abs_data: ArcArrayD<_> = data.mapv(|el| el.abs()).into();
+    reduce_sum(abs_data, axes, keep_dims, noop_empty)
+}
+
+fn reduce_l2<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero + Float,
+{
+    Ok(reduce_sum_square(data, axes, keep_dims, noop_empty)?
+        .mapv(|el| el.sqrt())
+        .into())
+}
+
+fn reduce_log_sum<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero + Float,
+{
+    let sum = reduce_sum(data, axes, keep_dims, noop_empty)?;
+    let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
+    Ok(log_data)
+}
+
+fn reduce_log_sum_exp<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero + Float,
+{
+    let exp: ArcArrayD<_> = data.mapv(|el| el.exp()).into();
+    let sum = reduce_sum(exp, axes, keep_dims, noop_empty)?;
+    let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
+    Ok(log_data)
+}
+
+fn reduce_prod<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + One,
+{
+    reduce(data, axes, D::one(), fold_mul, keep_dims, noop_empty)
+}
+
+fn reduce_mean<D>(
+    data: ArcArrayD<D>,
+    axes: Option<ArcArrayD<i64>>,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<D>>
+where
+    D: Bounded + Copy + PartialOrd + Zero + std::ops::Div<Output = D> + 'static,
+    usize: AsPrimitive<D>,
+{
+    let n_initial: D = data.len().as_();
+
+    let reduced = reduce(data, axes, D::zero(), fold_sum, keep_dims, noop_empty)?;
+    let n_reduced: D = reduced.len().as_();
+    let scaling = n_initial / n_reduced;
+    Ok(reduced.mapv(|v| v / scaling).into())
+}
+
+fn reduce<T, F>(
+    arr: ArcArrayD<T>,
+    axes: Option<ArcArrayD<i64>>,
+    fold_init: T,
+    fold_fn: F,
+    keep_dims: bool,
+    noop_empty: bool,
+) -> Result<ArcArrayD<T>>
+where
+    T: Copy + Bounded + PartialOrd,
+    F: Fn(&T, &T) -> T,
+{
+    let axes = axes.unwrap_or_else(|| ndarray::array!([]).into_dyn().into());
+    let initial_shape = arr.shape().to_vec();
+    let rank = initial_shape.len();
+
+    // Deal with special case around empty `arr`
+    let axes = if axes.is_empty() {
+        if noop_empty {
+            return Ok(arr);
+        } else {
+            (0..arr.shape().len()).collect()
+        }
+    } else {
+        axes.iter()
+            .map(|idx| convert_negative_index(*idx, rank))
+            .collect::<HashSet<_>>()
+    };
+    if let Some(max_axis_input) = axes.iter().max() {
+        if *max_axis_input >= rank {
+            bail!(
+                "Input `axes={}` is incompatible tensor of `rank={}`",
+                *max_axis_input,
+                rank
+            );
+        }
+    }
+    // Reorder the axes to put the once that are being reduced at the end
+    let regrouped_axes: Vec<_> = (0..rank)
+        .filter(|axis| !axes.contains(axis))
+        .chain(sorted(axes.clone()))
+        .collect();
+
+    let reduce_mask: Vec<_> = (0..rank).map(|axis| axes.contains(&axis)).collect();
+
+    // Number of elements that are being reduced
+    let len_reduce_axis = initial_shape
+        .iter()
+        .zip(&reduce_mask)
+        .filter(|(_, &red_this)| red_this)
+        .fold(1, |acc, el| acc * el.0);
+
+    let new_shape: Vec<_> = initial_shape
+        .iter()
+        .zip(&reduce_mask)
+        .filter_map(|(dim_len, &do_red)| if do_red { None } else { Some(dim_len) })
+        .chain(&[len_reduce_axis])
+        .copied()
+        .collect();
+    let last_axis = Axis(new_shape.len() - 1);
+    let reduced = arr
+        .permuted_axes(regrouped_axes)
+        .as_standard_layout()
+        .into_shape(new_shape)
+        .expect("Invalid shape.")
+        .fold_axis(last_axis, fold_init, fold_fn);
+
+    let reduced = if keep_dims {
+        let out_shape: Vec<_> = initial_shape
+            .iter()
+            .enumerate()
+            .map(|(i, &el)| if axes.contains(&i) { 1 } else { el })
+            .collect();
+        reduced.into_shape(out_shape)?
+    } else {
+        reduced
+    };
+    Ok(reduced.into())
+}
+
 struct State {
     keep_dims: bool,
     noop_empty: bool,
@@ -19,203 +234,6 @@ impl State {
             keep_dims,
             noop_empty,
         })
-    }
-
-    fn reduce_max<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd,
-    {
-        self.reduce(data, axes, D::min_value(), fold_max)
-    }
-
-    fn reduce_min<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd,
-    {
-        self.reduce(data, axes, D::max_value(), fold_min)
-    }
-
-    fn reduce_sum<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero,
-    {
-        self.reduce(data, axes, D::zero(), fold_sum)
-    }
-
-    fn reduce_sum_square<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero + Mul<Output = D>,
-    {
-        let sq_data: ArcArrayD<_> = data.mapv(|el| el * el).into();
-        self.reduce_sum(sq_data, axes)
-    }
-
-    fn reduce_l1<D>(&self, data: ArcArrayD<D>, axes: Option<ArcArrayD<i64>>) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero + Signed,
-    {
-        let abs_data: ArcArrayD<_> = data.mapv(|el| el.abs()).into();
-        self.reduce_sum(abs_data, axes)
-    }
-
-    fn reduce_l2<D>(&self, data: ArcArrayD<D>, axes: Option<ArcArrayD<i64>>) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero + Float,
-    {
-        Ok(self
-            .reduce_sum_square(data, axes)?
-            .mapv(|el| el.sqrt())
-            .into())
-    }
-
-    fn reduce_log_sum<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero + Float,
-    {
-        let sum = self.reduce_sum(data, axes)?;
-        let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
-        Ok(log_data)
-    }
-
-    fn reduce_log_sum_exp<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero + Float,
-    {
-        let exp: ArcArrayD<_> = data.mapv(|el| el.exp()).into();
-        let sum = self.reduce_sum(exp, axes)?;
-        let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
-        Ok(log_data)
-    }
-
-    fn reduce_prod<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + One,
-    {
-        self.reduce(data, axes, D::one(), fold_mul)
-    }
-
-    fn reduce_mean<D>(
-        &self,
-        data: ArcArrayD<D>,
-        axes: Option<ArcArrayD<i64>>,
-    ) -> Result<ArcArrayD<D>>
-    where
-        D: Bounded + Copy + PartialOrd + Zero + std::ops::Div<Output = D> + 'static,
-        usize: AsPrimitive<D>,
-    {
-        let n_initial: D = data.len().as_();
-
-        let reduced = self.reduce(data, axes, D::zero(), fold_sum)?;
-        let n_reduced: D = reduced.len().as_();
-        let scaling = n_initial / n_reduced;
-        Ok(reduced.mapv(|v| v / scaling).into())
-    }
-
-    fn reduce<T, F>(
-        &self,
-        arr: ArcArrayD<T>,
-        axes: Option<ArcArrayD<i64>>,
-        fold_init: T,
-        fold_fn: F,
-    ) -> Result<ArcArrayD<T>>
-    where
-        T: Copy + Bounded + PartialOrd,
-        F: Fn(&T, &T) -> T,
-    {
-        let axes = axes.unwrap_or_else(|| ndarray::array!([]).into_dyn().into());
-        let initial_shape = arr.shape().to_vec();
-        let rank = initial_shape.len();
-
-        // Deal with special case around empty `arr`
-        let axes = if axes.is_empty() {
-            if self.noop_empty {
-                return Ok(arr);
-            } else {
-                (0..arr.shape().len()).collect()
-            }
-        } else {
-            axes.iter()
-                .map(|idx| convert_negative_index(*idx, rank))
-                .collect::<HashSet<_>>()
-        };
-        if let Some(max_axis_input) = axes.iter().max() {
-            if *max_axis_input >= rank {
-                bail!(
-                    "Input `axes={}` is incompatible tensor of `rank={}`",
-                    *max_axis_input,
-                    rank
-                );
-            }
-        }
-        // Reorder the axes to put the once that are being reduced at the end
-        let regrouped_axes: Vec<_> = (0..rank)
-            .filter(|axis| !axes.contains(axis))
-            .chain(sorted(axes.clone()))
-            .collect();
-
-        let reduce_mask: Vec<_> = (0..rank).map(|axis| axes.contains(&axis)).collect();
-
-        // Number of elements that are being reduced
-        let len_reduce_axis = initial_shape
-            .iter()
-            .zip(&reduce_mask)
-            .filter(|(_, &red_this)| red_this)
-            .fold(1, |acc, el| acc * el.0);
-
-        let new_shape: Vec<_> = initial_shape
-            .iter()
-            .zip(&reduce_mask)
-            .filter_map(|(dim_len, &do_red)| if do_red { None } else { Some(dim_len) })
-            .chain(&[len_reduce_axis])
-            .copied()
-            .collect();
-        let last_axis = Axis(new_shape.len() - 1);
-        let reduced = arr
-            .permuted_axes(regrouped_axes)
-            .as_standard_layout()
-            .into_shape(new_shape)
-            .expect("Invalid shape.")
-            .fold_axis(last_axis, fold_init, fold_fn);
-
-        let reduced = if self.keep_dims {
-            let out_shape: Vec<_> = initial_shape
-                .iter()
-                .enumerate()
-                .map(|(i, &el)| if axes.contains(&i) { 1 } else { el })
-                .collect();
-            reduced.into_shape(out_shape)?
-        } else {
-            reduced
-        };
-        Ok(reduced.into())
     }
 }
 
@@ -250,7 +268,7 @@ fn validate_inputs(ctx: OpContext) -> Result<(TaggedReceiver, Option<Receiver<Ar
 }
 
 macro_rules! create_setup_function {
-    ($setup_name:tt, $member_fun:tt, $($variant:tt),*) => {
+    ($setup_name:tt, $fun:tt, $($variant:tt),*) => {
         pub fn $setup_name(ctx: OpContext) -> Result<ExecutionStep> {
             let state = State::new(&ctx.attrs)?;
             let (data_ch, axes_ch) = validate_inputs(ctx)?;
@@ -258,7 +276,7 @@ macro_rules! create_setup_function {
             use TaggedReceiver::*;
             match data_ch {
                 $($variant(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
-                    state.$member_fun(data, axes)
+                    $fun(data, axes, state.keep_dims, state.noop_empty)
                 }),)*
                 _ => bail!("Type support of reduce operations is limited."),
             }
