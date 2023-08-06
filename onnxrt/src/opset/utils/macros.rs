@@ -12,6 +12,12 @@ macro_rules! setup_all {
             F32, F64, I8, I16, I32, I64, U8, U16, U32, U64
         )
     };
+    (FloatingPoint, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            FloatingPoint, $tagged_rec, $rec_name, $setup,
+            F32, F64
+        )
+    };
     (Homogeneous, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             Homogeneous, $tagged_rec, $rec_name, $setup,

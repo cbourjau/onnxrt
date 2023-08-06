@@ -111,6 +111,8 @@ pub fn get_setup_dict() -> HashMap<&'static str, SetupFnSignature> {
     );
     setup_dict.insert("Sin", element_wise!(float, |el| el.sin()));
     setup_dict.insert("Sinh", element_wise!(float, |el| el.sinh()));
+    setup_dict.insert("Softplus", element_wise!(float, |el| (el.exp() + 1.0).ln()));
+    setup_dict.insert("Softsign", element_wise!(float, |el| el / (1.0 + el.abs())));
     setup_dict.insert("Sqrt", element_wise!(float, |el| el.sqrt()));
     setup_dict.insert("Tan", element_wise!(float, |el| el.tan()));
     setup_dict.insert("Tanh", element_wise!(float, |el| el.tanh()));

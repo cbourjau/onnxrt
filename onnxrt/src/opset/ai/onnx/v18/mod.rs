@@ -41,6 +41,7 @@ mod shape;
 mod simple_element_wise;
 mod size;
 mod slice;
+mod softmax;
 mod split;
 mod sum;
 mod topk;
@@ -83,6 +84,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
     d.insert("If", Box::new(setup_if));
     d.insert("IsInf", Box::new(isinf::setup_isinf));
+    d.insert("LogSoftmax", Box::new(softmax::setup_log_softmax));
     d.insert("LeakyRelu", Box::new(relu_with_attr::setup_leaky_relu));
     d.insert("Less", bin_numeric_with_co_broadcast!(PartialOrd::lt));
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
@@ -111,6 +113,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Shape", Box::new(shape::setup_shape));
     d.insert("Size", Box::new(size::setup_size));
     d.insert("Slice", Box::new(slice::setup_slice));
+    d.insert("Softmax", Box::new(softmax::setup_softmax));    
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
