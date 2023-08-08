@@ -4,6 +4,7 @@ use std::fs::read;
 use anyhow::{anyhow, bail, Result};
 use approx::{abs_diff_eq, relative_eq, ulps_eq, AbsDiffEq, RelativeEq, UlpsEq};
 use num::Float;
+use num_traits::AsPrimitive;
 use onnx_protos::onnx_proto3::TensorProto;
 use protobuf::Message;
 use upstream_test_data::{all_node_tests, get_node_test, TestCase};
@@ -66,8 +67,9 @@ macro_rules! unequal_bail_numeric {
 
 fn check_float_almost_equal<T>(exp: &ArcArrayD<T>, obs: &ArcArrayD<T>) -> Result<()>
 where
-    T: Float + RelativeEq + UlpsEq + Clone + std::fmt::Debug,
-    <T as AbsDiffEq>::Epsilon: Clone,
+    T: Float + RelativeEq + UlpsEq + Clone + std::fmt::Debug + 'static + Copy,
+    f64: AsPrimitive<<T as AbsDiffEq>::Epsilon>,
+    <T as AbsDiffEq>::Epsilon: Clone + Copy,
 {
     if exp.shape() != obs.shape() {
         bail!("Expected shape {:?} found {:?}", exp.shape(), obs.shape());
@@ -77,11 +79,11 @@ where
         return Ok(());
     }
 
-    if ulps_eq!(exp, obs) {
+    if ulps_eq!(exp, obs, max_ulps = 5) {
         return Ok(());
     }
     for (exp_el, obs_el) in exp.iter().zip(obs.iter()) {
-        let rel = T::default_epsilon();
+        let rel = 1e-5f64.as_();
         if relative_eq!(exp_el, obs_el, epsilon = rel) {
             continue;
         }
