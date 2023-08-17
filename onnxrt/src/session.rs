@@ -19,6 +19,7 @@ pub struct Session {
 }
 
 /// Collection of input `ValueSender`s and their optional default values.
+#[derive(Debug)]
 struct Inputs(HashMap<String, (ValueSender, Option<Value>)>);
 
 /// Signature of functions executed at runtime.
@@ -227,7 +228,7 @@ impl Session {
         self.inputs
             .0
             .iter()
-            .filter(|(_, (_, default))| default.is_some())
+            .filter(|(_, (_, default))| default.is_none())
             .map(|(name, (input, _default))| {
                 let dtype = input.dtype();
                 (name.as_str(), dtype)
@@ -240,9 +241,19 @@ impl Session {
         self.inputs
             .0
             .iter()
-            .filter(|(_, (_, default))| default.is_some())
+            .filter(|(_, (_, default))| default.is_none())
             .map(|(name, _)| name.as_str())
             .collect()
+    }
+}
+
+impl std::fmt::Debug for Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Session")
+            .field("steps", &format!("[{} steps]", self.steps.len()))
+            .field("inputs", &self.inputs)
+            .field("outputs", &self.outputs)
+            .finish()
     }
 }
 

@@ -1,12 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
-use itertools::sorted;
-use onnx_protos::onnx_proto3::GraphProto;
-
 use crate::opset::utils::*;
 use crate::session::SetupFnSignature;
-use crate::{channel, value_channel, Sendable, Session};
+use crate::{channel, Sendable};
+use itertools::sorted;
 
 mod arg_min_max;
 mod batch_normalization;
@@ -27,6 +25,7 @@ mod gather;
 mod gather_elements;
 mod gather_nd;
 mod global_average_pool;
+mod if_;
 mod isinf;
 mod matmul;
 mod min_max;
@@ -85,7 +84,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("GlobalAveragePool", Box::new(global_average_pool::setup_gap));
     d.insert("Greater", bin_numeric_with_co_broadcast!(PartialOrd::gt));
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
-    d.insert("If", Box::new(setup_if));
+    d.insert("If", Box::new(if_::setup_if));
     d.insert("IsInf", Box::new(isinf::setup_isinf));
     d.insert("LogSoftmax", Box::new(softmax::setup_log_softmax));
     d.insert("LeakyRelu", Box::new(relu_with_attr::setup_leaky_relu));
@@ -234,82 +233,4 @@ fn squeeze<D>((data, indices): (ArcArrayD<D>, ArcArrayD<i64>)) -> Result<ArcArra
         .fold(data, |arr, &axis| arr.remove_axis(axis));
 
     Ok(out)
-}
-
-fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
-    // Create the sessions for the `then` and `else` branch.
-    let make_attr_session = |attr_name| {
-        let g: GraphProto = ctx.attrs.get(attr_name)?.try_into()?;
-        Session::from_nested_graph(&g, ctx.opset, ctx.scope)
-    };
-    let then_session = make_attr_session("then_branch")?;
-    let else_session = make_attr_session("else_branch")?;
-
-    // Get input channels for implicit inputs. We always pull all channels!
-    let cumulated_input_names = HashSet::<&str>::from_iter(
-        then_session
-            .input_names()
-            .into_iter()
-            .chain(else_session.input_names().into_iter()),
-    );
-
-    let graph_input_channels: HashMap<_, _> = cumulated_input_names
-        .iter()
-        .map(|name| (name.to_string(), ctx.subscribe(name)))
-        .collect();
-
-    // Create output channels by "selecting" the outputs of either of
-    // the two branches.
-    assert_eq!(then_session.outputs.len(), else_session.outputs.len());
-    assert!(then_session
-        .output_dtypes()
-        .iter()
-        .zip(&else_session.output_dtypes())
-        .all(|((_, dtype_left), (_, dtype_right))| dtype_left == dtype_right));
-
-    let mut out_dispatchers = vec![];
-    let mut out_senders = vec![];
-    // Only using then outputs types since they should be identical
-    for (_out_name, out_dtype) in &then_session.output_dtypes() {
-        let (out_sdr, out_disp) = value_channel(out_dtype);
-        out_senders.push(out_sdr);
-        out_dispatchers.push(out_disp);
-    }
-
-    // Explicit node input
-    let cond_ch: Receiver<ArcArrayD<bool>> = ctx.subscribe_to_inputs().narrow()?;
-
-    let fun = move || {
-        let cond = {
-            let conds = cond_ch.recv().unwrap();
-            if conds.len() != 1 {
-                return Err(anyhow!("`Cond` input of `If` must be a scalar."));
-            }
-            conds.to_owned().into_shape([])?.into_scalar()
-        };
-
-        let graph_inputs = graph_input_channels
-            .iter()
-            .map(|(k, ch)| (k.clone(), ch.recv().unwrap()))
-            .collect();
-        // If-graphs do not have explicit inputs; only the implicit ones
-        if cond {
-            // The outputs are defined by order, not name
-            let mut result = then_session.run(&graph_inputs)?;
-            for ((name, _), sender) in then_session.outputs.iter().zip(&out_senders) {
-                sender.send(result.remove(name).unwrap()).unwrap();
-            }
-        } else {
-            // The outputs are defined by order, not name
-            let mut result = else_session.run(&graph_inputs)?;
-            for ((name, _), sender) in else_session.outputs.iter().zip(&out_senders) {
-                sender.send(result.remove(name).unwrap()).unwrap();
-            }
-        };
-        Ok(())
-    };
-    Ok(ExecutionStep {
-        fun: Box::new(fun),
-        outputs: out_dispatchers,
-    })
 }

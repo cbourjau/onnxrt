@@ -215,6 +215,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_basic_conv_without_padding").unwrap();
+    let tc = get_node_test("test_if").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }
