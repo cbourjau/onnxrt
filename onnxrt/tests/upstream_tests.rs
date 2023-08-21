@@ -30,7 +30,7 @@ fn run_test_case(tc: &TestCase) -> Result<TestResult> {
         .map(|p| TensorProto::parse_from_bytes(read(p).unwrap().as_slice()).unwrap())
         .map(|tp| (tp.name.clone(), (&tp).try_into().unwrap()))
         .collect();
-    let observed = session.run(&inputs)?;
+    let observed = session.run_named(&inputs)?;
     Ok(TestResult { expected, observed })
 }
 
@@ -215,6 +215,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_if").unwrap();
+    let tc = get_node_test("test_loop11").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }

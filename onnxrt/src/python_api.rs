@@ -27,7 +27,7 @@ impl Session {
         let py = inputs.py();
         let inputs: HashMap<String, Value> = inputs.extract().unwrap();
 
-        let mut outs = self.run(&inputs).unwrap();
+        let mut outs = self.run_named(&inputs).unwrap();
         let out_dict = PyDict::new(py);
 
         for (k, _) in &self.outputs {

@@ -1,12 +1,14 @@
 //! Module with traits and functions to simplify implementation work
 
-use std::sync::mpsc::Receiver;
-
+use crate::edges::{value_channel, DataType};
 use crate::opset::utils::*;
+use crate::Value;
 use crate::{
     edges::{Dispatcher, Sender},
     Sendable,
 };
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::Receiver;
 
 pub trait FromAttributes {
     fn from_attrs(attrs: &Attributes) -> Result<Self>
@@ -62,6 +64,43 @@ where
         Ok(())
     });
     Ok(ExecutionStep { fun, outputs: recs })
+}
+
+pub fn setup_variadic_hetero_output<F, InCh, In>(
+    in_channels: InCh,
+    fun: F,
+    dtypes: Vec<(String, DataType)>,
+) -> Result<ExecutionStep>
+where
+    InCh: InChannels<Items = In> + Send + 'static,
+    F: Fn(In) -> Result<Vec<Value>> + Send + 'static,
+{
+    let mut out_dispatchers = vec![];
+    let mut out_senders = vec![];
+
+    for (_name, out_dtype) in &dtypes {
+        let (out_sdr, out_disp) = value_channel(out_dtype);
+        out_senders.push(out_sdr);
+        out_dispatchers.push(out_disp);
+    }
+
+    // Validate that we have unique names
+    let unique_outputs: HashSet<_> = dtypes.iter().map(|(name, _)| name).collect();
+    if unique_outputs.len() != dtypes.len() {
+        bail!("Output names must be unique.")
+    }
+
+    let fun = Box::new(move || {
+        let inputs = in_channels.recv().unwrap();
+        for (val, sdr) in fun(inputs)?.into_iter().zip(&out_senders) {
+            sdr.send(val)?;
+        }
+        Ok(())
+    });
+    Ok(ExecutionStep {
+        fun,
+        outputs: out_dispatchers,
+    })
 }
 
 pub trait VariadicDispatchable {
@@ -171,11 +210,6 @@ pub trait InChannel {
     fn recv(&self) -> Result<Self::Item>;
 }
 
-pub trait LastInChannel {
-    type Item;
-    fn recv(&self) -> Result<Self::Item>;
-}
-
 impl<T> InChannel for Receiver<T> {
     type Item = T;
 
@@ -184,8 +218,19 @@ impl<T> InChannel for Receiver<T> {
     }
 }
 
-impl<T> InChannel for Option<Receiver<T>> {
-    type Item = Option<T>;
+impl InChannel for TaggedReceiver {
+    type Item = Value;
+
+    fn recv(&self) -> Result<Self::Item> {
+        self.recv()
+    }
+}
+
+impl<T> InChannel for Option<T>
+where
+    T: InChannel,
+{
+    type Item = Option<T::Item>;
 
     fn recv(&self) -> Result<Self::Item> {
         match self {
@@ -195,26 +240,33 @@ impl<T> InChannel for Option<Receiver<T>> {
     }
 }
 
-impl<T> LastInChannel for T
-where
-    T: InChannel,
-{
-    type Item = T::Item;
-
-    fn recv(&self) -> Result<Self::Item> {
-        self.recv()
-    }
-}
-
-// impl Input for ArcArrayD<f32> {}
-impl<T> LastInChannel for Vec<T>
+impl<T> InChannel for Vec<T>
 where
     T: InChannel,
 {
     type Item = Vec<T::Item>;
 
     fn recv(&self) -> Result<Self::Item> {
-        self.iter().map(|el| el.recv()).collect()
+        let mut out = Vec::with_capacity(self.len());
+        for el in self.iter() {
+            out.push(el.recv()?);
+        }
+        Ok(out)
+    }
+}
+
+impl<T> InChannel for HashMap<String, T>
+where
+    T: InChannel,
+{
+    type Item = HashMap<String, T::Item>;
+
+    fn recv(&self) -> Result<Self::Item> {
+        let mut res = Self::Item::new();
+        for (name, item) in self.iter() {
+            res.insert(name.to_owned(), item.recv()?);
+        }
+        Ok(res)
     }
 }
 
@@ -237,7 +289,7 @@ macro_rules! impl_InChannels {
         impl<$( $Ts ,)* Z> InChannels for ($($Ts,)* Z)
         where
             $($Ts: InChannel,)*
-            Z: LastInChannel,
+            Z: InChannel,
         {
             type Items = ($(<$Ts>::Item,)* Z::Item);
 
@@ -250,7 +302,7 @@ macro_rules! impl_InChannels {
 
 impl<A> InChannels for (A,)
 where
-    A: LastInChannel,
+    A: InChannel,
 {
     type Items = (A::Item,);
 

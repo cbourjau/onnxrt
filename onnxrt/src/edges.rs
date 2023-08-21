@@ -137,10 +137,12 @@ impl ValueSender {
         macro_rules! map_vars {
             ($($var:tt),*) => {
                 match (self, value) {
-                    $((Self::$var(sdr), Value::$var(val)) => {
-                        sdr.send(val)
-                    },)*
-                    _ => Err(anyhow!("Unexpected data type")),
+                    $(
+                        (Self::$var(sdr), Value::$var(val)) => {
+                            sdr.send(val)
+                        },
+                    )*
+                        (sdr, val) => Err(anyhow!("Expected {:?}, found {:?}", sdr.dtype(), val)),
                 }
             }
         }
@@ -275,6 +277,12 @@ pub trait Sendable {
     where
         Self: Sized;
 }
+
+// impl Sendable for Vec<Value> {
+//             fn channel() -> (Sender<Self>, Dispatcher)
+//             where
+//                 Self: Sized,
+//             {
 
 macro_rules! impl_dispatchable {
     ($ty:ty, $dispatcher:path) => {

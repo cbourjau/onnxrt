@@ -25,8 +25,6 @@ impl If {
 pub fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
     let state = If::from_context(&ctx)?;
 
-    dbg!(&state);
-
     // Get input channels for implicit inputs. We always pull all channels!
     let cumulated_input_names = HashSet::<&str>::from_iter(
         state
@@ -36,7 +34,7 @@ pub fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
             .chain(state.else_.input_names().into_iter()),
     );
 
-    let graph_input_channels: HashMap<_, _> = dbg!(cumulated_input_names)
+    let graph_input_channels: HashMap<_, _> = cumulated_input_names
         .iter()
         .map(|name| (name.to_string(), ctx.subscribe(name)))
         .collect();
@@ -53,7 +51,7 @@ pub fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
 
     let mut out_dispatchers = vec![];
     let mut out_senders = vec![];
-    // Only using then outputs types since they should be identical
+    // Only using 'then' output types since they should be identical
     for (_out_name, out_dtype) in &state.then.output_dtypes() {
         let (out_sdr, out_disp) = value_channel(out_dtype);
         out_senders.push(out_sdr);
@@ -79,13 +77,13 @@ pub fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
         // If-graphs do not have explicit inputs; only the implicit ones
         if cond {
             // The outputs are defined by order, not name
-            let mut result = state.then.run(&graph_inputs)?;
+            let mut result = state.then.run_named(&graph_inputs)?;
             for ((name, _), sender) in state.then.outputs.iter().zip(&out_senders) {
                 sender.send(result.remove(name).unwrap()).unwrap();
             }
         } else {
             // The outputs are defined by order, not name
-            let mut result = state.else_.run(&graph_inputs)?;
+            let mut result = state.else_.run_named(&graph_inputs)?;
             for ((name, _), sender) in state.else_.outputs.iter().zip(&out_senders) {
                 sender.send(result.remove(name).unwrap()).unwrap();
             }

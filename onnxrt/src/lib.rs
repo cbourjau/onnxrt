@@ -55,7 +55,7 @@ mod tests {
         )]
         .into_iter()
         .collect();
-        let got = session.run(&inputs).unwrap();
+        let got = session.run_named(&inputs).unwrap();
         assert_eq!(got, expected);
     }
 }

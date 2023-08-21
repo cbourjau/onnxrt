@@ -345,6 +345,32 @@ where
     }
 }
 
+impl PartialNarrowLast<Option<TaggedReceiver>> for Vec<Option<TaggedReceiver>> {
+    fn parse<I>(it: I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = Option<TaggedReceiver>>,
+    {
+        Ok(it.collect())
+    }
+}
+
+impl PartialNarrowLast<Option<TaggedReceiver>> for Vec<TaggedReceiver> {
+    fn parse<I>(it: I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = Option<TaggedReceiver>>,
+    {
+        let mut res = vec![];
+        for (i, item) in it.enumerate() {
+            let item = item
+                .ok_or_else(|| anyhow!("The '{}'th variadic input is required but missing", i))?;
+            res.push(item);
+        }
+        Ok(res)
+    }
+}
+
 impl PartialNarrowLast<TaggedReceiver> for Homogeneous {
     fn parse<I>(mut it: I) -> Result<Self>
     where

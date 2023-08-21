@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{anyhow, bail, Context, Result};
-use onnx_protos::onnx_proto3::{GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto};
-use protobuf::Message;
+use onnx_protos::onnx_proto3::{
+    AttributeProto, GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto,
+};
+use protobuf::{Message, MessageField};
 use pyo3::prelude::*;
 
 use crate::{value_channel, Attributes, DataType, Dispatcher, TaggedReceiver, Value, ValueSender};
@@ -12,6 +14,8 @@ use crate::{value_channel, Attributes, DataType, Dispatcher, TaggedReceiver, Val
 pub struct Session {
     /// Computational steps as callable functions
     steps: Vec<ExecFnSignature>,
+    /// Explicit inputs of the top-level graph.
+    explicit_input_names: Vec<String>,
     /// Mandatory inputs for this session
     inputs: Inputs,
     /// Output channels which are filled after all `steps` where called.
@@ -156,6 +160,8 @@ impl Session {
         graph: &GraphProto,
         setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
+        let explicit_input_names = graph.input.iter().map(|item| item.name.clone()).collect();
+
         // External inputs and initializers
         let (inputs, scope) = prepare_inputs(&graph.input)?;
         let (inputs, scope) = prepare_initializer(&graph.initializer, inputs, scope)?;
@@ -168,6 +174,7 @@ impl Session {
             steps,
             inputs,
             outputs,
+            explicit_input_names,
         })
     }
 
@@ -176,6 +183,8 @@ impl Session {
         setup_dict: &HashMap<&'static str, SetupFnSignature>,
         outer_scope: &Scope,
     ) -> anyhow::Result<Self> {
+        let explicit_input_names = graph.input.iter().map(|item| item.name.clone()).collect();
+
         // External inputs and initializers
         let (inputs, scope) = prepare_inputs(&graph.input)?;
         let (inputs, scope) = prepare_initializer(&graph.initializer, inputs, scope)?;
@@ -189,10 +198,14 @@ impl Session {
             steps,
             inputs,
             outputs,
+            explicit_input_names,
         })
     }
 
-    pub fn run(&self, input_values: &HashMap<String, Value>) -> Result<HashMap<String, Value>> {
+    pub fn run_named(
+        &self,
+        input_values: &HashMap<String, Value>,
+    ) -> Result<HashMap<String, Value>> {
         for (name, (value_dispatcher, default)) in &self.inputs.0 {
             let provided_value = input_values.get(name.as_str());
 
@@ -210,6 +223,27 @@ impl Session {
         self.outputs
             .iter()
             .map(|(k, output_ch)| output_ch.recv().map(|v| (k.clone(), v)))
+            .collect()
+    }
+
+    pub fn run_indexed(&self, input_values: &HashMap<String, Value>) -> Result<Vec<Value>> {
+        for (name, (value_dispatcher, default)) in &self.inputs.0 {
+            let provided_value = input_values.get(name.as_str());
+
+            match (provided_value, default) {
+                (None, None) => bail!("Required input '{}' was not provided", name),
+                (Some(val), _) => value_dispatcher.send(val.clone()).unwrap(),
+                (None, Some(val)) => value_dispatcher.send(val.clone()).unwrap(),
+            }
+        }
+
+        for step in &self.steps {
+            step()?;
+        }
+
+        self.outputs
+            .iter()
+            .map(|(_, output_ch)| output_ch.recv())
             .collect()
     }
 
@@ -236,7 +270,15 @@ impl Session {
             .collect()
     }
 
+    pub(crate) fn get_explicit_input_names(&self) -> Vec<&str> {
+        self.explicit_input_names
+            .iter()
+            .map(|item| item.as_str())
+            .collect()
+    }
+
     /// Get names of required input names (including implict ones).
+    /// The order is not deterministic!
     pub(crate) fn input_names(&self) -> Vec<&str> {
         self.inputs
             .0
@@ -361,13 +403,15 @@ fn prepare_implicit_inputs(
     inputs: Inputs,
     outer_scope: &Scope,
     mut scope: Scope,
-    _graph: &GraphProto,
+    graph: &GraphProto,
 ) -> (Inputs, Scope) {
     let mut dtypes = HashMap::new();
     let mut value_dispatchers = inputs.0;
 
-    for (k, v) in outer_scope.iter() {
-        dtypes.insert(k.clone(), v.dtype());
+    let implicit_names = get_implicit_inputs(graph);
+    for name in implicit_names.iter() {
+        let dtype = outer_scope.get(*name).unwrap().dtype();
+        dtypes.insert(name, dtype);
     }
 
     for (name, dtype) in dtypes.into_iter() {
@@ -379,29 +423,29 @@ fn prepare_implicit_inputs(
     (Inputs(value_dispatchers), scope)
 }
 
-// /// Find all inputs which are not defined in the explicit inputs of
-// /// the graph or defined by other nodes in scope. Recurses into subgraphs.
-// pub(crate) fn get_implicit_inputs(g: &GraphProto) -> Result<HashSet<&str>> {
-//     let mut explicit = HashSet::<_>::from_iter(g.input.iter().map(|v_info| v_info.name.clone()));
-//     let mut implicit = HashSet::new();
-//     for node in &g.node {
-//         for input in &node.input {
-//             if !explicit.contains(input) {
-//                 implicit.insert(input.as_str());
-//             }
-//         }
-//         for attr_proto in &node.attribute {
-//             if let AttributeProto {
-//                 g: MessageField(Some(g)),
-//                 ..
-//             } = attr_proto
-//             {
-//                 implicit.extend(get_implicit_inputs(&g)?.iter());
-//             }
-//         }
-//         for output in &node.output {
-//             explicit.insert(output.clone());
-//         }
-//     }
-//     Ok(implicit)
-// }
+/// Find all inputs which are not defined in the explicit inputs of
+/// the graph or defined by other nodes in scope. Recurses into subgraphs.
+pub fn get_implicit_inputs(g: &GraphProto) -> HashSet<&str> {
+    let mut explicit = HashSet::<_>::from_iter(g.input.iter().map(|v_info| v_info.name.clone()));
+    let mut implicit = HashSet::new();
+    for node in &g.node {
+        for input in &node.input {
+            if !explicit.contains(input) {
+                implicit.insert(input.as_str());
+            }
+        }
+        for attr_proto in &node.attribute {
+            if let AttributeProto {
+                g: MessageField(Some(g)),
+                ..
+            } = attr_proto
+            {
+                implicit.extend(get_implicit_inputs(g).iter());
+            }
+        }
+        for output in &node.output {
+            explicit.insert(output.clone());
+        }
+    }
+    implicit
+}
