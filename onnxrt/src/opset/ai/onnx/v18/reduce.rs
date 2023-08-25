@@ -7,11 +7,11 @@ use crate::attribute::Attributes;
 use super::*;
 
 fn reduce_max<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd,
 {
@@ -19,11 +19,11 @@ where
 }
 
 fn reduce_min<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd,
 {
@@ -31,11 +31,11 @@ where
 }
 
 fn reduce_sum<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero,
 {
@@ -43,37 +43,37 @@ where
 }
 
 fn reduce_sum_square<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero + Mul<Output = D>,
 {
-    let sq_data: ArcArrayD<_> = data.mapv(|el| el * el).into();
-    reduce_sum(sq_data, axes, keep_dims, noop_empty)
+    let sq_data = data.mapv(|el| el * el);
+    reduce_sum(sq_data.view(), axes, keep_dims, noop_empty)
 }
 
 fn reduce_l1<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero + Signed,
 {
-    let abs_data: ArcArrayD<_> = data.mapv(|el| el.abs()).into();
-    reduce_sum(abs_data, axes, keep_dims, noop_empty)
+    let abs_data = data.mapv(|el| el.abs());
+    reduce_sum(abs_data.view(), axes, keep_dims, noop_empty)
 }
 
 fn reduce_l2<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero + Float,
 {
@@ -83,52 +83,52 @@ where
 }
 
 fn reduce_log_sum<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero + Float,
 {
     let sum = reduce_sum(data, axes, keep_dims, noop_empty)?;
-    let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
+    let log_data = sum.mapv(|el| el.ln());
     Ok(log_data)
 }
 
 fn reduce_log_sum_exp<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero + Float,
 {
-    let exp: ArcArrayD<_> = data.mapv(|el| el.exp()).into();
-    let sum = reduce_sum(exp, axes, keep_dims, noop_empty)?;
-    let log_data: ArcArrayD<_> = sum.mapv(|el| el.ln()).into();
+    let exp = data.mapv(|el| el.exp());
+    let sum = reduce_sum(exp.view(), axes, keep_dims, noop_empty)?;
+    let log_data = sum.mapv(|el| el.ln());
     Ok(log_data)
 }
 
 fn reduce_prod<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + One,
 {
     reduce(data, axes, D::one(), fold_mul, keep_dims, noop_empty)
 }
 
-fn reduce_mean<D>(
-    data: ArcArrayD<D>,
-    axes: Option<ArcArrayD<i64>>,
+pub fn reduce_mean<D>(
+    data: ArrayViewD<D>,
+    axes: &[i64],
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<D>>
+) -> Result<ArrayD<D>>
 where
     D: Bounded + Copy + PartialOrd + Zero + std::ops::Div<Output = D> + 'static,
     usize: AsPrimitive<D>,
@@ -142,25 +142,24 @@ where
 }
 
 fn reduce<T, F>(
-    arr: ArcArrayD<T>,
-    axes: Option<ArcArrayD<i64>>,
+    arr: ArrayViewD<T>,
+    axes: &[i64],
     fold_init: T,
     fold_fn: F,
     keep_dims: bool,
     noop_empty: bool,
-) -> Result<ArcArrayD<T>>
+) -> Result<ArrayD<T>>
 where
     T: Copy + Bounded + PartialOrd,
     F: Fn(&T, &T) -> T,
 {
-    let axes = axes.unwrap_or_else(|| ndarray::array!([]).into_dyn().into());
     let initial_shape = arr.shape().to_vec();
     let rank = initial_shape.len();
 
     // Deal with special case around empty `arr`
     let axes = if axes.is_empty() {
         if noop_empty {
-            return Ok(arr);
+            return Ok(arr.to_owned());
         } else {
             (0..arr.shape().len()).collect()
         }
@@ -276,7 +275,16 @@ macro_rules! create_setup_function {
             use TaggedReceiver::*;
             match data_ch {
                 $($variant(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
-                    $fun(data, axes, state.keep_dims, state.noop_empty)
+                    let axes = axes.map(|axes| axes.as_standard_layout().to_owned());
+                    let axes = {
+                        if let Some(axes) = axes.as_ref() {
+                            axes.as_slice().unwrap()
+                        } else {
+                            &[][..]
+                        }
+                    };
+                    let out = $fun(data.view(), axes, state.keep_dims, state.noop_empty)?;
+                    Ok::<ArcArrayD<_>, _>(out.into())
                 }),)*
                 _ => bail!("Type support of reduce operations is limited."),
             }

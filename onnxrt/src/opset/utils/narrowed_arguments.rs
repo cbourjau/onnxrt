@@ -95,6 +95,25 @@ impl_Narrow_for_tuples!(A, B, C, D, E | Z);
 
 //////////////// Implementations of `PartialNarrow`
 
+impl<T> PartialNarrow<Option<TaggedReceiver>> for T
+where
+    T: PartialNarrow<TaggedReceiver>,
+{
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = Option<TaggedReceiver>>,
+    {
+        let tmp: Option<Vec<_>> = it.by_ref().take(T::N_ITEMS).collect();
+
+        let tmp = tmp.ok_or_else(|| anyhow!("Required input was missing"))?;
+
+        if tmp.len() != T::N_ITEMS {
+            bail!("Insufficient number of inputs")
+        }
+        T::parse(&mut tmp.into_iter())
+    }
+}
+
 impl<T> PartialNarrow<Option<TaggedReceiver>> for Option<T>
 where
     T: PartialNarrow<TaggedReceiver>,
@@ -105,9 +124,8 @@ where
     {
         let mut items = vec![];
         for _ in 0..T::N_ITEMS {
-            let item = it
-                .next()
-                .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+            // It might be that we exhaust the optional inputs early
+            let item = it.next().unwrap_or_else(|| None);
             items.push(item);
         }
 

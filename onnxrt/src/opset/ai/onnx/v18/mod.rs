@@ -27,6 +27,7 @@ mod gather_nd;
 mod global_average_pool;
 mod if_;
 mod isinf;
+mod layer_normalization;
 mod loop_;
 mod matmul;
 mod min_max;
@@ -87,6 +88,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("GreaterOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::ge));
     d.insert("If", Box::new(if_::setup_if));
     d.insert("IsInf", Box::new(isinf::setup_isinf));
+    d.insert("LayerNormalization", Box::new(layer_normalization::setup_ln));
     d.insert("Loop", Box::new(loop_::setup_loop));
     d.insert("LogSoftmax", Box::new(softmax::setup_log_softmax));
     d.insert("LeakyRelu", Box::new(relu_with_attr::setup_leaky_relu));

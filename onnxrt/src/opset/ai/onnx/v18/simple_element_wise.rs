@@ -85,6 +85,7 @@ pub fn get_setup_dict() -> HashMap<&'static str, SetupFnSignature> {
     setup_dict.insert("Log", element_wise!(float, |el| el.ln()));
     setup_dict.insert("Neg", element_wise!(signed, |a| -a));
     setup_dict.insert("Not", Box::new(setup_not));
+    setup_dict.insert("Reciprocal", element_wise!(float, |el| el.recip()));
     setup_dict.insert("Relu", element_wise!(float, |el| el.max(0.0)));
 
     setup_dict.insert(

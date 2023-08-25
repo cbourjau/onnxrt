@@ -49,7 +49,8 @@ macro_rules! unequal_bail_numeric {
     ($k:expr, $exp:expr, $obs:expr) => {
         if $exp.shape() != $obs.shape() {
             bail!(
-                "Unequal shapes: exp: {:?}; obs: {:?}",
+                "Unequal shapes for '{}': exp: {:?}; obs: {:?}",
+                $k,
                 $exp.shape(),
                 $obs.shape()
             );
@@ -215,6 +216,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_loop11").unwrap();
+    let tc = get_node_test("test_layer_normalization_2d_axis0").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }
