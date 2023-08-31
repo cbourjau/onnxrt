@@ -46,31 +46,32 @@ where
 }
 
 impl State {
-    fn mod_<T>(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>>
+    fn mod_<T>(&self, a: ArrayViewD<T>, b: ArrayViewD<T>) -> Result<ArcArrayD<T>>
     where
         T: Float,
     {
-        if self.fmod {
+        Ok(if self.fmod {
             zip_map_with_co_broadcast(a, b, |&a, &b| fmod(a, b))
         } else {
             zip_map_with_co_broadcast(a, b, |&a, &b| python_mod_float(a, b))
-        }
+        }?
+        .into())
     }
 
-    fn integer_mod<T>(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>>
+    fn integer_mod<T>(&self, a: ArrayViewD<T>, b: ArrayViewD<T>) -> Result<ArcArrayD<T>>
     where
         T: Integer + AsPrimitive<f64>,
         f64: AsPrimitive<T>,
     {
-        if !self.fmod {
-            zip_map_with_co_broadcast(a, b, |&a, &b| python_mod_int(a, b))
+        Ok(if !self.fmod {
+            zip_map_with_co_broadcast(a, b, |&a, &b| python_mod_int(a, b))?.into()
         } else {
-            let a = a.mapv(|el| el.as_()).into();
-            let b = b.mapv(|el| el.as_()).into();
-            let res = self.mod_(a, b)?;
+            let a = a.mapv(|el| el.as_());
+            let b = b.mapv(|el| el.as_());
+            let res = self.mod_(a.view(), b.view())?;
             let out: ArcArrayD<_> = res.mapv(|el| el.as_()).into();
-            Ok(out)
-        }
+            out
+        })
     }
 }
 
@@ -82,17 +83,17 @@ pub fn setup_mod(ctx: OpContext) -> Result<ExecutionStep> {
 
     use HomogeneousNumericFixed::*;
     match inputs {
-        F32([a, b]) => setup((a, b), move |(a, b)| state.mod_(a, b)),
-        F64([a, b]) => setup((a, b), move |(a, b)| state.mod_(a, b)),
+        F32([a, b]) => setup((a, b), move |(a, b)| state.mod_(a.view(), b.view())),
+        F64([a, b]) => setup((a, b), move |(a, b)| state.mod_(a.view(), b.view())),
 
-        I8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
-        I16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
-        I32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
-        I64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
+        I8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
+        I16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
+        I32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
+        I64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
 
-        U8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
-        U16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
-        U32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
-        U64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a, b)),
+        U8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
+        U16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
+        U32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
+        U64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
     }
 }

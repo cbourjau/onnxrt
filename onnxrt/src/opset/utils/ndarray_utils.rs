@@ -3,9 +3,7 @@
 //! step.
 use anyhow::{bail, Result};
 use itertools::izip;
-use ndarray::{Dimension, IntoDimension, IxDyn, Zip};
-
-use crate::ArcArrayD;
+use ndarray::{ArrayD, ArrayViewD, Dimension, IntoDimension, IxDyn, Zip};
 
 /// Index types as used in the ONNX standard. Namely i32 and
 /// i64. Negative values are counted from the end of a dimension's
@@ -75,10 +73,10 @@ where
 }
 
 pub fn zip_map_with_co_broadcast<A, B, Out, Op>(
-    a: ArcArrayD<A>,
-    b: ArcArrayD<B>,
+    a: ArrayViewD<A>,
+    b: ArrayViewD<B>,
     op: Op,
-) -> Result<ArcArrayD<Out>>
+) -> Result<ArrayD<Out>>
 where
     A: Clone,
     B: Clone,
@@ -87,8 +85,8 @@ where
     let common_shape: IxDyn =
         co_broadcast(&a.shape().into_dimension(), &b.shape().into_dimension())?;
     // Unwrap is fine below since we just computed the common shape above.
-    Ok(Zip::from(a.view().broadcast(common_shape).unwrap())
-        .and_broadcast(b.view())
+    Ok(Zip::from(a.broadcast(common_shape).unwrap())
+        .and_broadcast(b)
         .map_collect(op)
         .into())
 }

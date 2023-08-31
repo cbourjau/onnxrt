@@ -24,3 +24,15 @@ pub use crate::session::{get_implicit_inputs, ExecutionStep, OpContext};
 pub use crate::ArcArrayD;
 pub(crate) use crate::Attributes;
 pub use crate::{bin_numeric_with_co_broadcast, binary_op_factory, setup_all};
+
+pub trait IntoArc {
+    type Output;
+    fn into_arc(self) -> Result<Self::Output>;
+}
+
+impl<T> IntoArc for Result<ArrayD<T>> {
+    type Output = ArcArrayD<T>;
+    fn into_arc(self) -> Result<Self::Output> {
+        self.map(Into::into)
+    }
+}

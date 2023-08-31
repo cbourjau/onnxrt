@@ -10,11 +10,12 @@ pub fn setup_sum(ctx: OpContext) -> Result<ExecutionStep> {
             let mut iter = data.into_iter();
             let mut out = iter
                 .next()
-                .ok_or_else(|| anyhow!("Sum: At least one input is required"))?;
+                .ok_or_else(|| anyhow!("Sum: At least one input is required"))?
+                .to_owned();
             for arr in iter {
-                out = zip_map_with_co_broadcast(out, arr, |a, b| a + b)?;
+                out = zip_map_with_co_broadcast(out.view(), arr.view(), |a, b| a + b)?;
             }
-            Ok(out)
+            Ok(out).into_arc()
         })
     )
 }

@@ -111,6 +111,8 @@ macro_rules! binary_op_factory {
 #[macro_export]
 macro_rules! bin_numeric_with_co_broadcast {
     ($fun:expr) => {
-        binary_op_factory!(numeric, |a, b| zip_map_with_co_broadcast(a, b, $fun))
+        binary_op_factory!(numeric, |a: ArcArrayD<_>, b: ArcArrayD<_>| {
+            zip_map_with_co_broadcast(a.view(), b.view(), $fun).into_arc()
+        })
     };
 }

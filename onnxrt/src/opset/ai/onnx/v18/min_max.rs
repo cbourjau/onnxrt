@@ -25,12 +25,13 @@ where
     let mut inputs = inputs.into_iter();
     let mut acc = inputs
         .next()
-        .ok_or_else(|| anyhow!("'Min' operator expects at least one input"))?;
+        .ok_or_else(|| anyhow!("'Min' operator expects at least one input"))?
+        .to_owned();
 
     for el in inputs {
-        acc = zip_map_with_co_broadcast(acc, el, fun)?;
+        acc = zip_map_with_co_broadcast(acc.view(), el.view(), fun)?;
     }
-    Ok(acc)
+    Ok(acc.into())
 }
 
 pub fn setup_min(ctx: OpContext) -> Result<ExecutionStep> {

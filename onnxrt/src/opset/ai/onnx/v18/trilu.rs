@@ -4,7 +4,7 @@ use crate::opset::utils::*;
 
 fn trilu<T>(x: ArrayD<T>, k: isize, retain_upper: bool) -> Result<ArrayD<T>>
 where
-    T: Clone + Zero + Copy + std::fmt::Debug,
+    T: Clone + Zero + Copy,
 {
     let input_shape = x.shape().to_vec();
     let ndim = x.ndim();

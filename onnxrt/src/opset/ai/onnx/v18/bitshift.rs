@@ -21,14 +21,15 @@ impl BitShift {
         Ok(Self { direction })
     }
 
-    fn compute<T>(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>>
+    fn compute<T>(&self, a: ArrayViewD<T>, b: ArrayViewD<T>) -> Result<ArcArrayD<T>>
     where
         T: Clone + std::ops::Shl<Output = T> + std::ops::Shr<Output = T> + Copy,
     {
-        match self.direction {
+        Ok(match self.direction {
             Direction::Left => zip_map_with_co_broadcast(a, b, |&a, &b| a << b),
             Direction::Right => zip_map_with_co_broadcast(a, b, |&a, &b| a >> b),
-        }
+        }?
+        .into())
     }
 }
 
@@ -38,10 +39,10 @@ pub fn setup_bishift(ctx: OpContext) -> Result<ExecutionStep> {
 
     use HomogeneousNumericFixed::*;
     match inputs {
-        U8([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
-        U16([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
-        U32([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
-        U64([a, b]) => setup((a, b), move |(a, b)| state.compute(a, b)),
+        U8([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
+        U16([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
+        U32([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
+        U64([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
         _ => bail!("BitShift: Expected unsigned input found: {:?}", inputs),
     }
 }
