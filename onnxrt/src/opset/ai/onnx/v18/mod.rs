@@ -30,6 +30,7 @@ mod isinf;
 mod layer_normalization;
 mod loop_;
 mod matmul;
+mod mean;
 mod min_max;
 mod mod_;
 mod one_hot;
@@ -97,6 +98,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("LessOrEqual", bin_numeric_with_co_broadcast!(PartialOrd::le));
     d.insert("MatMul", Box::new(matmul::setup_matmul));
     d.insert("Max", Box::new(min_max::setup_max));
+    d.insert("Mean", Box::new(mean::setup_mean));
     d.insert("Min", Box::new(min_max::setup_min));
     d.insert("Mod", Box::new(mod_::setup_mod));
     d.insert("Mul", binary_op_factory!(numeric, |a, b| Ok(a * b)));
