@@ -10,20 +10,19 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
         data,
         data,
         setup((data, shape), move |(data, shape)| {
-            reshape(
-                data,
-                shape.as_standard_layout().as_slice().unwrap(),
-                allow_zero,
+            Ok::<ArcArrayD<_>, _>(
+                reshape(
+                    data.into_owned(),
+                    shape.as_standard_layout().as_slice().unwrap(),
+                    allow_zero,
+                )?
+                .into(),
             )
         })
     )
 }
 
-pub(crate) fn reshape<D>(
-    data: ArcArrayD<D>,
-    shape: &[i64],
-    allow_zero: bool,
-) -> Result<(ArcArrayD<D>,)>
+pub(crate) fn reshape<D>(data: ArrayD<D>, shape: &[i64], allow_zero: bool) -> Result<ArrayD<D>>
 where
     D: Clone + std::fmt::Debug,
 {
@@ -71,5 +70,5 @@ where
         bail!("Reshaped tensor must have same number of elements as input tensor")
     }
 
-    Ok((data.reshape(fixed),))
+    Ok(data.into_shape(fixed)?)
 }

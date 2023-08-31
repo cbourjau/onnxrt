@@ -49,6 +49,7 @@ mod split;
 mod sum;
 mod topk;
 mod transpose;
+mod trilu;
 mod unique;
 mod where_;
 
@@ -128,6 +129,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ThresholdedRelu", Box::new(relu_with_attr::setup_thresholded_relu));
     d.insert("TopK", Box::new(topk::setup_topk));
     d.insert("Transpose", Box::new(transpose::setup_transpose));
+    d.insert("Trilu", Box::new(trilu::setup_trilu));
     d.insert("Unique", Box::new(unique::setup_unique));
     d.insert("Unsqueeze", Box::new(setup_unsqueeze));
     d.insert("Where", Box::new(where_::setup_where));
