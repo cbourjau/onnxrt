@@ -1,23 +1,25 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::iter::Sum;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Rem};
+use std::unimplemented;
 
-
-use anyhow::{Result};
+use anyhow::Result;
 use itertools::izip;
 use ndarray::{Array2, ArrayD, Axis};
 use num_traits::{AsPrimitive, Float};
 
-use super::inference::InferenceTree;
 use super::parsing::{NodeType, TreeEnsembleAttributes};
 use crate::attribute::Attribute;
 use crate::{ArcArrayD, Attributes};
 
 #[derive(Debug)]
 pub struct TreeEnsemble<T> {
-    /// Vector of trees per class. The outer vector is the class bin.
-    trees_per_class: Vec<Vec<InferenceTree<T>>>,
+    class_trees_nodes: Vec<Vec<HashMap<NodeIdx, Node<T>>>>,
 }
+
+type ClassIdx = i64;
+type NodeIdx = i64;
+type TreeIdx = i64;
 
 #[derive(Debug)]
 pub struct Tree<T> {
@@ -36,7 +38,46 @@ pub struct SplitNode<T> {
     pub feature_idx: usize,
     pub nan_follows_true: bool,
     pub comparison: fn(&T, &T) -> bool,
-    pub true_false_node_idx: (usize, usize),
+    pub true_false_node_idx: (NodeIdx, NodeIdx),
+}
+
+impl<T> Node<T>
+where
+    T: Clone + Copy + Float + Sum<T> + 'static,
+{
+    fn new_split(
+        threshold: T,
+        feature_idx: i64,
+        nan_follows_true: bool,
+        mode: &NodeType,
+        true_node: NodeIdx,
+        false_node: NodeIdx,
+    ) -> Self {
+        match mode {
+            &NodeType::BranchLEq => Node::Split(SplitNode {
+                threshold,
+                feature_idx: feature_idx as usize,
+                comparison: comparisons::leq,
+                nan_follows_true,
+                true_false_node_idx: (true_node, false_node),
+            }),
+            &NodeType::BranchEq => Node::Split(SplitNode {
+                threshold,
+                feature_idx: feature_idx as usize,
+                comparison: comparisons::eq,
+                nan_follows_true,
+                true_false_node_idx: (true_node, false_node),
+            }),
+            ty => {
+                dbg!(feature_idx, nan_follows_true, mode, true_node, false_node);
+
+                unimplemented!("Node type {:?} is unimplemented.", ty)
+            }
+        }
+    }
+    fn new_leaf(value: T) -> Self {
+        Node::Leaf(value)
+    }
 }
 
 impl<T> TreeEnsemble<T>
@@ -47,32 +88,30 @@ where
     where
         Vec<T>: TryFrom<&'s Attribute, Error = anyhow::Error>,
     {
-        let attrs = TreeEnsembleAttributes::<T>::from_attributes(attrs).unwrap();
-        // The leaf weights are can be looked up by nodeid & tree id
-        let target_lookup: HashMap<_, _> = attrs
+        let attrs = TreeEnsembleAttributes::<T>::from_attributes(attrs)?;
+        let n_classes = attrs.n_targets;
+        let mut nodes = HashMap::new();
+        for ((node_id, tree_id), (weight, _target_id)) in attrs
             .target_nodeids
-            .iter()
-            .zip(attrs.target_treeids.iter().map(|el| *el as usize))
+            .into_iter()
+            .zip(attrs.target_treeids.into_iter())
             .zip(
                 attrs
                     .target_weights_as_tensor
-                    .iter()
-                    .copied()
-                    .zip(attrs.target_ids.iter().copied()),
+                    .into_iter()
+                    .zip(attrs.target_ids.into_iter()),
             )
-            .collect();
+        {
+            let node = Node::new_leaf(weight);
+            let class_id = tree_id.rem(n_classes);
+            nodes
+                .entry(class_id)
+                .or_insert_with(HashMap::new)
+                .entry(tree_id)
+                .or_insert_with(HashMap::new)
+                .insert(node_id, node);
+        }
 
-        let mut trees = vec![];
-        let mut target_id_of_tree = vec![
-            HashSet::new();
-            attrs
-                .target_treeids
-                .iter()
-                .map(|el| *el as usize)
-                .max()
-                .unwrap()
-                + 1
-        ];
         let data = izip!(
             &attrs.nodes_nodeids,
             &attrs.nodes_treeids,
@@ -80,10 +119,7 @@ where
             &attrs.nodes_falsenodeids,
             &attrs.nodes_modes,
             &attrs.nodes_values_as_tensor,
-            attrs
-                .nodes_missing_value_tracks_true
-                .iter()
-                .map(|el| *el != 0),
+            attrs.nodes_missing_value_tracks_true,
             &attrs.nodes_featureids
         );
         for (
@@ -97,86 +133,60 @@ where
             feature_idx,
         ) in data
         {
-            let tree_id = *tree_id as usize;
-            if trees.len() < tree_id + 1 {
-                trees.push(Tree { nodes: vec![] });
+            if let NodeType::Leaf = mode {
+                continue;
             }
-            let tree = &mut trees[tree_id];
-            let node = match mode {
-                &NodeType::Leaf => {
-                    let (value, target_id) = target_lookup.get(&(node_id, tree_id)).unwrap();
-                    target_id_of_tree[tree_id].insert(target_id);
-                    Node::Leaf(*value)
-                }
-                &NodeType::BranchLEq => Node::Split(SplitNode {
-                    threshold: *threshold,
-                    feature_idx: *feature_idx as usize,
-                    comparison: comparisons::leq,
-                    nan_follows_true,
-                    true_false_node_idx: (*true_node as usize, *false_node as usize),
-                }),
-                &NodeType::BranchEq => Node::Split(SplitNode {
-                    threshold: *threshold,
-                    feature_idx: *feature_idx as usize,
-                    comparison: comparisons::eq,
-                    nan_follows_true,
-                    true_false_node_idx: (*true_node as usize, *false_node as usize),
-                }),
-                ty => {
-                    unimplemented!("Node type {:?} is unimplemented.", ty)
-                }
-            };
-            tree.nodes.push(node);
+            let node = Node::new_split(
+                *threshold,
+                *feature_idx,
+                nan_follows_true,
+                mode,
+                *true_node,
+                *false_node,
+            );
+            let class_id = tree_id.rem(n_classes);
+            nodes
+                .get_mut(&class_id)
+                .unwrap()
+                .get_mut(tree_id)
+                .unwrap()
+                .insert(*node_id, node);
         }
 
-        // Structure the trees in order of their class (aka target)
-        for observed_ids_per_tree in target_id_of_tree.iter() {
-            if observed_ids_per_tree.len() > 1 {
-                panic!("All leafs of a tree must have the same target id.");
-            }
-        }
-
-        let target_id_of_trees: Vec<_> = target_id_of_tree
+        let mut nodes: Vec<(ClassIdx, _)> = nodes
             .into_iter()
-            .map(|set| *set.into_iter().next().unwrap() as usize)
+            .map(|(cls_idx, trees)| {
+                let mut trees: Vec<_> = trees.into_iter().collect();
+                trees.sort_unstable_by_key(|el| el.0);
+                (cls_idx, trees.into_iter().map(|el| el.1).collect())
+            })
             .collect();
-        let n_classes = *target_id_of_trees.iter().max().unwrap() + 1;
-        let mut trees_per_class = vec![vec![]; n_classes];
-        for (i, onnx_tree) in trees.iter().enumerate() {
-            let i_class = target_id_of_trees[i];
-            trees_per_class[i_class].push(InferenceTree::from_onnx_tree(onnx_tree, 0));
-        }
-        Ok(Self { trees_per_class })
+        nodes.sort_unstable_by_key(|el| el.0);
+        Ok(Self {
+            class_trees_nodes: nodes.into_iter().map(|(_k, v)| v).collect(),
+        })
     }
 
     pub fn predict(&self, input: &ArcArrayD<T>) -> ArrayD<f32>
     where
         T: 'static + Float + AddAssign<T> + AsPrimitive<f32>,
     {
-        let n_classes = self.n_classes();
-        let mut output = Array2::<T>::zeros((input.shape()[0], n_classes));
+        let mut output = Array2::<T>::zeros((input.shape()[0], self.class_trees_nodes.len()));
 
-        let input = input.view().into_dimensionality::<ndarray::Ix2>().unwrap();
+        let input = input
+            .as_standard_layout()
+            .into_dimensionality::<ndarray::Ix2>()
+            .unwrap();
 
-        // Assumption: It is more expensive to fetch the tree than the data
-        // FIXME: It turns out to be slower to have the trees in
-        // separate vectors rather than one vector. Its probably still
-        // a good idea to sort by class, though!
-        for (mut out, trees) in output
-            .axis_iter_mut(Axis(1))
-            .zip(self.trees_per_class.iter())
+        for (mut out, trees_of_class) in output.axis_iter_mut(Axis(1)).zip(&self.class_trees_nodes)
         {
-            for tree in trees {
+            for tree in trees_of_class {
                 for (row, out) in input.axis_iter(Axis(0)).zip(out.iter_mut()) {
-                    *out += tree.predict(&row);
+                    *out += predict(tree, row.as_slice().unwrap());
                 }
             }
         }
         output.mapv(|el| el.as_()).into_dyn()
-    }
-
-    fn n_classes(&self) -> usize {
-        self.trees_per_class.len()
     }
 }
 
@@ -191,36 +201,77 @@ mod comparisons {
     }
 }
 
+fn predict<T>(tree: &HashMap<i64, Node<T>>, features: &[T]) -> T
+where
+    T: Float,
+{
+    // Prediction starts at index 0
+    match tree.get(&0).unwrap() {
+        Node::Split(split) => {
+            let mut current_node = split;
+            loop {
+                let feature_idx = split.feature_idx;
+                let feature = features[feature_idx];
+                let next_node_idx = if feature.is_nan() {
+                    if current_node.nan_follows_true {
+                        &current_node.true_false_node_idx.0
+                    } else {
+                        &current_node.true_false_node_idx.1
+                    }
+                } else if (current_node.comparison)(&feature, &current_node.threshold) {
+                    &current_node.true_false_node_idx.0
+                } else {
+                    &current_node.true_false_node_idx.1
+                };
+
+                match tree.get(next_node_idx).unwrap() {
+                    Node::Split(ref split) => {
+                        current_node = split;
+                    }
+                    Node::Leaf(val) => break *val,
+                }
+            }
+        }
+        Node::Leaf(val) => *val,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ndarray::array;
 
-    fn make_tree() -> InferenceTree<f64> {
-        let nodes = vec![
-            Node::Split(SplitNode {
-                threshold: 1.0,
-                feature_idx: 1,
-                nan_follows_true: false,
-                true_false_node_idx: (1, 2),
-                comparison: comparisons::leq,
-            }),
-            Node::Leaf(-1.0),
-            Node::Leaf(42.0),
-        ];
-        InferenceTree::from_onnx_tree(&Tree { nodes }, 0)
+    fn make_tree() -> HashMap<i64, Node<f64>> {
+        HashMap::from_iter(
+            [
+                (
+                    0,
+                    Node::Split(SplitNode {
+                        threshold: 1.0,
+                        feature_idx: 1,
+                        nan_follows_true: false,
+                        true_false_node_idx: (1, 2),
+                        comparison: comparisons::leq,
+                    }),
+                ),
+                (1, Node::Leaf(-1.0)),
+                (2, Node::Leaf(42.0)),
+            ]
+            .into_iter(),
+        )
     }
 
     #[test]
     fn test_tree() {
         let tree = make_tree();
-        assert_eq!(tree.predict(&array![0.0, 0.0].view()), -1.0);
-        assert_eq!(tree.predict(&array![0.0, 2.0].view()), 42.0);
+        assert_eq!(predict(&tree, &[0.0, 0.0]), -1.0);
+        assert_eq!(predict(&tree, &[0.0, 2.0]), 42.0);
     }
+
     #[test]
     fn test_ensemble() {
         let ensemble = TreeEnsemble {
-            trees_per_class: vec![vec![make_tree()]],
+            class_trees_nodes: vec![vec![make_tree()]],
         };
         let input = array![[0.0, 0.0], [0.0, 2.0]].into_dyn().into();
         assert_eq!(ensemble.predict(&input), array![[-1.0], [42.]].into_dyn());

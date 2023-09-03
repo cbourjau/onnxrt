@@ -9,12 +9,12 @@ use crate::Attributes;
 
 #[derive(Debug)]
 pub struct TreeEnsembleAttributes<T> {
-    // n_targets: i64,
+    pub(crate) n_targets: i64,
     pub(crate) aggregate_function: AggregateFunction,
     pub(crate) base_values_as_tensor: Vec<T>,
     pub(crate) nodes_falsenodeids: Vec<i64>,
     pub(crate) nodes_featureids: Vec<i64>,
-    pub(crate) nodes_missing_value_tracks_true: Vec<i64>,
+    pub(crate) nodes_missing_value_tracks_true: Vec<bool>,
     pub(crate) nodes_modes: Vec<NodeType>,
     pub(crate) nodes_nodeids: Vec<i64>,
     pub(crate) nodes_treeids: Vec<i64>,
@@ -109,17 +109,23 @@ impl<T> TreeEnsembleAttributes<T> {
             .into_iter()
             .map(|el| el.parse())
             .collect::<Result<Vec<_>>>()?;
+
+        let nodes_missing_value_tracks_true =
+            Vec::<i64>::try_from(attrs.get("nodes_missing_value_tracks_true")?)?
+                .into_iter()
+                .map(|el| el != 0)
+                .collect();
+
         let out = Self {
+            n_targets: attrs.get("n_targets")?.try_into()?,
             aggregate_function: attrs
                 .get_with_default("aggregate_function", "SUM".to_owned())?
                 .parse()?,
             base_values_as_tensor: attrs.get_with_default("base_values_as_tensor", vec![])?,
             nodes_falsenodeids: attrs.get("nodes_falsenodeids")?.try_into()?,
             nodes_featureids: attrs.get("nodes_featureids")?.try_into()?,
-            nodes_missing_value_tracks_true: attrs
-                .get("nodes_missing_value_tracks_true")?
-                .try_into()?,
             nodes_modes,
+            nodes_missing_value_tracks_true,
             nodes_nodeids: attrs.get("nodes_nodeids")?.try_into()?,
             nodes_treeids: attrs.get("nodes_treeids")?.try_into()?,
             nodes_truenodeids: attrs.get("nodes_truenodeids")?.try_into()?,
