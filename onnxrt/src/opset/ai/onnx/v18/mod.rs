@@ -47,6 +47,7 @@ mod simple_element_wise;
 mod size;
 mod slice;
 mod softmax;
+mod softmax_cross_entropy_loss;
 mod split;
 mod sum;
 mod topk;
@@ -126,6 +127,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Size", Box::new(size::setup_size));
     d.insert("Slice", Box::new(slice::setup_slice));
     d.insert("Softmax", Box::new(softmax::setup_softmax));    
+    d.insert("SoftmaxCrossEntropyLoss", Box::new(softmax_cross_entropy_loss::setup_scme));
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));

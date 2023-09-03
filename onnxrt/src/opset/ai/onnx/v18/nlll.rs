@@ -7,20 +7,20 @@ use num_traits::{AsPrimitive, Zero};
 use crate::opset::utils::*;
 
 #[derive(Debug, Clone, Copy)]
-enum Reduction {
+pub(crate) enum Reduction {
     Sum,
     Mean,
 }
 
-fn nlll<T, Idx>(
-    input: ArrayD<T>,
+pub(crate) fn nlll<T, Idx>(
+    input: ArrayViewD<T>,
     target: ArrayViewD<Idx>,
     weights: Option<ArrayView1<T>>,
     ignore_index: Option<i64>,
     reduction: Option<Reduction>,
 ) -> Result<ArrayD<T>>
 where
-    T: Float + FromPrimitive + Zero + AddAssign + 'static + std::fmt::Debug,
+    T: Float + FromPrimitive + Zero + AddAssign + 'static,
     Idx: Index + AsPrimitive<i64> + TryInto<usize>,
     usize: AsPrimitive<T>,
 {
@@ -114,7 +114,7 @@ pub fn setup_nlll(ctx: OpContext) -> Result<ExecutionStep> {
                 setup((input, target, weights), move |(input, target, weights)| {
                     Ok::<ArcArrayD<_>, _>(
                         nlll(
-                            input.to_owned(),
+                            input.view(),
                             target.view(),
                             Some(weights.view().into_dimensionality()?),
                             state.ignore_index,
@@ -127,7 +127,7 @@ pub fn setup_nlll(ctx: OpContext) -> Result<ExecutionStep> {
             (F32(input), None) => setup((input, target), move |(input, target)| {
                 Ok::<ArcArrayD<_>, _>(
                     nlll(
-                        input.to_owned(),
+                        input.view(),
                         target.view(),
                         None,
                         state.ignore_index,
@@ -140,7 +140,7 @@ pub fn setup_nlll(ctx: OpContext) -> Result<ExecutionStep> {
                 setup((input, target, weights), move |(input, target, weights)| {
                     Ok::<ArcArrayD<_>, _>(
                         nlll(
-                            input.to_owned(),
+                            input.view(),
                             target.view(),
                             Some(weights.view().into_dimensionality()?),
                             state.ignore_index,
@@ -153,7 +153,7 @@ pub fn setup_nlll(ctx: OpContext) -> Result<ExecutionStep> {
             (F64(input), None) => setup((input, target), move |(input, target)| {
                 Ok::<ArcArrayD<_>, _>(
                     nlll(
-                        input.to_owned(),
+                        input.view(),
                         target.view(),
                         None,
                         state.ignore_index,
@@ -183,7 +183,7 @@ mod tests {
         ]
         .into_dyn();
         let target = array![[2, 1], [0, 2]].into_dyn();
-        let loss = nlll(input, target.view(), None, None, None).unwrap();
+        let loss = nlll(input.view(), target.view(), None, None, None).unwrap();
 
         let expected = array![[-3., -2.], [-0., -2.]].into_dyn();
 
@@ -202,7 +202,7 @@ mod tests {
         let weights = array![0.2, 0.3, 0.1];
 
         let loss = nlll(
-            input,
+            input.view(),
             target.view(),
             Some(weights.view()),
             None,
@@ -227,7 +227,7 @@ mod tests {
         let weights = array![0.2, 0.3, 0.1];
 
         let loss = nlll(
-            input,
+            input.view(),
             target.view(),
             Some(weights.view()),
             None,

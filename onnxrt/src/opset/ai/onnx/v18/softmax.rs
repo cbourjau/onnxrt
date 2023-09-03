@@ -2,7 +2,7 @@ use num::Float;
 
 use crate::opset::utils::*;
 
-fn softmax<T>(mut input: ArrayD<T>, axis: i64) -> Result<ArrayD<T>>
+pub fn softmax<T>(mut input: ArrayD<T>, axis: i64) -> Result<ArrayD<T>>
 where
     T: Float,
 {

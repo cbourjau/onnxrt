@@ -255,6 +255,23 @@ impl PartialNarrow<TaggedReceiver> for FloatingPoint {
     }
 }
 
+impl PartialNarrow<TaggedReceiver> for OnnxIndex {
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
+        Ok(map_to_sub_set!(
+            item,
+            TaggedReceiver,
+            Self,
+            "Expected floating point input",
+            I32,
+            I64
+        ))
+    }
+}
+
 impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousFixed<N> {
     const N_ITEMS: usize = N;
 
@@ -497,6 +514,13 @@ pub enum Numeric {
 pub enum FloatingPoint {
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
+}
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
+pub enum OnnxIndex {
+    I32(Receiver<ArcArrayD<i32>>),
+    I64(Receiver<ArcArrayD<i64>>),
 }
 
 /// Homogeneous, numeric variadic inputs
