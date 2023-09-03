@@ -1,21 +1,26 @@
+use num_traits::Float;
+
 /// Data types optimized for inference
 use super::data_structure::{Node, Tree as OnnxTree};
 
 #[derive(Debug, Clone)]
-pub enum InferenceTree {
+pub enum InferenceTree<T> {
     Split {
-        threshold: f64,
+        threshold: T,
         feature_idx: usize,
         nan_follows_true: bool,
-        comparison: fn(f64, f64) -> bool,
-        true_node: Box<InferenceTree>,
-        false_node: Box<InferenceTree>,
+        comparison: fn(T, T) -> bool,
+        true_node: Box<InferenceTree<T>>,
+        false_node: Box<InferenceTree<T>>,
     },
-    Leaf(f64),
+    Leaf(T),
 }
 
-impl InferenceTree {
-    pub fn from_onnx_tree(onnx_tree: &OnnxTree, start_node: usize) -> Self {
+impl<T> InferenceTree<T> {
+    pub fn from_onnx_tree(onnx_tree: &OnnxTree<T>, start_node: usize) -> Self
+    where
+        T: Float,
+    {
         match &onnx_tree.nodes[start_node] {
             Node::Split(split_node) => {
                 // let left = onnx_tree.nodes[split_node.true_false_node_idx.0];
@@ -35,7 +40,10 @@ impl InferenceTree {
         }
     }
 
-    pub fn predict(&self, features: &ndarray::ArrayView1<f64>) -> f64 {
+    pub fn predict(&self, features: &ndarray::ArrayView1<T>) -> T
+    where
+        T: Float,
+    {
         match self {
             Self::Split {
                 feature_idx,
