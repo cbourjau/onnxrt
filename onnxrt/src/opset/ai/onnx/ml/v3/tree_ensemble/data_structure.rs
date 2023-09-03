@@ -1,14 +1,15 @@
 use std::collections::{HashMap, HashSet};
 use std::iter::Sum;
 use std::ops::AddAssign;
-use std::str::FromStr;
 
-use anyhow::{anyhow, Error, Result};
+
+use anyhow::{Result};
 use itertools::izip;
 use ndarray::{Array2, ArrayD, Axis};
-use num_traits::{AsPrimitive, Float, Zero};
+use num_traits::{AsPrimitive, Float};
 
 use super::inference::InferenceTree;
+use super::parsing::{NodeType, TreeEnsembleAttributes};
 use crate::attribute::Attribute;
 use crate::{ArcArrayD, Attributes};
 
@@ -36,144 +37,6 @@ pub struct SplitNode<T> {
     pub nan_follows_true: bool,
     pub comparison: fn(&T, &T) -> bool,
     pub true_false_node_idx: (usize, usize),
-}
-
-#[derive(Debug)]
-enum NodeType {
-    BranchLEq,
-    BranchLT,
-    BranchGTe,
-    BranchGT,
-    BranchEq,
-    BranchNEq,
-    Leaf,
-}
-
-#[derive(PartialEq, Debug)]
-enum PostTransform {
-    None,
-    Softmax,
-    Logistic,
-    SoftmaxZero,
-    Probit,
-}
-
-#[derive(PartialEq, Debug)]
-enum AggregateFunction {
-    Average,
-    Sum,
-    Min,
-    Max,
-}
-
-impl FromStr for NodeType {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "BRANCH_LEQ" => NodeType::BranchLEq,
-            "BRANCH_LT" => NodeType::BranchLT,
-            "BRANCH_GTE" => NodeType::BranchGTe,
-            "BRANCH_GT" => NodeType::BranchGT,
-            "BRANCH_EQ" => NodeType::BranchEq,
-            "BRANCH_NEQ" => NodeType::BranchNEq,
-            "LEAF" => NodeType::Leaf,
-            s => Err(anyhow!("Illegal node type: `{}`", s))?,
-        })
-    }
-}
-
-impl FromStr for PostTransform {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_lowercase().as_str() {
-            "none" => Self::None,
-            "softmax" => Self::Softmax,
-            "logistic" => Self::Logistic,
-            "softmax_zero" => Self::SoftmaxZero,
-            "probit" => Self::Probit,
-            _ => Err(anyhow!("Illegal post transform `{}`.", s))?,
-        })
-    }
-}
-
-impl FromStr for AggregateFunction {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
-            "AVERAGE" => Self::Average,
-            "SUM" => Self::Sum,
-            "MIN" => Self::Min,
-            "MAX" => Self::Max,
-            s => Err(anyhow!("Illegal aggregate function `{}`.", s))?,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct TreeEnsembleAttributes<T> {
-    // n_targets: i64,
-    aggregate_function: AggregateFunction,
-    base_values_as_tensor: Vec<T>,
-    nodes_falsenodeids: Vec<i64>,
-    nodes_featureids: Vec<i64>,
-    nodes_missing_value_tracks_true: Vec<i64>,
-    nodes_modes: Vec<String>,
-    nodes_nodeids: Vec<i64>,
-    nodes_treeids: Vec<i64>,
-    nodes_truenodeids: Vec<i64>,
-    nodes_values_as_tensor: Vec<T>,
-    post_transform: PostTransform,
-    target_ids: Vec<i64>,
-    target_nodeids: Vec<i64>,
-    target_treeids: Vec<i64>,
-    target_weights_as_tensor: Vec<T>,
-}
-
-impl<T> TreeEnsembleAttributes<T> {
-    pub fn from_attributes<'s>(attrs: &'s Attributes) -> Result<Self>
-    where
-        Vec<T>: TryFrom<&'s Attribute, Error = anyhow::Error>,
-        T: Float + Zero + Sum<T> + 'static,
-    {
-        let out = Self {
-            aggregate_function: attrs
-                .get_with_default("aggregate_function", "SUM".to_owned())?
-                .parse()?,
-            base_values_as_tensor: attrs.get_with_default("base_values_as_tensor", vec![])?,
-            nodes_falsenodeids: attrs.get("nodes_falsenodeids")?.try_into()?,
-            nodes_featureids: attrs.get("nodes_featureids")?.try_into()?,
-            nodes_missing_value_tracks_true: attrs
-                .get("nodes_missing_value_tracks_true")?
-                .try_into()?,
-            nodes_modes: attrs.get("nodes_modes")?.try_into()?,
-            nodes_nodeids: attrs.get("nodes_nodeids")?.try_into()?,
-            nodes_treeids: attrs.get("nodes_treeids")?.try_into()?,
-            nodes_truenodeids: attrs.get("nodes_truenodeids")?.try_into()?,
-            // TODO: Actually not mandatory!
-            nodes_values_as_tensor: attrs.get("nodes_values_as_tensor")?.try_into()?,
-            post_transform: attrs
-                .get_with_default("post_transform", "None".to_owned())?
-                .parse()?,
-            target_ids: attrs.get("target_ids")?.try_into()?,
-            target_nodeids: attrs.get("target_nodeids")?.try_into()?,
-            target_treeids: attrs.get("target_treeids")?.try_into()?,
-            // TODO: actually not mandatory!
-            target_weights_as_tensor: attrs.get("target_weights_as_tensor")?.try_into()?,
-        };
-        if out.post_transform != PostTransform::None {
-            unimplemented!("Post transform {:?} is not implemented", out.post_transform);
-        }
-        if out.aggregate_function != AggregateFunction::Sum {
-            unimplemented!(
-                "Aggregate function {:?} is not implemented",
-                out.aggregate_function
-            );
-        }
-        if out.base_values_as_tensor.iter().copied().sum::<T>() != T::zero() {
-            unimplemented!("Base values are not implemented")
-        }
-        Ok(out)
-    }
 }
 
 impl<T> TreeEnsemble<T>
@@ -215,10 +78,7 @@ where
             &attrs.nodes_treeids,
             &attrs.nodes_truenodeids,
             &attrs.nodes_falsenodeids,
-            attrs
-                .nodes_modes
-                .iter()
-                .map(|s| s.parse::<NodeType>().unwrap()),
+            &attrs.nodes_modes,
             &attrs.nodes_values_as_tensor,
             attrs
                 .nodes_missing_value_tracks_true
@@ -243,19 +103,19 @@ where
             }
             let tree = &mut trees[tree_id];
             let node = match mode {
-                NodeType::Leaf => {
+                &NodeType::Leaf => {
                     let (value, target_id) = target_lookup.get(&(node_id, tree_id)).unwrap();
                     target_id_of_tree[tree_id].insert(target_id);
                     Node::Leaf(*value)
                 }
-                NodeType::BranchLEq => Node::Split(SplitNode {
+                &NodeType::BranchLEq => Node::Split(SplitNode {
                     threshold: *threshold,
                     feature_idx: *feature_idx as usize,
                     comparison: comparisons::leq,
                     nan_follows_true,
                     true_false_node_idx: (*true_node as usize, *false_node as usize),
                 }),
-                NodeType::BranchEq => Node::Split(SplitNode {
+                &NodeType::BranchEq => Node::Split(SplitNode {
                     threshold: *threshold,
                     feature_idx: *feature_idx as usize,
                     comparison: comparisons::eq,
