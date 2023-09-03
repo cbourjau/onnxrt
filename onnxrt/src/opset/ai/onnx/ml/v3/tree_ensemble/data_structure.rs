@@ -34,7 +34,7 @@ pub struct SplitNode<T> {
     pub threshold: T,
     pub feature_idx: usize,
     pub nan_follows_true: bool,
-    pub comparison: fn(T, T) -> bool,
+    pub comparison: fn(&T, &T) -> bool,
     pub true_false_node_idx: (usize, usize),
 }
 
@@ -323,10 +323,10 @@ where
 mod comparisons {
     use num_traits::Float;
 
-    pub fn leq<T: Float>(a: T, b: T) -> bool {
+    pub fn leq<T: Float>(a: &T, b: &T) -> bool {
         a <= b
     }
-    pub fn eq<T: Float>(a: T, b: T) -> bool {
+    pub fn eq<T: Float>(a: &T, b: &T) -> bool {
         a == b
     }
 }
