@@ -216,6 +216,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_layer_normalization_2d_axis0").unwrap();
+    let tc = get_node_test("test_nllloss_NCd1_mean_weight_negative_ii").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }

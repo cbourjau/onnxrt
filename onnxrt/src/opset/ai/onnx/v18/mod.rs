@@ -33,6 +33,7 @@ mod matmul;
 mod mean;
 mod min_max;
 mod mod_;
+mod nlll;
 mod one_hot;
 mod pow;
 mod random_uniform_like;
@@ -102,6 +103,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Min", Box::new(min_max::setup_min));
     d.insert("Mod", Box::new(mod_::setup_mod));
     d.insert("Mul", binary_op_factory!(numeric, |a, b| Ok(a * b)));
+    d.insert("NegativeLogLikelihoodLoss", Box::new(nlll::setup_nlll));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
     d.insert("Or", binary_op_factory!(boolean, |a, b| Ok(a | b)));
     d.insert("Pow", Box::new(pow::setup_pow));

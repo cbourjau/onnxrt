@@ -14,15 +14,15 @@ where
     T: Clone + std::fmt::Debug,
     Idx: Index + std::fmt::Debug + AsPrimitive<i64>,
 {
-    let ndim = data.ndim();
+    let input_rank = data.ndim();
     let shape = data.shape();
     let axes: Vec<_> = match axes {
-        Some(axes) => axes.iter().map(|idx| idx.for_len(ndim)).collect(),
-        None => (0..ndim).collect(),
+        Some(axes) => axes.iter().map(|idx| idx.for_len(input_rank)).collect(),
+        None => (0..input_rank).collect(),
     };
     let steps: Vec<_> = match steps {
         Some(steps) => steps.iter().map(|idx| idx.as_() as isize).collect(),
-        None => vec![1; ndim],
+        None => vec![1; starts.len()],
     };
 
     if steps.iter().any(|&el| el < 0) {
@@ -30,7 +30,11 @@ where
     }
 
     if axes.len() != steps.len() {
-        bail!("Slice: Inconsistent number of elements in 'axes' and 'step'")
+        bail!(
+            "Slice: Inconsistent number of elements in 'axes' ({:?}) and 'steps' ({:?})",
+            axes.len(),
+            steps.len()
+        )
     }
 
     let starts = starts
@@ -43,7 +47,7 @@ where
         idx.min(shape[ax]) as isize
     });
 
-    let mut slice_infos: Vec<SliceInfoElem> = vec![(..).into(); ndim];
+    let mut slice_infos: Vec<SliceInfoElem> = vec![(..).into(); input_rank];
 
     for (((start, end), ax), step) in starts.zip(ends).zip(&axes).zip(&steps) {
         slice_infos[*ax] = SliceInfoElem::Slice {
