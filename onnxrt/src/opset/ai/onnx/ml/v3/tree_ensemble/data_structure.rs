@@ -14,7 +14,7 @@ use crate::{ArcArrayD, Attributes};
 
 #[derive(Debug)]
 pub struct TreeEnsemble<T> {
-    class_trees_nodes: Vec<Vec<HashMap<NodeIdx, Node<T>>>>,
+    class_trees_nodes: Vec<Vec<Vec<Node<T>>>>,
 }
 
 type ClassIdx = i64;
@@ -26,13 +26,13 @@ pub struct Tree<T> {
     pub nodes: Vec<Node<T>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Node<T> {
     Split(SplitNode<T>),
     Leaf(T),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SplitNode<T> {
     pub threshold: T,
     pub feature_idx: usize,
@@ -43,7 +43,7 @@ pub struct SplitNode<T> {
 
 impl<T> Node<T>
 where
-    T: Clone + Copy + Float + Sum<T> + 'static,
+    T: Clone + Copy + Float + Sum<T> + 'static + std::fmt::Debug,
 {
     fn new_split(
         threshold: T,
@@ -82,7 +82,7 @@ where
 
 impl<T> TreeEnsemble<T>
 where
-    T: Clone + Copy + Float + Sum<T> + 'static,
+    T: Clone + Copy + Float + Sum<T> + 'static + std::fmt::Debug,
 {
     pub fn from_attributes<'s>(attrs: &'s Attributes) -> Result<Self>
     where
@@ -158,7 +158,7 @@ where
             .map(|(cls_idx, trees)| {
                 let mut trees: Vec<_> = trees.into_iter().collect();
                 trees.sort_unstable_by_key(|el| el.0);
-                (cls_idx, trees.into_iter().map(|el| el.1).collect())
+                (cls_idx, trees.into_iter().map(|el| dfs(el.1)).collect())
             })
             .collect();
         nodes.sort_unstable_by_key(|el| el.0);
@@ -190,6 +190,47 @@ where
     }
 }
 
+fn dfs<T>(tree: HashMap<i64, Node<T>>) -> Vec<Node<T>>
+where
+    T: Copy,
+{
+    let mut out = Vec::with_capacity(tree.len());
+    let mut old2new_idx = HashMap::with_capacity(tree.len());
+
+    let mut stack = vec![0];
+
+    loop {
+        if let Some(old_idx) = stack.pop() {
+            let node = tree.get(&old_idx).unwrap();
+            out.push(*node);
+            old2new_idx.insert(old_idx, out.len() - 1);
+
+            if let Node::Split(split) = node {
+                let (true_node, false_node) = split.true_false_node_idx;
+                for idx in &[true_node, false_node] {
+                    if !old2new_idx.contains_key(idx) {
+                        stack.push(*idx)
+                    }
+                }
+            }
+        } else {
+            break;
+        }
+    }
+
+    // Update indices
+    for node in out.iter_mut() {
+        if let Node::Split(split) = node {
+            let (true_node, false_node) = split.true_false_node_idx;
+            split.true_false_node_idx = (
+                *old2new_idx.get(&true_node).unwrap() as i64,
+                *old2new_idx.get(&false_node).unwrap() as i64,
+            );
+        }
+    }
+    out
+}
+
 mod comparisons {
     use num_traits::Float;
 
@@ -201,12 +242,12 @@ mod comparisons {
     }
 }
 
-fn predict<T>(tree: &HashMap<i64, Node<T>>, features: &[T]) -> T
+fn predict<T>(tree: &[Node<T>], features: &[T]) -> T
 where
-    T: Float,
+    T: Float + std::fmt::Debug,
 {
     // Prediction starts at index 0
-    match tree.get(&0).unwrap() {
+    match tree.get(0).unwrap() {
         Node::Split(split) => {
             let mut current_node = split;
             loop {
@@ -224,7 +265,7 @@ where
                     &current_node.true_false_node_idx.1
                 };
 
-                match tree.get(next_node_idx).unwrap() {
+                match tree.get(*next_node_idx as usize).unwrap() {
                     Node::Split(ref split) => {
                         current_node = split;
                     }
@@ -241,24 +282,18 @@ mod tests {
     use super::*;
     use ndarray::array;
 
-    fn make_tree() -> HashMap<i64, Node<f64>> {
-        HashMap::from_iter(
-            [
-                (
-                    0,
-                    Node::Split(SplitNode {
-                        threshold: 1.0,
-                        feature_idx: 1,
-                        nan_follows_true: false,
-                        true_false_node_idx: (1, 2),
-                        comparison: comparisons::leq,
-                    }),
-                ),
-                (1, Node::Leaf(-1.0)),
-                (2, Node::Leaf(42.0)),
-            ]
-            .into_iter(),
-        )
+    fn make_tree() -> Vec<Node<f64>> {
+        vec![
+            Node::Split(SplitNode {
+                threshold: 1.0,
+                feature_idx: 1,
+                nan_follows_true: false,
+                true_false_node_idx: (1, 2),
+                comparison: comparisons::leq,
+            }),
+            Node::Leaf(-1.0),
+            Node::Leaf(42.0),
+        ]
     }
 
     #[test]
