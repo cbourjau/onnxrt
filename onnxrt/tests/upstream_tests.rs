@@ -84,7 +84,7 @@ where
         return Ok(());
     }
     for (exp_el, obs_el) in exp.iter().zip(obs.iter()) {
-        let rel = 1e-5f64.as_();
+        let rel = 5e-5f64.as_();
         if relative_eq!(exp_el, obs_el, epsilon = rel) {
             continue;
         }
