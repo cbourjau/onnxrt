@@ -38,7 +38,8 @@ pub struct SplitNode<T> {
     pub feature_idx: usize,
     pub nan_follows_true: bool,
     pub comparison: fn(&T, &T) -> bool,
-    pub true_false_node_idx: (NodeIdx, NodeIdx),
+    pub true_idx: NodeIdx,
+    pub false_idx: NodeIdx,
 }
 
 impl<T> Node<T>
@@ -59,14 +60,16 @@ where
                 feature_idx: feature_idx as usize,
                 comparison: comparisons::leq,
                 nan_follows_true,
-                true_false_node_idx: (true_node, false_node),
+                true_idx: true_node,
+                false_idx: false_node,
             }),
             &NodeType::BranchEq => Node::Split(SplitNode {
                 threshold,
                 feature_idx: feature_idx as usize,
                 comparison: comparisons::eq,
                 nan_follows_true,
-                true_false_node_idx: (true_node, false_node),
+                true_idx: true_node,
+                false_idx: false_node,
             }),
             ty => {
                 dbg!(feature_idx, nan_follows_true, mode, true_node, false_node);
@@ -90,7 +93,8 @@ where
     {
         let attrs = TreeEnsembleAttributes::<T>::from_attributes(attrs)?;
         let n_classes = attrs.n_targets;
-        let mut nodes = HashMap::new();
+
+        let mut nodes: HashMap<ClassIdx, HashMap<TreeIdx, HashMap<NodeIdx, _>>> = HashMap::new();
         for ((node_id, tree_id), (weight, _target_id)) in attrs
             .target_nodeids
             .into_iter()
@@ -206,8 +210,7 @@ where
             old2new_idx.insert(old_idx, out.len() - 1);
 
             if let Node::Split(split) = node {
-                let (true_node, false_node) = split.true_false_node_idx;
-                for idx in &[true_node, false_node] {
+                for idx in &[split.true_idx, split.false_idx] {
                     if !old2new_idx.contains_key(idx) {
                         stack.push(*idx)
                     }
@@ -221,11 +224,8 @@ where
     // Update indices
     for node in out.iter_mut() {
         if let Node::Split(split) = node {
-            let (true_node, false_node) = split.true_false_node_idx;
-            split.true_false_node_idx = (
-                *old2new_idx.get(&true_node).unwrap() as i64,
-                *old2new_idx.get(&false_node).unwrap() as i64,
-            );
+            split.true_idx = *old2new_idx.get(&split.true_idx).unwrap() as i64;
+            split.false_idx = *old2new_idx.get(&split.false_idx).unwrap() as i64;
         }
     }
     out
@@ -255,14 +255,14 @@ where
                 let feature = features[feature_idx];
                 let next_node_idx = if feature.is_nan() {
                     if current_node.nan_follows_true {
-                        &current_node.true_false_node_idx.0
+                        &current_node.true_idx
                     } else {
-                        &current_node.true_false_node_idx.1
+                        &current_node.false_idx
                     }
                 } else if (current_node.comparison)(&feature, &current_node.threshold) {
-                    &current_node.true_false_node_idx.0
+                    &current_node.true_idx
                 } else {
-                    &current_node.true_false_node_idx.1
+                    &current_node.false_idx
                 };
 
                 match tree.get(*next_node_idx as usize).unwrap() {
@@ -288,7 +288,8 @@ mod tests {
                 threshold: 1.0,
                 feature_idx: 1,
                 nan_follows_true: false,
-                true_false_node_idx: (1, 2),
+                true_idx: 1,
+                false_idx: 2,
                 comparison: comparisons::leq,
             }),
             Node::Leaf(-1.0),
