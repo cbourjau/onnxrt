@@ -1,85 +1,103 @@
 use std::collections::HashMap;
 use std::iter::Sum;
-use std::ops::{AddAssign, Rem};
-use std::unimplemented;
+use std::ops::AddAssign;
 
 use anyhow::Result;
-use itertools::izip;
 use ndarray::{Array2, ArrayD, Axis};
 use num_traits::{AsPrimitive, Float};
 
-use super::parsing::{NodeType, TreeEnsembleAttributes};
+use super::ir;
+use super::parsing::NodeType;
 use crate::attribute::Attribute;
 use crate::{ArcArrayD, Attributes};
 
-#[derive(Debug)]
 pub struct TreeEnsemble<T> {
     class_trees_nodes: Vec<Vec<Vec<Node<T>>>>,
 }
 
-type ClassIdx = i64;
-type NodeIdx = i64;
-type TreeIdx = i64;
+#[derive(Debug)]
+struct Node<T> {
+    threshold: T,
+    feature_idx: usize,
+    mode: Comparison,
+    true_branch: SplitResult<T>,
+    false_branch: SplitResult<T>,
+}
 
 #[derive(Debug)]
-pub struct Tree<T> {
-    pub nodes: Vec<Node<T>>,
+enum Comparison {
+    Eq,
+    EqNanTrue,
+    LeqNanTrue,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Node<T> {
-    Split(SplitNode<T>),
-    Leaf(T),
+#[derive(Debug)]
+enum SplitResult<T> {
+    Value(T),
+    Idx(usize),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SplitNode<T> {
-    pub threshold: T,
-    pub feature_idx: usize,
-    pub nan_follows_true: bool,
-    pub comparison: fn(&T, &T) -> bool,
-    pub true_idx: NodeIdx,
-    pub false_idx: NodeIdx,
-}
-
-impl<T> Node<T>
-where
-    T: Clone + Copy + Float + Sum<T> + 'static + std::fmt::Debug,
-{
-    fn new_split(
-        threshold: T,
-        feature_idx: i64,
-        nan_follows_true: bool,
-        mode: &NodeType,
-        true_node: NodeIdx,
-        false_node: NodeIdx,
-    ) -> Self {
-        match mode {
-            &NodeType::BranchLEq => Node::Split(SplitNode {
-                threshold,
-                feature_idx: feature_idx as usize,
-                comparison: comparisons::leq,
-                nan_follows_true,
-                true_idx: true_node,
-                false_idx: false_node,
-            }),
-            &NodeType::BranchEq => Node::Split(SplitNode {
-                threshold,
-                feature_idx: feature_idx as usize,
-                comparison: comparisons::eq,
-                nan_follows_true,
-                true_idx: true_node,
-                false_idx: false_node,
-            }),
-            ty => {
-                dbg!(feature_idx, nan_follows_true, mode, true_node, false_node);
-
-                unimplemented!("Node type {:?} is unimplemented.", ty)
-            }
+impl Comparison {
+    fn new<T: Copy>(node: &ir::SplitNode<T>) -> Self {
+        match (node.comparison, node.nan_follows_true) {
+            (NodeType::BranchEq, false) => Self::Eq,
+            (NodeType::BranchEq, true) => Self::EqNanTrue,
+            (NodeType::BranchLEq, true) => Self::LeqNanTrue,
+            nt => todo!("{:?}", nt),
         }
     }
-    fn new_leaf(value: T) -> Self {
-        Node::Leaf(value)
+
+    fn cmp<T>(&self, feature: &T, threshold: &T) -> bool
+    where
+        T: PartialEq<T> + Float + PartialOrd<T>,
+    {
+        match self {
+            Self::Eq => feature == threshold,
+            Self::EqNanTrue => feature.is_nan() || feature == threshold,
+            Self::LeqNanTrue => feature.is_nan() || feature <= threshold,
+        }
+    }
+}
+
+impl<T> SplitResult<T> {
+    fn new(
+        result_idx: ir::NodeIdx,
+        tree: &HashMap<ir::NodeIdx, ir::Node<T>>,
+        old2new_idx: &HashMap<ir::NodeIdx, usize>,
+    ) -> Self
+    where
+        T: Copy,
+    {
+        match tree.get(&result_idx).unwrap() {
+            ir::Node::Split(_) => {
+                let new_idx = old2new_idx[&result_idx];
+                Self::Idx(new_idx)
+            }
+            ir::Node::Leaf(val) => Self::Value(*val),
+        }
+    }
+}
+
+impl<T> Node<T> {
+    // Create a new split node. This still uses the onnx-indices (cast to usize)
+    fn new(
+        node: &ir::Node<T>,
+        tree: &HashMap<ir::NodeIdx, ir::Node<T>>,
+        old2new_idx: &HashMap<ir::NodeIdx, usize>,
+    ) -> Self
+    where
+        T: Copy,
+    {
+        match node {
+            ir::Node::Split(split) => Self {
+                mode: Comparison::new(split),
+                threshold: split.threshold,
+                feature_idx: split.feature_idx,
+                true_branch: SplitResult::new(split.true_idx, tree, old2new_idx),
+                false_branch: SplitResult::new(split.false_idx, tree, old2new_idx),
+            },
+            _ => panic!(),
+        }
     }
 }
 
@@ -91,73 +109,10 @@ where
     where
         Vec<T>: TryFrom<&'s Attribute, Error = anyhow::Error>,
     {
-        let attrs = TreeEnsembleAttributes::<T>::from_attributes(attrs)?;
-        let n_classes = attrs.n_targets;
+        let ir_ensemble = ir::TreeEnsemble::from_attributes(attrs)?;
 
-        let mut nodes: HashMap<ClassIdx, HashMap<TreeIdx, HashMap<NodeIdx, _>>> = HashMap::new();
-        for ((node_id, tree_id), (weight, _target_id)) in attrs
-            .target_nodeids
-            .into_iter()
-            .zip(attrs.target_treeids.into_iter())
-            .zip(
-                attrs
-                    .target_weights_as_tensor
-                    .into_iter()
-                    .zip(attrs.target_ids.into_iter()),
-            )
-        {
-            let node = Node::new_leaf(weight);
-            let class_id = tree_id.rem(n_classes);
-            nodes
-                .entry(class_id)
-                .or_insert_with(HashMap::new)
-                .entry(tree_id)
-                .or_insert_with(HashMap::new)
-                .insert(node_id, node);
-        }
-
-        let data = izip!(
-            &attrs.nodes_nodeids,
-            &attrs.nodes_treeids,
-            &attrs.nodes_truenodeids,
-            &attrs.nodes_falsenodeids,
-            &attrs.nodes_modes,
-            &attrs.nodes_values_as_tensor,
-            attrs.nodes_missing_value_tracks_true,
-            &attrs.nodes_featureids
-        );
-        for (
-            node_id,
-            tree_id,
-            true_node,
-            false_node,
-            mode,
-            threshold,
-            nan_follows_true,
-            feature_idx,
-        ) in data
-        {
-            if let NodeType::Leaf = mode {
-                continue;
-            }
-            let node = Node::new_split(
-                *threshold,
-                *feature_idx,
-                nan_follows_true,
-                mode,
-                *true_node,
-                *false_node,
-            );
-            let class_id = tree_id.rem(n_classes);
-            nodes
-                .get_mut(&class_id)
-                .unwrap()
-                .get_mut(tree_id)
-                .unwrap()
-                .insert(*node_id, node);
-        }
-
-        let mut nodes: Vec<(ClassIdx, _)> = nodes
+        let mut nodes: Vec<(ir::ClassIdx, _)> = ir_ensemble
+            .0
             .into_iter()
             .map(|(cls_idx, trees)| {
                 let mut trees: Vec<_> = trees.into_iter().collect();
@@ -186,7 +141,7 @@ where
         {
             for tree in trees_of_class {
                 for (row, out) in input.axis_iter(Axis(0)).zip(out.iter_mut()) {
-                    *out += predict(tree, row.as_slice().unwrap());
+                    *out += predict(tree.as_slice(), row.as_slice().unwrap());
                 }
             }
         }
@@ -194,86 +149,56 @@ where
     }
 }
 
-fn dfs<T>(tree: HashMap<i64, Node<T>>) -> Vec<Node<T>>
+fn dfs<T>(tree: HashMap<i64, ir::Node<T>>) -> Vec<Node<T>>
 where
-    T: Copy,
+    T: Copy + std::fmt::Debug,
 {
     let mut out = Vec::with_capacity(tree.len());
     let mut old2new_idx = HashMap::with_capacity(tree.len());
 
     let mut stack = vec![0];
 
-    loop {
-        if let Some(old_idx) = stack.pop() {
-            let node = tree.get(&old_idx).unwrap();
+    while let Some(old_idx) = stack.pop() {
+        let node = tree.get(&old_idx).unwrap();
+
+        if let ir::Node::Split(split) = node {
             out.push(*node);
             old2new_idx.insert(old_idx, out.len() - 1);
 
-            if let Node::Split(split) = node {
-                for idx in &[split.true_idx, split.false_idx] {
-                    if !old2new_idx.contains_key(idx) {
-                        stack.push(*idx)
-                    }
+            for idx in &[split.true_idx, split.false_idx] {
+                if !old2new_idx.contains_key(idx) {
+                    stack.push(*idx)
                 }
             }
-        } else {
-            break;
         }
     }
 
-    // Update indices
-    for node in out.iter_mut() {
-        if let Node::Split(split) = node {
-            split.true_idx = *old2new_idx.get(&split.true_idx).unwrap() as i64;
-            split.false_idx = *old2new_idx.get(&split.false_idx).unwrap() as i64;
-        }
-    }
-    out
-}
-
-mod comparisons {
-    use num_traits::Float;
-
-    pub fn leq<T: Float>(a: &T, b: &T) -> bool {
-        a <= b
-    }
-    pub fn eq<T: Float>(a: &T, b: &T) -> bool {
-        a == b
-    }
+    out.iter()
+        .map(|n| Node::new(n, &tree, &old2new_idx))
+        .collect()
 }
 
 fn predict<T>(tree: &[Node<T>], features: &[T]) -> T
 where
     T: Float + std::fmt::Debug,
 {
-    // Prediction starts at index 0
-    match tree.get(0).unwrap() {
-        Node::Split(split) => {
-            let mut current_node = split;
-            loop {
-                let feature_idx = split.feature_idx;
-                let feature = features[feature_idx];
-                let next_node_idx = if feature.is_nan() {
-                    if current_node.nan_follows_true {
-                        &current_node.true_idx
-                    } else {
-                        &current_node.false_idx
-                    }
-                } else if (current_node.comparison)(&feature, &current_node.threshold) {
-                    &current_node.true_idx
-                } else {
-                    &current_node.false_idx
-                };
-
-                match tree.get(*next_node_idx as usize).unwrap() {
-                    Node::Split(ref split) => {
-                        current_node = split;
-                    }
-                    Node::Leaf(val) => break *val,
-                }
+    let mut node = &tree[0];
+    loop {
+        let feature_idx = node.feature_idx;
+        let feature = features[feature_idx];
+        let res = if node.mode.cmp(&feature, &node.threshold) {
+            &node.true_branch
+        } else {
+            &node.false_branch
+        };
+        match res {
+            SplitResult::Idx(idx) => {
+                node = &tree[*idx];
+            }
+            SplitResult::Value(val) => {
+                return *val;
             }
         }
-        Node::Leaf(val) => *val,
     }
 }
 
@@ -283,25 +208,20 @@ mod tests {
     use ndarray::array;
 
     fn make_tree() -> Vec<Node<f64>> {
-        vec![
-            Node::Split(SplitNode {
-                threshold: 1.0,
-                feature_idx: 1,
-                nan_follows_true: false,
-                true_idx: 1,
-                false_idx: 2,
-                comparison: comparisons::leq,
-            }),
-            Node::Leaf(-1.0),
-            Node::Leaf(42.0),
-        ]
+        vec![Node {
+            threshold: 1.0,
+            feature_idx: 1,
+            mode: Comparison::LeqNanTrue,
+            true_branch: SplitResult::Value(-1.0),
+            false_branch: SplitResult::Value(42.0),
+        }]
     }
 
     #[test]
     fn test_tree() {
         let tree = make_tree();
-        assert_eq!(predict(&tree, &[0.0, 0.0]), -1.0);
-        assert_eq!(predict(&tree, &[0.0, 2.0]), 42.0);
+        assert_eq!(predict(tree.as_slice(), &[0.0, 0.0]), -1.0);
+        assert_eq!(predict(tree.as_slice(), &[0.0, 2.0]), 42.0);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 mod data_structure;
-// mod inference;
+mod ir;
 mod parsing;
 mod setup;
 

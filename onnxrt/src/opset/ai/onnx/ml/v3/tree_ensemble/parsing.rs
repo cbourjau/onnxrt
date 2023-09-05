@@ -27,7 +27,7 @@ pub struct TreeEnsembleAttributes<T> {
     pub(crate) target_weights_as_tensor: Vec<T>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum NodeType {
     BranchLEq,
     BranchLT,
