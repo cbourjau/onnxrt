@@ -187,13 +187,13 @@ where
         for node in tree {
             let feature_idx = node.feature_idx;
             let feature = features[feature_idx];
-            if node.mode.cmp(&feature, &node.threshold) {
-                if let SplitResult::Value(val) = node.true_branch {
+            if !node.mode.cmp(&feature, &node.threshold) {
+                if let SplitResult::Value(val) = node.false_branch {
                     return val;
                 }
                 continue;
             } else {
-                match node.false_branch {
+                match node.true_branch {
                     SplitResult::Idx(idx) => {
                         tree = &input_tree[idx..];
                     }
