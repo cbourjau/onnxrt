@@ -178,25 +178,29 @@ where
         .collect()
 }
 
-fn predict<T>(tree: &[Node<T>], features: &[T]) -> T
+fn predict<T>(input_tree: &[Node<T>], features: &[T]) -> T
 where
     T: Float + std::fmt::Debug,
 {
-    let mut node = &tree[0];
+    let mut tree = input_tree;
     loop {
-        let feature_idx = node.feature_idx;
-        let feature = features[feature_idx];
-        let res = if node.mode.cmp(&feature, &node.threshold) {
-            &node.true_branch
-        } else {
-            &node.false_branch
-        };
-        match res {
-            SplitResult::Idx(idx) => {
-                node = &tree[*idx];
-            }
-            SplitResult::Value(val) => {
-                return *val;
+        for node in tree {
+            let feature_idx = node.feature_idx;
+            let feature = features[feature_idx];
+            if node.mode.cmp(&feature, &node.threshold) {
+                if let SplitResult::Value(val) = node.true_branch {
+                    return val;
+                }
+                continue;
+            } else {
+                match node.false_branch {
+                    SplitResult::Idx(idx) => {
+                        tree = &input_tree[idx..];
+                    }
+                    SplitResult::Value(val) => {
+                        return val;
+                    }
+                }
             }
         }
     }
