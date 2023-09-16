@@ -1,36 +1,40 @@
 use std::collections::{HashMap, HashSet};
+use std::iter::Sum;
+use std::ops::AddAssign;
 use std::str::FromStr;
 
 use anyhow::{anyhow, Error, Result};
 use itertools::izip;
 use ndarray::{Array2, ArrayD, Axis};
+use num_traits::{AsPrimitive, Float, Zero};
 
 use super::inference::InferenceTree;
+use crate::attribute::Attribute;
 use crate::{ArcArrayD, Attributes};
 
 #[derive(Debug)]
-pub struct TreeEnsemble {
+pub struct TreeEnsemble<T> {
     /// Vector of trees per class. The outer vector is the class bin.
-    trees_per_class: Vec<Vec<InferenceTree>>,
+    trees_per_class: Vec<Vec<InferenceTree<T>>>,
 }
 
 #[derive(Debug)]
-pub struct Tree {
-    pub nodes: Vec<Node>,
+pub struct Tree<T> {
+    pub nodes: Vec<Node<T>>,
 }
 
 #[derive(Debug)]
-pub enum Node {
-    Split(SplitNode),
-    Leaf(f64),
+pub enum Node<T> {
+    Split(SplitNode<T>),
+    Leaf(T),
 }
 
 #[derive(Debug)]
-pub struct SplitNode {
-    pub threshold: f64,
+pub struct SplitNode<T> {
+    pub threshold: T,
     pub feature_idx: usize,
     pub nan_follows_true: bool,
-    pub comparison: fn(f64, f64) -> bool,
+    pub comparison: fn(&T, &T) -> bool,
     pub true_false_node_idx: (usize, usize),
 }
 
@@ -106,10 +110,10 @@ impl FromStr for AggregateFunction {
 }
 
 #[derive(Debug)]
-struct TreeEnsembleAttributes {
+struct TreeEnsembleAttributes<T> {
     // n_targets: i64,
     aggregate_function: AggregateFunction,
-    base_values_as_tensor: Vec<f64>,
+    base_values_as_tensor: Vec<T>,
     nodes_falsenodeids: Vec<i64>,
     nodes_featureids: Vec<i64>,
     nodes_missing_value_tracks_true: Vec<i64>,
@@ -117,16 +121,20 @@ struct TreeEnsembleAttributes {
     nodes_nodeids: Vec<i64>,
     nodes_treeids: Vec<i64>,
     nodes_truenodeids: Vec<i64>,
-    nodes_values_as_tensor: Vec<f64>,
+    nodes_values_as_tensor: Vec<T>,
     post_transform: PostTransform,
     target_ids: Vec<i64>,
     target_nodeids: Vec<i64>,
     target_treeids: Vec<i64>,
-    target_weights_as_tensor: Vec<f64>,
+    target_weights_as_tensor: Vec<T>,
 }
 
-impl TreeEnsembleAttributes {
-    pub fn from_attributes(attrs: &Attributes) -> Result<Self> {
+impl<T> TreeEnsembleAttributes<T> {
+    pub fn from_attributes<'s>(attrs: &'s Attributes) -> Result<Self>
+    where
+        Vec<T>: TryFrom<&'s Attribute, Error = anyhow::Error>,
+        T: Float + Zero + Sum<T> + 'static,
+    {
         let out = Self {
             aggregate_function: attrs
                 .get_with_default("aggregate_function", "SUM".to_owned())?
@@ -161,16 +169,22 @@ impl TreeEnsembleAttributes {
                 out.aggregate_function
             );
         }
-        if out.base_values_as_tensor.iter().to_owned().sum::<f64>() != 0.0 {
+        if out.base_values_as_tensor.iter().copied().sum::<T>() != T::zero() {
             unimplemented!("Base values are not implemented")
         }
         Ok(out)
     }
 }
 
-impl TreeEnsemble {
-    pub fn from_attributes(attrs: &Attributes) -> Result<Self> {
-        let attrs = TreeEnsembleAttributes::from_attributes(attrs)?;
+impl<T> TreeEnsemble<T>
+where
+    T: Clone + Copy + Float + Sum<T> + 'static,
+{
+    pub fn from_attributes<'s>(attrs: &'s Attributes) -> Result<Self>
+    where
+        Vec<T>: TryFrom<&'s Attribute, Error = anyhow::Error>,
+    {
+        let attrs = TreeEnsembleAttributes::<T>::from_attributes(attrs).unwrap();
         // The leaf weights are can be looked up by nodeid & tree id
         let target_lookup: HashMap<_, _> = attrs
             .target_nodeids
@@ -275,9 +289,12 @@ impl TreeEnsemble {
         Ok(Self { trees_per_class })
     }
 
-    pub fn predict(&self, input: &ArcArrayD<f64>) -> ArrayD<f32> {
+    pub fn predict(&self, input: &ArcArrayD<T>) -> ArrayD<f32>
+    where
+        T: 'static + Float + AddAssign<T> + AsPrimitive<f32>,
+    {
         let n_classes = self.n_classes();
-        let mut output = Array2::<f64>::zeros((input.shape()[0], n_classes));
+        let mut output = Array2::<T>::zeros((input.shape()[0], n_classes));
 
         let input = input.view().into_dimensionality::<ndarray::Ix2>().unwrap();
 
@@ -295,7 +312,7 @@ impl TreeEnsemble {
                 }
             }
         }
-        output.mapv(|el| el as f32).into_dyn()
+        output.mapv(|el| el.as_()).into_dyn()
     }
 
     fn n_classes(&self) -> usize {
@@ -304,10 +321,12 @@ impl TreeEnsemble {
 }
 
 mod comparisons {
-    pub fn leq(a: f64, b: f64) -> bool {
+    use num_traits::Float;
+
+    pub fn leq<T: Float>(a: &T, b: &T) -> bool {
         a <= b
     }
-    pub fn eq(a: f64, b: f64) -> bool {
+    pub fn eq<T: Float>(a: &T, b: &T) -> bool {
         a == b
     }
 }
@@ -317,7 +336,7 @@ mod tests {
     use super::*;
     use ndarray::array;
 
-    fn make_tree() -> InferenceTree {
+    fn make_tree() -> InferenceTree<f64> {
         let nodes = vec![
             Node::Split(SplitNode {
                 threshold: 1.0,
