@@ -25,7 +25,8 @@ impl Session {
 
     #[staticmethod]
     pub fn py_from_bytes(model_bytes: Vec<u8>) -> PyResult<Self> {
-        Self::from_bytes(&model_bytes, &get_opset()).map_err(|e| PyValueError::new_err(format!("{:?}", e)))
+        Self::from_bytes(&model_bytes, &get_opset())
+            .map_err(|e| PyValueError::new_err(format!("{:?}", e)))
     }
 
     #[pyo3(name = "run")]
@@ -76,12 +77,7 @@ impl Session {
 
     #[getter(input_names)]
     pub fn py_input_names(&self) -> Vec<String> {
-        let hm: Vec<String> = self
-            .inputs
-            .0
-            .keys()
-            .map(|k| k.to_string())
-            .collect_vec();
+        let hm: Vec<String> = self.inputs.0.keys().map(|k| k.to_string()).collect_vec();
         hm
     }
 
