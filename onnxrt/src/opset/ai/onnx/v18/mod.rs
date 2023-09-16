@@ -49,6 +49,7 @@ mod slice;
 mod softmax;
 mod softmax_cross_entropy_loss;
 mod split;
+mod string_normalizer;
 mod sum;
 mod topk;
 mod transpose;
@@ -130,6 +131,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("SoftmaxCrossEntropyLoss", Box::new(softmax_cross_entropy_loss::setup_scme));
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
+    d.insert("StringNormalizer", Box::new(string_normalizer::setup_string_normalizer));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
     d.insert("Sum", Box::new(sum::setup_sum));
     d.insert("ThresholdedRelu", Box::new(relu_with_attr::setup_thresholded_relu));
