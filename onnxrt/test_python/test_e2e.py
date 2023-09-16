@@ -44,7 +44,7 @@ def onnx_file():
 
 
 def test_inference_onnxrs(inputs, expected_output, onnx_file):
-    sess_rs = ortrs.Session(str(onnx_file))
+    sess_rs = ortrs.InferenceSession(str(onnx_file))
 
     t0 = perf_counter()
     for _ in range(_N_LOOPS):
