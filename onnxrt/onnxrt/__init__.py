@@ -8,12 +8,17 @@ class NodeInformation:
         self.name = name
 
 
-class Session(onnxrt.Session):
+class OnnxrtSession():
+    s: onnxrt.Session
+
+    def __init__(self, model_bytes):
+        self.s = onnxrt.Session.py_from_bytes(model_bytes)
+
     def get_inputs(self):
-        return [NodeInformation(name) for name in super().input_names]
+        return [NodeInformation(name) for name in self.s.input_names]
 
     def get_outputs(self):
-        return [NodeInformation(name) for name in super().output_names]
+        return [NodeInformation(name) for name in self.s.output_names]
 
     def run(self, output_names, inputs):
         casted = {}
@@ -22,7 +27,7 @@ class Session(onnxrt.Session):
                 casted[k] = v.astype(object)
                 continue
             casted[k] = v
-        ret = super().run(casted)
+        ret = self.s.run(casted)
 
         if output_names is None:
             output_names = ret.keys()
