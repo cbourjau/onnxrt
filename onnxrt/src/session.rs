@@ -17,14 +17,14 @@ pub struct Session {
     /// Explicit inputs of the top-level graph.
     explicit_input_names: Vec<String>,
     /// Mandatory inputs for this session
-    inputs: Inputs,
+    pub(crate) inputs: Inputs,
     /// Output channels which are filled after all `steps` where called.
     pub(crate) outputs: Vec<(String, TaggedReceiver)>,
 }
 
 /// Collection of input `ValueSender`s and their optional default values.
 #[derive(Debug)]
-struct Inputs(HashMap<String, (ValueSender, Option<Value>)>);
+pub struct Inputs(pub HashMap<String, (ValueSender, Option<Value>)>);
 
 /// Signature of functions executed at runtime.
 pub type ExecFnSignature = Box<dyn Fn() -> Result<()> + Send>;

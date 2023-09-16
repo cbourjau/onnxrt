@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use numpy::PyReadonlyArrayDyn;
 use numpy::ToPyArray;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -65,6 +66,27 @@ impl Session {
             .iter()
             .map(|(k, v)| (k.to_string(), v.standard_name().to_string()))
             .collect();
+        hm
+    }
+
+    #[getter(input_names)]
+    pub fn py_input_names(&self) -> Vec<String> {
+        let hm: Vec<String> = self
+            .inputs
+            .0
+            .keys()
+            .map(|k| k.to_string())
+            .collect_vec();
+        hm
+    }
+
+    #[getter(output_names)]
+    pub fn py_output_names(&self) -> Vec<String> {
+        let hm: Vec<String> = self
+            .outputs
+            .iter()
+            .map(|(k, _)| k.to_string())
+            .collect_vec();
         hm
     }
 }
