@@ -238,6 +238,29 @@ impl PartialNarrow<TaggedReceiver> for Numeric {
     }
 }
 
+impl PartialNarrow<TaggedReceiver> for Integer {
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
+        Ok(map_to_sub_set!(
+            item,
+            TaggedReceiver,
+            Self,
+            "Expected integer point input",
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64
+        ))
+    }
+}
+
 impl PartialNarrow<TaggedReceiver> for FloatingPoint {
     fn parse<I>(it: &mut I) -> Result<Self>
     where
@@ -498,6 +521,20 @@ pub enum Numeric {
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
 
+    I8(Receiver<ArcArrayD<i8>>),
+    I16(Receiver<ArcArrayD<i16>>),
+    I32(Receiver<ArcArrayD<i32>>),
+    I64(Receiver<ArcArrayD<i64>>),
+
+    U8(Receiver<ArcArrayD<u8>>),
+    U16(Receiver<ArcArrayD<u16>>),
+    U32(Receiver<ArcArrayD<u32>>),
+    U64(Receiver<ArcArrayD<u64>>),
+}
+
+/// Homogeneous, numeric variadic inputs
+#[derive(Debug)]
+pub enum Integer {
     I8(Receiver<ArcArrayD<i8>>),
     I16(Receiver<ArcArrayD<i16>>),
     I32(Receiver<ArcArrayD<i32>>),

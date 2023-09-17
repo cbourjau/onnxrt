@@ -12,6 +12,12 @@ macro_rules! setup_all {
             F32, F64, I8, I16, I32, I64, U8, U16, U32, U64
         )
     };
+    (Integer, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            Numeric, $tagged_rec, $rec_name, $setup,
+            I8, I16, I32, I64, U8, U16, U32, U64
+        )
+    };
     (FloatingPoint, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             FloatingPoint, $tagged_rec, $rec_name, $setup,

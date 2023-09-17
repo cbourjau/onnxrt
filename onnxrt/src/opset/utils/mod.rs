@@ -11,7 +11,7 @@ pub use ndarray::prelude::*;
 
 pub use self::narrowed_arguments::{
     FloatingPoint, Homogeneous, HomogeneousFixed, HomogeneousNumeric, HomogeneousNumericFixed,
-    Narrow, Numeric, OnnxIndex,
+    Integer, Narrow, Numeric, OnnxIndex,
 };
 pub use self::ndarray_utils::{
     co_broadcast, convert_negative_index, zip_map_with_co_broadcast, Index,

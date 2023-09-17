@@ -43,6 +43,7 @@ mod relu_with_attr;
 mod reshape;
 mod scatter;
 mod shape;
+mod sign;
 mod simple_element_wise;
 mod size;
 mod slice;
@@ -125,6 +126,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ScatterElements", Box::new(scatter::elements::setup_scatter_elements));
     d.insert("ScatterND", Box::new(scatter::nd::setup_scatter_nd));
     d.insert("Shape", Box::new(shape::setup_shape));
+    d.insert("Sign", Box::new(sign::setup_sign));
     d.insert("Size", Box::new(size::setup_size));
     d.insert("Slice", Box::new(slice::setup_slice));
     d.insert("Softmax", Box::new(softmax::setup_softmax));    
