@@ -27,6 +27,6 @@ pub fn setup_mean(ctx: OpContext) -> Result<ExecutionStep> {
         HomogeneousNumeric,
         data,
         data,
-        setup((data,), move |(data,)| mean(data))
+        setup(data, move |data| mean(data))
     )
 }

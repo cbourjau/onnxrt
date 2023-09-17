@@ -43,7 +43,7 @@ pub fn setup_constant_of_shape(ctx: OpContext) -> Result<ExecutionStep> {
 
     macro_rules! match_arm {
         ($v:tt) => {
-            setup((shape,), move |(shape,)| {
+            setup(shape, move |shape| {
                 let shape: Vec<usize> = shape
                     .into_iter()
                     .map(|el| Ok(usize::try_from(el)?))

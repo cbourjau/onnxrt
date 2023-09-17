@@ -42,8 +42,8 @@ pub fn setup_leaky_relu(ctx: OpContext) -> Result<ExecutionStep> {
     use FloatingPoint::*;
 
     match inputs {
-        F32(a) => setup((a,), move |(a,)| state.leaky(a)),
-        F64(a) => setup((a,), move |(a,)| state.leaky(a)),
+        F32(a) => setup(a, move |a| state.leaky(a)),
+        F64(a) => setup(a, move |a| state.leaky(a)),
     }
 }
 
@@ -54,7 +54,7 @@ pub fn setup_thresholded_relu(ctx: OpContext) -> Result<ExecutionStep> {
     use FloatingPoint::*;
 
     match inputs {
-        F32(a) => setup((a,), move |(a,)| state.thresholded(a)),
-        F64(a) => setup((a,), move |(a,)| state.thresholded(a)),
+        F32(a) => setup(a, move |a| state.thresholded(a)),
+        F64(a) => setup(a, move |a| state.thresholded(a)),
     }
 }

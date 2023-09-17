@@ -27,9 +27,6 @@ pub fn setup_elu(ctx: OpContext) -> Result<ExecutionStep> {
         FloatingPoint,
         x,
         x,
-        setup((x,), move |(x,)| {
-            let x = x.to_owned();
-            Ok(elu(x, alpha))
-        })
+        setup(x, move |x| { Ok(elu(x.to_owned(), alpha)) })
     )
 }

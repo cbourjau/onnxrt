@@ -6,8 +6,6 @@ pub fn setup_size(ctx: OpContext) -> Result<ExecutionStep> {
         TaggedReceiver,
         data,
         data,
-        setup((data,), move |(data,)| Ok(
-            arr0(data.len() as i64).into_dyn()
-        ))
+        setup(data, move |data| Ok(arr0(data.len() as i64).into_dyn()))
     )
 }

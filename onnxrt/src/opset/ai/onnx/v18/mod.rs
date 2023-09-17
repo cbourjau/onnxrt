@@ -197,7 +197,7 @@ fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
         Homogeneous,
         inputs,
         rec,
-        setup((rec,), move |(inputs,)| state.concat((inputs,)))
+        setup(rec, move |inputs| state.concat((inputs,)))
     )
 }
 

@@ -34,7 +34,7 @@ pub fn setup_flatten(ctx: OpContext) -> Result<ExecutionStep> {
         TaggedReceiver,
         input,
         input,
-        setup((input,), move |(input,)| {
+        setup(input, move |input| {
             Ok(flatten_2d(input.view(), state.axis)?.into_dyn())
         })
     )

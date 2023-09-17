@@ -34,6 +34,6 @@ pub fn setup_transpose(ctx: OpContext) -> Result<ExecutionStep> {
         TaggedReceiver,
         data,
         data,
-        setup((data,), move |(data,)| state.compute(data))
+        setup(data, move |data| state.compute(data))
     )
 }

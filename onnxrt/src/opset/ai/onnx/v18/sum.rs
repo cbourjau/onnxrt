@@ -6,7 +6,7 @@ pub fn setup_sum(ctx: OpContext) -> Result<ExecutionStep> {
         HomogeneousNumeric,
         data,
         data,
-        setup((data,), move |(data,)| {
+        setup(data, move |data| {
             let mut iter = data.into_iter();
             let mut out = iter
                 .next()

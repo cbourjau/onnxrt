@@ -39,7 +39,7 @@ pub fn setup_isinf(ctx: OpContext) -> Result<ExecutionStep> {
     use FloatingPoint::*;
 
     match inputs {
-        F32(a) => setup((a,), move |(a,)| state.compute(a)),
-        F64(a) => setup((a,), move |(a,)| state.compute(a)),
+        F32(a) => setup(a, move |a| state.compute(a)),
+        F64(a) => setup(a, move |a| state.compute(a)),
     }
 }

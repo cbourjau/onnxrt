@@ -277,6 +277,18 @@ pub trait InChannels {
     fn recv(&self) -> Result<Self::Items>;
 }
 
+// Implementation for scalars (rather than tuples)
+impl<T> InChannels for T
+where
+    T: InChannel,
+{
+    type Items = T::Item;
+
+    fn recv(&self) -> Result<Self::Items> {
+        self.recv()
+    }
+}
+
 /// Operators such as 'Constant' do not have inputs.
 impl InChannels for () {
     type Items = ();

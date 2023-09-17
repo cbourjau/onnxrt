@@ -34,13 +34,13 @@ pub fn setup_sign(ctx: OpContext) -> Result<ExecutionStep> {
     // Spec: ambiguous for floating points / NaN
     use Integer::*;
     match x {
-        U8(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        U16(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        U32(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        U64(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        I8(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
-        I16(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
-        I32(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
-        I64(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
+        U8(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        U16(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        U32(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        U64(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        I8(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
+        I16(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
+        I32(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
+        I64(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
     }
 }
