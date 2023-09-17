@@ -316,3 +316,49 @@ impl_InChannels!(T1, T2 | Z | 0, 1, 2);
 impl_InChannels!(T1, T2, T3 | Z | 0, 1, 2, 3);
 impl_InChannels!(T1, T2, T3, T4 | Z | 0, 1, 2, 3, 4);
 impl_InChannels!(T1, T2, T3, T4, T5 | Z | 0, 1, 2, 3, 4, 5);
+
+pub struct MappedIntoI64<T> {
+    inner: T,
+}
+
+impl Integer {
+    pub fn into_i64(self) -> MappedIntoI64<Self> {
+        MappedIntoI64 { inner: self }
+    }
+}
+
+impl OnnxIndex {
+    pub fn into_i64(self) -> MappedIntoI64<Self> {
+        MappedIntoI64 { inner: self }
+    }
+}
+
+impl InChannel for MappedIntoI64<Integer> {
+    type Item = ArrayD<i64>;
+
+    fn recv(&self) -> Result<Self::Item> {
+        use Integer::*;
+        match &self.inner {
+            I8(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I16(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I32(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I64(rec) => Ok(rec.recv()?.to_owned()),
+            U8(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            U16(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            U32(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            U64(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+        }
+    }
+}
+
+impl InChannel for MappedIntoI64<OnnxIndex> {
+    type Item = ArrayD<i64>;
+
+    fn recv(&self) -> Result<Self::Item> {
+        use OnnxIndex::*;
+        match &self.inner {
+            I32(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I64(rec) => Ok(rec.recv()?.to_owned()),
+        }
+    }
+}
