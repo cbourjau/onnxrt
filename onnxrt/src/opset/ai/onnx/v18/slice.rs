@@ -11,8 +11,8 @@ fn slice<T, Idx>(
     steps: Option<ArrayView1<Idx>>,
 ) -> Result<ArrayD<T>>
 where
-    T: Clone + std::fmt::Debug,
-    Idx: Index + std::fmt::Debug + AsPrimitive<i64>,
+    T: Clone,
+    Idx: Index + AsPrimitive<i64>,
 {
     let input_rank = data.ndim();
     let shape = data.shape();
@@ -61,20 +61,28 @@ where
 }
 
 pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
-    let (data, starts, ends, axes, steps): (Option<_>, Option<_>, Option<_>, _, _) =
-        ctx.input_channels_with_optional().narrow()?;
+    let (data, starts, ends, axes, steps): (
+        _,
+        OnnxIndex,
+        OnnxIndex,
+        Option<OnnxIndex>,
+        Option<OnnxIndex>,
+    ) = ctx.input_channels_with_optional().narrow()?;
 
-    let data = data.ok_or_else(|| anyhow!("Slice: Required input 'data' is missing"))?;
-    let starts = starts.ok_or_else(|| anyhow!("Slice: Required input 'starts' is missing"))?;
-    let ends = ends.ok_or_else(|| anyhow!("Slice: Required input 'ends' is missing"))?;
+    let starts = starts.into_i64();
+    let ends = ends.into_i64();
+    let axes = axes.map(|axes| axes.into_i64());
+    let steps = steps.map(|steps| steps.into_i64());
 
-    use TaggedReceiver::*;
-    macro_rules! match_index_variants {
-        ($data:expr, $($variant:ident),*) => {
-            match (starts, ends, axes, steps) {
-                $(($variant(starts), $variant(ends), Some($variant(axes)), Some($variant(steps))) => setup(
-                    ($data, starts, ends, axes, steps),
-                    |(data, starts, ends, axes, steps)| {
+    match (axes, steps) {
+        (Some(axes), Some(steps)) => {
+            setup_all!(
+                TaggedReceiver,
+                data,
+                data,
+                setup(
+                    (data, starts, ends, axes, steps),
+                    move |(data, starts, ends, axes, steps)| {
                         Ok::<ArcArrayD<_>, _>(
                             slice(
                                 data.view(),
@@ -83,70 +91,78 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
                                 Some(axes.into_dimensionality()?.view()),
                                 Some(steps.into_dimensionality()?.view()),
                             )?
-                                .into_dyn()
-                                .into(),
+                            .into_dyn()
+                            .into(),
                         )
-                    },
-                ),
-                  ($variant(starts), $variant(ends), Some($variant(axes)), None) => {
-                      setup(($data, starts, ends, axes), |(data, starts, ends, axes)| {
-                          Ok::<ArcArrayD<_>, _>(
-                              slice(
-                                  data.view(),
-                                  starts.into_dimensionality()?.view(),
-                                  ends.into_dimensionality()?.view(),
-                                  Some(axes.into_dimensionality()?.view()),
-                                  None,
-                              )?
-                                  .into_dyn()
-                                  .into(),
-                          )
-                      })
-                  }
-                  ($variant(starts), $variant(ends), None, Some($variant(steps))) => setup(
-                      ($data, starts, ends, steps),
-                      |(data, starts, ends, steps)| {
-                          Ok::<ArcArrayD<_>, _>(
-                              slice(
-                                  data.view(),
-                                  starts.into_dimensionality()?.view(),
-                                  ends.into_dimensionality()?.view(),
-                                  None,
-                                  Some(steps.into_dimensionality()?.view()),
-                              )?
-                                  .into_dyn()
-                                  .into(),
-                          )
-                      },
-                  ),
-                  ($variant(starts), $variant(ends), None, None) =>
-                  setup(($data, starts, ends), |(data, starts, ends)| {
-                      Ok::<ArcArrayD<_>, _>(
-                          slice(data.view(), starts.into_dimensionality()?.view(), ends.into_dimensionality()?.view(), None, None)?
-                              .into_dyn()
-                              .into(),
-                      )
-                  }),
-                )*
-                    _ => bail!("Slice: All index-typed inputs must have identical types"),
-            }
-        };
-    }
-    match data {
-        U8(data) => match_index_variants!(data, I32, I64),
-        U16(data) => match_index_variants!(data, I32, I64),
-        U32(data) => match_index_variants!(data, I32, I64),
-        U64(data) => match_index_variants!(data, I32, I64),
-
-        I8(data) => match_index_variants!(data, I32, I64),
-        I16(data) => match_index_variants!(data, I32, I64),
-        I32(data) => match_index_variants!(data, I32, I64),
-        I64(data) => match_index_variants!(data, I32, I64),
-
-        F32(data) => match_index_variants!(data, I32, I64),
-        F64(data) => match_index_variants!(data, I32, I64),
-
-        Bool(data) => match_index_variants!(data, I32, I64),
-        String(data) => match_index_variants!(data, I32, I64),
+                    }
+                )
+            )
+        }
+        (None, Some(steps)) => {
+            setup_all!(
+                TaggedReceiver,
+                data,
+                data,
+                setup(
+                    (data, starts, ends, steps),
+                    move |(data, starts, ends, steps)| {
+                        Ok::<ArcArrayD<_>, _>(
+                            slice(
+                                data.view(),
+                                starts.into_dimensionality()?.view(),
+                                ends.into_dimensionality()?.view(),
+                                None,
+                                Some(steps.into_dimensionality()?.view()),
+                            )?
+                            .into_dyn()
+                            .into(),
+                        )
+                    }
+                )
+            )
+        }
+        (Some(axes), None) => {
+            setup_all!(
+                TaggedReceiver,
+                data,
+                data,
+                setup(
+                    (data, starts, ends, axes),
+                    move |(data, starts, ends, axes)| {
+                        Ok::<ArcArrayD<_>, _>(
+                            slice(
+                                data.view(),
+                                starts.into_dimensionality()?.view(),
+                                ends.into_dimensionality()?.view(),
+                                Some(axes.into_dimensionality()?.view()),
+                                None,
+                            )?
+                            .into_dyn()
+                            .into(),
+                        )
+                    }
+                )
+            )
+        }
+        (None, None) => {
+            setup_all!(
+                TaggedReceiver,
+                data,
+                data,
+                setup((data, starts, ends), move |(data, starts, ends)| {
+                    Ok::<ArcArrayD<_>, _>(
+                        slice(
+                            data.view(),
+                            starts.into_dimensionality()?.view(),
+                            ends.into_dimensionality()?.view(),
+                            None,
+                            None,
+                        )?
+                        .into_dyn()
+                        .into(),
+                    )
+                })
+            )
+        }
     }
 }

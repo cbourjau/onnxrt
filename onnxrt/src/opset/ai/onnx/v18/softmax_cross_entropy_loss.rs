@@ -29,9 +29,12 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::from_attrs(&ctx.attrs)?;
 
     // The second output is optional
-    let with_log_prob = if ctx.n_outputs() == 2 { true } else { false };
+    let with_log_prob = ctx.n_outputs() == 2;
 
-    let (scores, labels, weights) = ctx.input_channels_with_optional().narrow()?;
+    let (scores, labels, weights): (_, OnnxIndex, _) =
+        ctx.input_channels_with_optional().narrow()?;
+
+    let labels = labels.into_i64();
 
     macro_rules! optional_output (
         ($output:expr, $log_prob:expr, false) => {
@@ -76,17 +79,8 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
 
     use FloatingPoint::*;
 
-    match (labels, with_log_prob) {
-        (OnnxIndex::I64(labels), false) => match (scores, weights) {
-            (F32(scores), Some(F32(weights))) => match_arm!(scores, labels, weights, false),
-            (F32(scores), None) => match_arm!(scores, labels, None, false),
-            (F64(scores), Some(F64(weights))) => match_arm!(scores, labels, weights, false),
-            (F64(scores), None) => match_arm!(scores, labels, None, false),
-            _ => {
-                bail!("SoftMaxCrossEntropyLoss: Inconsistent types for 'scores' and 'weights'")
-            }
-        },
-        (OnnxIndex::I64(labels), true) => match (scores, weights) {
+    if with_log_prob {
+        match (scores, weights) {
             (F32(scores), Some(F32(weights))) => match_arm!(scores, labels, weights, true),
             (F32(scores), None) => match_arm!(scores, labels, None, true),
             (F64(scores), Some(F64(weights))) => match_arm!(scores, labels, weights, true),
@@ -94,8 +88,9 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
             _ => {
                 bail!("SoftMaxCrossEntropyLoss: Inconsistent types for 'scores' and 'weights'")
             }
-        },
-        (OnnxIndex::I32(labels), false) => match (scores, weights) {
+        }
+    } else {
+        match (scores, weights) {
             (F32(scores), Some(F32(weights))) => match_arm!(scores, labels, weights, false),
             (F32(scores), None) => match_arm!(scores, labels, None, false),
             (F64(scores), Some(F64(weights))) => match_arm!(scores, labels, weights, false),
@@ -103,15 +98,6 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
             _ => {
                 bail!("SoftMaxCrossEntropyLoss: Inconsistent types for 'scores' and 'weights'")
             }
-        },
-        (OnnxIndex::I32(labels), true) => match (scores, weights) {
-            (F32(scores), Some(F32(weights))) => match_arm!(scores, labels, weights, true),
-            (F32(scores), None) => match_arm!(scores, labels, None, true),
-            (F64(scores), Some(F64(weights))) => match_arm!(scores, labels, weights, true),
-            (F64(scores), None) => match_arm!(scores, labels, None, true),
-            _ => {
-                bail!("SoftMaxCrossEntropyLoss: Inconsistent types for 'scores' and 'weights'")
-            }
-        },
+        }
     }
 }

@@ -15,7 +15,7 @@ impl Gather {
         Ok(Self { axis })
     }
 
-    fn compute<T, Idx>(&self, data: ArcArrayD<T>, indices: ArcArrayD<Idx>) -> Result<ArcArrayD<T>>
+    fn compute<T, Idx>(&self, data: ArcArrayD<T>, indices: ArrayD<Idx>) -> Result<ArcArrayD<T>>
     where
         T: Clone + std::fmt::Debug,
         Idx: Integer + AsPrimitive<i64> + Copy + 'static + std::fmt::Debug,
@@ -59,30 +59,14 @@ impl Gather {
 
 pub fn setup_gather(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Gather::from_attrs(&ctx.attrs)?;
-    let (data, indices) = ctx.subscribe_to_inputs().narrow()?;
-    match indices {
-        TaggedReceiver::I32(indices) => {
-            setup_all!(
-                TaggedReceiver,
-                data,
-                data,
-                setup((data,), move |(data,)| {
-                    let indices = indices.recv()?;
-                    state.compute(data, indices)
-                })
-            )
-        }
-        TaggedReceiver::I64(indices) => {
-            setup_all!(
-                TaggedReceiver,
-                data,
-                data,
-                setup((data,), move |(data,)| {
-                    let indices = indices.recv()?;
-                    state.compute(data, indices)
-                })
-            )
-        }
-        _ => bail!("Gather: 'indices' must be of type tensor(int32) or tensor(int64)"),
-    }
+    let (data, indices): (_, OnnxIndex) = ctx.subscribe_to_inputs().narrow()?;
+    let indices = indices.into_i64();
+    setup_all!(
+        TaggedReceiver,
+        data,
+        data,
+        setup((data, indices), move |(data, indices)| {
+            state.compute(data, indices)
+        })
+    )
 }

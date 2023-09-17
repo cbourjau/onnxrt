@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
+use itertools::sorted;
+
 use crate::opset::utils::*;
 use crate::session::SetupFnSignature;
-use crate::{channel, Sendable};
-use itertools::sorted;
 
 mod arg_min_max;
 mod batch_normalization;
