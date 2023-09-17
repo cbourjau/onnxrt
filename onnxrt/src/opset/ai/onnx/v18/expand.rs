@@ -30,7 +30,7 @@ pub fn setup_expand(ctx: OpContext) -> Result<ExecutionStep> {
             // SPECS UNCLEAR: What happens with negative indices?
             let shape = shape.as_standard_layout().mapv(|el| el as usize);
             let shape = shape.as_slice().unwrap();
-            Ok::<ArcArrayD<_>, _>(expand(input.view(), shape)?.into())
+            expand(input.view(), shape)
         })
     )
 }

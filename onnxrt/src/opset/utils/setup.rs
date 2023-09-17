@@ -118,16 +118,17 @@ pub trait VariadicDispatchable {
 
 impl<T> VariadicDispatchable for Vec<T>
 where
-    T: Sendable + Clone,
+    T: IntoArc,
+    <T as IntoArc>::Output: Sendable + Clone,
 {
-    type Senders = Vec<Sender<T>>;
+    type Senders = Vec<Sender<<T as IntoArc>::Output>>;
 
     fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>) {
         let mut sdrs = vec![];
         let mut recs = vec![];
 
         for _ in 0..n {
-            let (sdr, rec) = T::channel();
+            let (sdr, rec) = <T as IntoArc>::Output::channel();
             sdrs.push(sdr);
             recs.push(rec);
         }
@@ -136,7 +137,7 @@ where
 
     fn send_via(self, senders: &Self::Senders) -> Result<()> {
         for (item, sdr) in self.into_iter().zip(senders.iter()) {
-            sdr.send(item)?;
+            sdr.send(item.into_arc()?)?;
         }
         Ok(())
     }
@@ -159,17 +160,18 @@ pub trait SendableOutputs {
 
 impl<A> SendableOutputs for A
 where
-    A: Sendable + Clone,
+    A: IntoArc,
+    <A as IntoArc>::Output: Sendable + Clone,
 {
-    type Senders = Sender<A>;
+    type Senders = Sender<<A as IntoArc>::Output>;
 
     fn channels() -> (Self::Senders, Vec<Dispatcher>) {
-        let (sdr, disp) = A::channel();
+        let (sdr, disp) = <A as IntoArc>::Output::channel();
         (sdr, vec![disp])
     }
 
     fn send_via(self, sender: &Self::Senders) -> Result<()> {
-        sender.send(self)?;
+        sender.send(self.into_arc()?)?;
         Ok(())
     }
 }
@@ -178,19 +180,19 @@ macro_rules! impl_SendableOutputs_for_tuples {
     ($($ty:tt),* | $($name:ident),* | $($idx:tt),*) => {
         impl<$($ty),*> SendableOutputs for ($($ty,)*)
         where
-            $($ty: Sendable + Clone),*
+            $($ty: IntoArc, <$ty as IntoArc>::Output: Sendable + Clone),*
         {
-            type Senders = ($(Sender<$ty>,)*);
+            type Senders = ($(Sender<<$ty as IntoArc>::Output>,)*);
 
             fn channels() -> (Self::Senders, Vec<Dispatcher>) {
                 $(
-                    let $name = $ty::channel();
+                    let $name = <$ty as IntoArc>::Output::channel();
                 )*
                 (($($name.0,)*), vec![$($name.1),*])
             }
 
             fn send_via(self, sender: &Self::Senders) -> Result<()> {
-                $(sender.$idx.send(self.$idx)?;)*
+                $(sender.$idx.send(self.$idx.into_arc()?)?;)*
                 Ok(())
             }
         }

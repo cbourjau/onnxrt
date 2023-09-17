@@ -151,7 +151,7 @@ pub fn setup_gather_nd(ctx: OpContext) -> Result<ExecutionStep> {
         data,
         inp,
         setup((inp, indices), move |(inp, indices)| {
-            Ok::<ArcArrayD<_>, _>(gather_nd(inp.view(), indices.view(), state.batch_dims)?.into())
+            gather_nd(inp.view(), indices.view(), state.batch_dims)
         })
     )
 }

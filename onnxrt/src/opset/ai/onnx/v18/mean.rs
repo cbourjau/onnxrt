@@ -27,8 +27,6 @@ pub fn setup_mean(ctx: OpContext) -> Result<ExecutionStep> {
         HomogeneousNumeric,
         data,
         data,
-        setup((data,), move |(data,)| Ok::<ArcArrayD<_>, _>(
-            mean(data)?.into()
-        ))
+        setup((data,), move |(data,)| mean(data))
     )
 }

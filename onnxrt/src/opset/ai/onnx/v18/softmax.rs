@@ -50,7 +50,7 @@ pub fn setup_softmax(ctx: OpContext) -> Result<ExecutionStep> {
         input,
         input,
         setup((input,), move |(input,)| {
-            Ok::<ArcArrayD<_>, _>(softmax(input.to_owned(), state.axis)?.into())
+            softmax(input.to_owned(), state.axis)
         })
     )
 }
@@ -65,7 +65,7 @@ pub fn setup_log_softmax(ctx: OpContext) -> Result<ExecutionStep> {
         input,
         input,
         setup((input,), move |(input,)| {
-            Ok::<ArcArrayD<_>, _>(log_softmax(input.to_owned(), state.axis)?.into())
+            log_softmax(input.to_owned(), state.axis)
         })
     )
 }

@@ -30,9 +30,24 @@ pub trait IntoArc {
     fn into_arc(self) -> Result<Self::Output>;
 }
 
-impl<T> IntoArc for Result<ArrayD<T>> {
+// // Deprecated
+// impl<T> IntoArc for Result<ArrayD<T>> {
+//     type Output = ArcArrayD<T>;
+//     fn into_arc(self) -> Result<Self::Output> {
+//         self.map(Into::into)
+//     }
+// }
+
+impl<T> IntoArc for ArcArrayD<T> {
     type Output = ArcArrayD<T>;
     fn into_arc(self) -> Result<Self::Output> {
-        self.map(Into::into)
+        Ok(self)
+    }
+}
+
+impl<T> IntoArc for ArrayD<T> {
+    type Output = ArcArrayD<T>;
+    fn into_arc(self) -> Result<Self::Output> {
+        Ok(self.into())
     }
 }

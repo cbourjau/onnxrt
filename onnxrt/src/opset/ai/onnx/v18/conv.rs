@@ -340,17 +340,17 @@ pub fn setup_conv(ctx: OpContext) -> Result<ExecutionStep> {
     use TaggedReceiver::*;
     match (x, w, b) {
         (F32(x), F32(w), None) => setup((x, w), move |(x, w)| {
-            Ok::<ArcArrayD<_>, _>(state.compute(x.view(), w.view(), None)?.into())
+            state.compute(x.view(), w.view(), None)
         }),
         (F64(x), F64(w), None) => setup((x, w), move |(x, w)| {
-            Ok::<ArcArrayD<_>, _>(state.compute(x.view(), w.view(), None)?.into())
+            state.compute(x.view(), w.view(), None)
         }),
         // With bias
         (F32(x), F32(w), Some(F32(b))) => setup((x, w, b), move |(x, w, b)| {
-            Ok::<ArcArrayD<_>, _>(state.compute(x.view(), w.view(), Some(b.view()))?.into())
+            state.compute(x.view(), w.view(), Some(b.view()))
         }),
         (F64(x), F64(w), Some(F64(b))) => setup((x, w, b), move |(x, w, b)| {
-            Ok::<ArcArrayD<_>, _>(state.compute(x.view(), w.view(), Some(b.view()))?.into())
+            state.compute(x.view(), w.view(), Some(b.view()))
         }),
         (x, w, b) => bail!(
             "Conv: Unimplemented input types: x: {:?}, w: {:?} and b:{:?}",

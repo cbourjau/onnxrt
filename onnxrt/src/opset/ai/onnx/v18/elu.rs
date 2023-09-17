@@ -29,7 +29,7 @@ pub fn setup_elu(ctx: OpContext) -> Result<ExecutionStep> {
         x,
         setup((x,), move |(x,)| {
             let x = x.to_owned();
-            Ok::<ArcArrayD<_>, _>(elu(x, alpha).into_dyn().into())
+            Ok(elu(x, alpha))
         })
     )
 }

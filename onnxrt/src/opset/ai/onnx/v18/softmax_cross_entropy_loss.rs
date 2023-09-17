@@ -38,10 +38,10 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
 
     macro_rules! optional_output (
         ($output:expr, $log_prob:expr, false) => {
-            Ok($output).into_arc()
+            Ok($output)
         };
         ($output:expr, $log_prob:expr, true) => {
-            Ok((Ok($output).into_arc()?, Ok($log_prob).into_arc()?))
+            Ok(($output, $log_prob))
         }
     );
 

@@ -7,8 +7,10 @@ pub fn setup_equal(ctx: OpContext) -> Result<ExecutionStep> {
         HomogeneousFixed,
         data,
         [a, b],
-        setup((a, b), move |(a, b)| Ok::<ArcArrayD<_>, _>(
-            zip_map_with_co_broadcast(a.view(), b.view(), |a, b| a == b)?.into()
+        setup((a, b), move |(a, b)| zip_map_with_co_broadcast(
+            a.view(),
+            b.view(),
+            |a, b| a == b
         ))
     )
 }

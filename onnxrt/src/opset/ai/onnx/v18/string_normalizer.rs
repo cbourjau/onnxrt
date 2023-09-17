@@ -103,7 +103,7 @@ pub fn setup_string_normalizer(ctx: OpContext) -> Result<ExecutionStep> {
     if let TaggedReceiver::String(x) = x {
         setup((x,), move |(x,)| {
             let x = x.to_owned();
-            Ok::<ArcArrayD<_>, _>(state.compute(x)?.into_dyn().into())
+            state.compute(x)
         })
     } else {
         bail!("")

@@ -11,9 +11,9 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
     match inputs {
         F32([a, b]) => setup((a, b), |(a, b)| {
             if a.ndim() == 2 && b.ndim() == 1 {
-                Ok::<ArcArrayD<_>, _>(matmul_2d_1d(a.view(), b.view())?.into())
+                matmul_2d_1d(a.view(), b.view())
             } else if a.ndim() == 2 && b.ndim() == 2 {
-                Ok::<ArcArrayD<_>, _>(matmul_2d(a.view(), b.view())?.into())
+                matmul_2d(a.view(), b.view())
             } else if a.ndim() != b.ndim() {
                 bail!(
                     "MatMul: Inputs must have equal rank. Found shapes a: '{:?}', b: '{:?}'",
@@ -21,14 +21,14 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
                     b.shape()
                 )
             } else {
-                Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
+                matmul_nd(a.view(), b.view())
             }
         }),
         F64([a, b]) => setup((a, b), |(a, b)| {
             if a.ndim() == 2 && b.ndim() == 1 {
-                Ok::<ArcArrayD<_>, _>(matmul_2d_1d(a.view(), b.view())?.into())
+                matmul_2d_1d(a.view(), b.view())
             } else if a.ndim() == 2 && b.ndim() == 2 {
-                Ok::<ArcArrayD<_>, _>(matmul_2d(a.view(), b.view())?.into())
+                matmul_2d(a.view(), b.view())
             } else if a.ndim() != b.ndim() {
                 bail!(
                     "MatMul: Inputs must have equal rank. Found shapes a: '{:?}', b: '{:?}'",
@@ -36,7 +36,7 @@ pub fn setup_matmul(ctx: OpContext) -> Result<ExecutionStep> {
                     b.shape()
                 )
             } else {
-                Ok::<ArcArrayD<_>, _>(matmul_nd(a.view(), b.view())?.into())
+                matmul_nd(a.view(), b.view())
             }
         }),
         _ => bail!("MatMul: Not implemented for integer types."),

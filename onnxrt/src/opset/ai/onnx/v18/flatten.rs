@@ -35,7 +35,7 @@ pub fn setup_flatten(ctx: OpContext) -> Result<ExecutionStep> {
         input,
         input,
         setup((input,), move |(input,)| {
-            Ok::<ArcArrayD<_>, _>(flatten_2d(input.view(), state.axis)?.into_dyn().into())
+            Ok(flatten_2d(input.view(), state.axis)?.into_dyn())
         })
     )
 }

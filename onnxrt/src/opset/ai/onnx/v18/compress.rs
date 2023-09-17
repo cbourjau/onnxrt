@@ -41,7 +41,7 @@ pub fn setup_compress(ctx: OpContext) -> Result<ExecutionStep> {
         input,
         inp,
         setup((inp, cond), move |(inp, cond)| {
-            Ok::<ArcArrayD<_>, _>(compress(inp.view(), cond.view(), state.axis)?.into())
+            compress(inp.view(), cond.view(), state.axis)
         })
     )
 }

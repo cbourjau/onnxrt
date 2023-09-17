@@ -65,7 +65,7 @@ pub fn setup_trilu(ctx: OpContext) -> Result<ExecutionStep> {
                 x,
                 setup((x, k), move |(x, k)| {
                     let k = k.into_shape(())?.to_owned().into_scalar() as isize;
-                    Ok::<ArcArrayD<_>, _>(trilu(x.into_owned(), k, state.upper)?.into())
+                    trilu(x.into_owned(), k, state.upper)
                 })
             )
         }
@@ -75,7 +75,7 @@ pub fn setup_trilu(ctx: OpContext) -> Result<ExecutionStep> {
             x,
             setup((x,), move |(x,)| {
                 let k = 0;
-                Ok::<ArcArrayD<_>, _>(trilu(x.into_owned(), k, state.upper)?.into())
+                trilu(x.into_owned(), k, state.upper)
             })
         ),
     }

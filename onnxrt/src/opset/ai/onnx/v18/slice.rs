@@ -83,16 +83,12 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
                 setup(
                     (data, starts, ends, axes, steps),
                     move |(data, starts, ends, axes, steps)| {
-                        Ok::<ArcArrayD<_>, _>(
-                            slice(
-                                data.view(),
-                                starts.into_dimensionality()?.view(),
-                                ends.into_dimensionality()?.view(),
-                                Some(axes.into_dimensionality()?.view()),
-                                Some(steps.into_dimensionality()?.view()),
-                            )?
-                            .into_dyn()
-                            .into(),
+                        slice(
+                            data.view(),
+                            starts.into_dimensionality()?.view(),
+                            ends.into_dimensionality()?.view(),
+                            Some(axes.into_dimensionality()?.view()),
+                            Some(steps.into_dimensionality()?.view()),
                         )
                     }
                 )
@@ -106,16 +102,12 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
                 setup(
                     (data, starts, ends, steps),
                     move |(data, starts, ends, steps)| {
-                        Ok::<ArcArrayD<_>, _>(
-                            slice(
-                                data.view(),
-                                starts.into_dimensionality()?.view(),
-                                ends.into_dimensionality()?.view(),
-                                None,
-                                Some(steps.into_dimensionality()?.view()),
-                            )?
-                            .into_dyn()
-                            .into(),
+                        slice(
+                            data.view(),
+                            starts.into_dimensionality()?.view(),
+                            ends.into_dimensionality()?.view(),
+                            None,
+                            Some(steps.into_dimensionality()?.view()),
                         )
                     }
                 )
@@ -129,16 +121,12 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
                 setup(
                     (data, starts, ends, axes),
                     move |(data, starts, ends, axes)| {
-                        Ok::<ArcArrayD<_>, _>(
-                            slice(
-                                data.view(),
-                                starts.into_dimensionality()?.view(),
-                                ends.into_dimensionality()?.view(),
-                                Some(axes.into_dimensionality()?.view()),
-                                None,
-                            )?
-                            .into_dyn()
-                            .into(),
+                        slice(
+                            data.view(),
+                            starts.into_dimensionality()?.view(),
+                            ends.into_dimensionality()?.view(),
+                            Some(axes.into_dimensionality()?.view()),
+                            None,
                         )
                     }
                 )
@@ -150,16 +138,12 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
                 data,
                 data,
                 setup((data, starts, ends), move |(data, starts, ends)| {
-                    Ok::<ArcArrayD<_>, _>(
-                        slice(
-                            data.view(),
-                            starts.into_dimensionality()?.view(),
-                            ends.into_dimensionality()?.view(),
-                            None,
-                            None,
-                        )?
-                        .into_dyn()
-                        .into(),
+                    slice(
+                        data.view(),
+                        starts.into_dimensionality()?.view(),
+                        ends.into_dimensionality()?.view(),
+                        None,
+                        None,
                     )
                 })
             )

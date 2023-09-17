@@ -112,24 +112,32 @@ pub enum TaggedReceiver {
     String(Receiver<ArcArrayD<String>>),
 }
 
-/// Create a typed sender and dispatcher. Used inside "wire" functions.
-pub fn channel<T: Sendable>() -> (Sender<T>, Dispatcher) {
-    T::channel()
-}
-
 /// Create a value-channel used as an entry point in a session
 pub fn value_channel(dtype: &DataType) -> (ValueSender, Dispatcher) {
     macro_rules! map_vars {
-        ($($var:tt),*) => {
+        ($(($var:tt, $ty:ty)),*) => {
             match dtype {
                 $(DataType::$var => {
-                    let (sdr, disp) = channel();
+                    let (sdr, disp) = ArcArrayD::<$ty>::channel();
                     (ValueSender::$var(sdr), disp)
                 })*
             }
         }
     }
-    map_vars!(Bool, F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, String)
+    map_vars!(
+        (Bool, bool),
+        (F32, f32),
+        (F64, f64),
+        (I8, i8),
+        (I16, i16),
+        (I32, i32),
+        (I64, i64),
+        (U8, u8),
+        (U16, u16),
+        (U32, u32),
+        (U64, u64),
+        (String, String)
+    )
 }
 
 impl ValueSender {
@@ -273,16 +281,13 @@ impl TaggedReceiver {
 }
 
 pub trait Sendable {
+    /// Type which is send over the channel
+    // type ArcType;
+
     fn channel() -> (Sender<Self>, Dispatcher)
     where
         Self: Sized;
 }
-
-// impl Sendable for Vec<Value> {
-//             fn channel() -> (Sender<Self>, Dispatcher)
-//             where
-//                 Self: Sized,
-//             {
 
 macro_rules! impl_dispatchable {
     ($ty:ty, $dispatcher:path) => {

@@ -92,7 +92,7 @@ pub fn setup_scatter_elements(ctx: OpContext) -> Result<ExecutionStep> {
                         state.axis,
                         $reduction,
                     )?;
-                    Ok::<ArcArrayD<_>, _>(out.into())
+                    Ok(out)
                 },
             )
         };

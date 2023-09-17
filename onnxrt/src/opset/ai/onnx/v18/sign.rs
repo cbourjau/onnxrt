@@ -34,29 +34,13 @@ pub fn setup_sign(ctx: OpContext) -> Result<ExecutionStep> {
     // Spec: ambiguous for floating points / NaN
     use Integer::*;
     match x {
-        U8(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign_for_unsigned(el)).into())
-        }),
-        U16(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign_for_unsigned(el)).into())
-        }),
-        U32(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign_for_unsigned(el)).into())
-        }),
-        U64(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign_for_unsigned(el)).into())
-        }),
-        I8(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign(el)).into())
-        }),
-        I16(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign(el)).into())
-        }),
-        I32(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign(el)).into())
-        }),
-        I64(x) => setup((x,), move |(x,)| {
-            Ok::<ArcArrayD<_>, _>(x.mapv(|el| sign(el)).into())
-        }),
+        U8(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        U16(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        U32(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        U64(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign_for_unsigned(el)))),
+        I8(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
+        I16(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
+        I32(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
+        I64(x) => setup((x,), move |(x,)| Ok(x.mapv(|el| sign(el)))),
     }
 }

@@ -114,11 +114,12 @@ pub fn setup_scatter_nd(ctx: OpContext) -> Result<ExecutionStep> {
 
     macro_rules! match_arm {
         ($data:tt, $indices:tt, $updates:tt, $reduction:expr) => {
-            setup(($data, $updates), move |(data, updates)| {
-                let indices = $indices.recv()?;
-                let out = scatter_nd(data.to_owned(), indices.view(), updates.view(), $reduction)?;
-                Ok::<ArcArrayD<_>, _>(out.into())
-            })
+            setup(
+                ($data, $indices, $updates),
+                move |(data, indices, updates)| {
+                    scatter_nd(data.to_owned(), indices.view(), updates.view(), $reduction)
+                },
+            )
         };
     }
 

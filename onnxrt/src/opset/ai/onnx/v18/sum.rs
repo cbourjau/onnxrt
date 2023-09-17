@@ -15,7 +15,7 @@ pub fn setup_sum(ctx: OpContext) -> Result<ExecutionStep> {
             for arr in iter {
                 out = zip_map_with_co_broadcast(out.view(), arr.view(), |a, b| a + b)?;
             }
-            Ok(out).into_arc()
+            Ok(out)
         })
     )
 }

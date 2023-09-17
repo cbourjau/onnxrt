@@ -14,11 +14,11 @@ pub fn setup_tree_ensemble_regressor(ctx: OpContext) -> Result<ExecutionStep> {
     match a_ch {
         F64(a_ch) => {
             let ensemble = TreeEnsemble::from_attributes(&attrs).unwrap();
-            setup((a_ch,), move |(a,)| Ok(ensemble.predict(&a)).into_arc())
+            setup((a_ch,), move |(a,)| Ok(ensemble.predict(&a)))
         }
         F32(a_ch) => {
             let ensemble = TreeEnsemble::from_attributes(&attrs).unwrap();
-            setup((a_ch,), move |(a,)| Ok(ensemble.predict(&a)).into_arc())
+            setup((a_ch,), move |(a,)| Ok(ensemble.predict(&a)))
         }
     }
 }

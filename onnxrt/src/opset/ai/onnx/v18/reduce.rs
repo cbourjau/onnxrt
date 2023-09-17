@@ -284,7 +284,7 @@ macro_rules! create_setup_function {
                         }
                     };
                     let out = $fun(data.view(), axes, state.keep_dims, state.noop_empty)?;
-                    Ok::<ArcArrayD<_>, _>(out.into())
+                    Ok(out)
                 }),)*
                 _ => bail!("Type support of reduce operations is limited."),
             }

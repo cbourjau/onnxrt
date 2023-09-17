@@ -114,54 +114,42 @@ pub fn setup_nlll(ctx: OpContext) -> Result<ExecutionStep> {
     match (input, weights) {
         (F32(input), Some(F32(weights))) => {
             setup((input, target, weights), move |(input, target, weights)| {
-                Ok::<ArcArrayD<_>, _>(
-                    nlll(
-                        input.view(),
-                        target.view(),
-                        Some(weights.view().into_dimensionality()?),
-                        state.ignore_index,
-                        state.reduction,
-                    )?
-                    .into(),
+                nlll(
+                    input.view(),
+                    target.view(),
+                    Some(weights.view().into_dimensionality()?),
+                    state.ignore_index,
+                    state.reduction,
                 )
             })
         }
         (F32(input), None) => setup((input, target), move |(input, target)| {
-            Ok::<ArcArrayD<_>, _>(
-                nlll(
-                    input.view(),
-                    target.view(),
-                    None,
-                    state.ignore_index,
-                    state.reduction,
-                )?
-                .into(),
+            nlll(
+                input.view(),
+                target.view(),
+                None,
+                state.ignore_index,
+                state.reduction,
             )
         }),
         (F64(input), Some(F64(weights))) => {
             setup((input, target, weights), move |(input, target, weights)| {
-                Ok::<ArcArrayD<_>, _>(
-                    nlll(
-                        input.view(),
-                        target.view(),
-                        Some(weights.view().into_dimensionality()?),
-                        state.ignore_index,
-                        state.reduction,
-                    )?
-                    .into(),
+                nlll(
+                    input.view(),
+                    target.view(),
+                    Some(weights.view().into_dimensionality()?),
+                    state.ignore_index,
+                    state.reduction,
                 )
             })
         }
         (F64(input), None) => setup((input, target), move |(input, target)| {
-            Ok::<ArcArrayD<_>, _>(
-                nlll(
-                    input.view(),
-                    target.view(),
-                    None,
-                    state.ignore_index,
-                    state.reduction,
-                )?
-                .into(),
+            nlll(
+                input.view(),
+                target.view(),
+                None,
+                state.ignore_index,
+                state.reduction,
             )
         }),
         _ => bail!("NegativeLogLikelihoodLoss: Inconsistent types for 'input' and 'weights'"),

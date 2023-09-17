@@ -10,13 +10,10 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
         data,
         data,
         setup((data, shape), move |(data, shape)| {
-            Ok::<ArcArrayD<_>, _>(
-                reshape(
-                    data.into_owned(),
-                    shape.as_standard_layout().as_slice().unwrap(),
-                    allow_zero,
-                )?
-                .into(),
+            reshape(
+                data.into_owned(),
+                shape.as_standard_layout().as_slice().unwrap(),
+                allow_zero,
             )
         })
     )

@@ -48,7 +48,7 @@ pub fn setup_constant_of_shape(ctx: OpContext) -> Result<ExecutionStep> {
                     .into_iter()
                     .map(|el| Ok(usize::try_from(el)?))
                     .collect::<Result<_>>()?;
-                Ok::<ArcArrayD<_>, _>($v.broadcast(shape.as_slice()).unwrap().to_owned().into())
+                Ok($v.broadcast(shape.as_slice()).unwrap().to_owned())
             })
         };
     }
