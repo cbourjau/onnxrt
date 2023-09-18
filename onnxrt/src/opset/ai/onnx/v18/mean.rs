@@ -23,10 +23,5 @@ where
 
 pub fn setup_mean(ctx: OpContext) -> Result<ExecutionStep> {
     let data = ctx.subscribe_to_inputs().narrow()?;
-    setup_all!(
-        HomogeneousNumeric,
-        data,
-        data,
-        setup(data, mean)
-    )
+    setup_all!(HomogeneousNumeric, data, data, setup(data, mean))
 }

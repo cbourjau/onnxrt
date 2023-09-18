@@ -77,8 +77,7 @@ fn reduce_l2<D>(
 where
     D: Bounded + Copy + PartialOrd + Zero + Float,
 {
-    Ok(reduce_sum_square(data, axes, keep_dims, noop_empty)?
-        .mapv(|el| el.sqrt()))
+    Ok(reduce_sum_square(data, axes, keep_dims, noop_empty)?.mapv(|el| el.sqrt()))
 }
 
 fn reduce_log_sum<D>(
