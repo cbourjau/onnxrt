@@ -4,7 +4,7 @@ use crate::edges::{value_channel, DataType};
 use crate::opset::utils::*;
 use crate::Value;
 use crate::{
-    edges::{Sender, TaggedDispatcher},
+    edges::{Dispatcher, TaggedDispatcher},
     Sendable,
 };
 use std::collections::{HashMap, HashSet};
@@ -121,7 +121,7 @@ where
     T: IntoArc,
     <T as IntoArc>::Output: Sendable + Clone,
 {
-    type Senders = Vec<Sender<<T as IntoArc>::Output>>;
+    type Senders = Vec<Dispatcher<<T as IntoArc>::Output>>;
 
     fn channels(n: usize) -> (Self::Senders, Vec<TaggedDispatcher>) {
         let mut sdrs = vec![];
@@ -163,7 +163,7 @@ where
     A: IntoArc,
     <A as IntoArc>::Output: Sendable + Clone,
 {
-    type Senders = Sender<<A as IntoArc>::Output>;
+    type Senders = Dispatcher<<A as IntoArc>::Output>;
 
     fn channels() -> (Self::Senders, Vec<TaggedDispatcher>) {
         let (sdr, disp) = <A as IntoArc>::Output::channel();
@@ -182,7 +182,7 @@ macro_rules! impl_SendableOutputs_for_tuples {
         where
             $($ty: IntoArc, <$ty as IntoArc>::Output: Sendable + Clone),*
         {
-            type Senders = ($(Sender<<$ty as IntoArc>::Output>,)*);
+            type Senders = ($(Dispatcher<<$ty as IntoArc>::Output>,)*);
 
             fn channels() -> (Self::Senders, Vec<TaggedDispatcher>) {
                 $(

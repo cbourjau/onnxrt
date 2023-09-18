@@ -45,29 +45,27 @@ pub enum Value {
 /// Sender Consuming a `Value` and forwarding it to the `Sender` of the correct type.
 #[derive(Debug)]
 pub enum ValueSender {
-    Bool(Sender<ArcArrayD<bool>>),
-    F32(Sender<ArcArrayD<f32>>),
-    F64(Sender<ArcArrayD<f64>>),
+    Bool(Dispatcher<ArcArrayD<bool>>),
+    F32(Dispatcher<ArcArrayD<f32>>),
+    F64(Dispatcher<ArcArrayD<f64>>),
 
-    I8(Sender<ArcArrayD<i8>>),
-    I16(Sender<ArcArrayD<i16>>),
-    I32(Sender<ArcArrayD<i32>>),
-    I64(Sender<ArcArrayD<i64>>),
+    I8(Dispatcher<ArcArrayD<i8>>),
+    I16(Dispatcher<ArcArrayD<i16>>),
+    I32(Dispatcher<ArcArrayD<i32>>),
+    I64(Dispatcher<ArcArrayD<i64>>),
 
-    U8(Sender<ArcArrayD<u8>>),
-    U16(Sender<ArcArrayD<u16>>),
-    U32(Sender<ArcArrayD<u32>>),
-    U64(Sender<ArcArrayD<u64>>),
-    String(Sender<ArcArrayD<String>>),
+    U8(Dispatcher<ArcArrayD<u8>>),
+    U16(Dispatcher<ArcArrayD<u16>>),
+    U32(Dispatcher<ArcArrayD<u32>>),
+    U64(Dispatcher<ArcArrayD<u64>>),
+    String(Dispatcher<ArcArrayD<String>>),
 }
 
-/// Typed sender. Used to send values of known types out of "wire" functions.
+/// Typed sender. Used to send values of known types *out* of "setup" functions.
 #[derive(Default, Debug)]
-pub struct Sender<T> {
-    sub_senders: Arc<Mutex<Vec<SyncSender<T>>>>,
-}
+pub struct Dispatcher<T>(Arc<Mutex<Vec<SyncSender<T>>>>);
 
-/// Object returned by "wire" functions. Only used during the setup
+/// Object returned by "setup" functions. Only used during the setup
 /// phase. Downstream nodes can subscribe to this object to receive
 /// outputs of previous nodes. It serves as a one to many channel
 /// where all consumers receive a send object.
@@ -179,12 +177,12 @@ impl ValueSender {
     }
 }
 
-impl<T> Sender<T> {
+impl<T> Dispatcher<T> {
     pub fn send(&self, value: T) -> Result<()>
     where
         T: Clone,
     {
-        for sdr in self.sub_senders.lock().unwrap().iter() {
+        for sdr in self.0.lock().unwrap().iter() {
             // TODO: We could define a helpful error here with
             // information about which nodes were involved.
             sdr.send(value.clone()).unwrap();
@@ -281,10 +279,9 @@ impl TaggedReceiver {
 }
 
 pub trait Sendable {
-    /// Type which is send over the channel
-    // type ArcType;
-
-    fn channel() -> (Sender<Self>, TaggedDispatcher)
+    /// Create a new empty `TaggedDispatcher` (second element) fed by
+    /// the `Dispatcher` returned as the first element.
+    fn channel() -> (Dispatcher<Self>, TaggedDispatcher)
     where
         Self: Sized;
 }
@@ -292,12 +289,12 @@ pub trait Sendable {
 macro_rules! impl_sendable {
     ($ty:ty, $dispatcher:path) => {
         impl Sendable for ArcArrayD<$ty> {
-            fn channel() -> (Sender<Self>, TaggedDispatcher)
+            fn channel() -> (Dispatcher<Self>, TaggedDispatcher)
             where
                 Self: Sized,
             {
-                let sender = Sender::<Self>::default();
-                let disp = $dispatcher(sender.sub_senders.clone());
+                let sender = Dispatcher::<Self>::default();
+                let disp = $dispatcher(sender.0.clone());
                 (sender, disp)
             }
         }
