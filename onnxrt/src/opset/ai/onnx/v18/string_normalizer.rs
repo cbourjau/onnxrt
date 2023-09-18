@@ -2,9 +2,9 @@ use crate::opset::utils::*;
 
 #[derive(Debug)]
 enum CaseChange {
-    LOWER,
-    UPPER,
-    NONE,
+    Lower,
+    Upper,
+    None,
 }
 
 #[derive(Debug)]
@@ -20,9 +20,9 @@ impl StringNormalizer {
             attrs.get_with_default("case_change_action", "NONE".to_string())?;
 
         let case_change_action = match case_change_action.as_str() {
-            "NONE" => CaseChange::NONE,
-            "UPPER" => CaseChange::UPPER,
-            "LOWER" => CaseChange::LOWER,
+            "NONE" => CaseChange::None,
+            "UPPER" => CaseChange::Upper,
+            "LOWER" => CaseChange::Lower,
             s => bail!(
                 "StringNormalizer: Unexpected value for attribute 'case_change_action': '{}'",
                 s
@@ -36,10 +36,10 @@ impl StringNormalizer {
             stopwords
         } else {
             match case_change_action {
-                CaseChange::NONE | CaseChange::LOWER => {
+                CaseChange::None | CaseChange::Lower => {
                     stopwords.into_iter().map(|s| s.to_lowercase()).collect()
                 }
-                CaseChange::UPPER => stopwords.into_iter().map(|s| s.to_uppercase()).collect(),
+                CaseChange::Upper => stopwords.into_iter().map(|s| s.to_uppercase()).collect(),
             }
         };
 
@@ -57,21 +57,21 @@ impl StringNormalizer {
                 s.clone()
             } else {
                 match self.case_change_action {
-                    CaseChange::NONE | CaseChange::LOWER => s.to_lowercase(),
-                    CaseChange::UPPER => s.to_uppercase(),
+                    CaseChange::None | CaseChange::Lower => s.to_lowercase(),
+                    CaseChange::Upper => s.to_uppercase(),
                 }
             };
 
             for sw in &self.stopwords {
-                if s_for_match.find(sw.as_str()).is_some() {
+                if s_for_match.contains(sw.as_str()) {
                     return None;
                 }
             }
             Some(match (&self.case_change_action, self.is_case_sensitive) {
-                (CaseChange::NONE, _) => s,
-                (CaseChange::LOWER, false) | (CaseChange::UPPER, false) => s_for_match,
-                (CaseChange::LOWER, true) => s.to_lowercase(),
-                (CaseChange::UPPER, true) => s.to_uppercase(),
+                (CaseChange::None, _) => s,
+                (CaseChange::Lower, false) | (CaseChange::Upper, false) => s_for_match,
+                (CaseChange::Lower, true) => s.to_lowercase(),
+                (CaseChange::Upper, true) => s.to_uppercase(),
             })
         });
 

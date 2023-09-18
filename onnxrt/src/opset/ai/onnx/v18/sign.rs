@@ -1,4 +1,4 @@
-use std::ops::Neg;
+use std::{cmp::Ordering, ops::Neg};
 
 use num_traits::{One, Zero};
 
@@ -8,12 +8,10 @@ fn sign<T>(el: T) -> T
 where
     T: One + Zero + PartialOrd + Ord + Neg<Output = T>,
 {
-    if el > T::zero() {
-        T::one()
-    } else if el < T::zero() {
-        T::one().neg()
-    } else {
-        T::zero()
+    match el.cmp(&T::zero()) {
+        Ordering::Greater => T::one(),
+        Ordering::Less => T::one().neg(),
+        Ordering::Equal => T::zero(),
     }
 }
 
@@ -34,13 +32,13 @@ pub fn setup_sign(ctx: OpContext) -> Result<ExecutionStep> {
     // Spec: ambiguous for floating points / NaN
     use Integer::*;
     match x {
-        U8(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        U16(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        U32(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        U64(x) => setup(x, move |x| Ok(x.mapv(|el| sign_for_unsigned(el)))),
-        I8(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
-        I16(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
-        I32(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
-        I64(x) => setup(x, move |x| Ok(x.mapv(|el| sign(el)))),
+        U8(x) => setup(x, move |x| Ok(x.mapv(sign_for_unsigned))),
+        U16(x) => setup(x, move |x| Ok(x.mapv(sign_for_unsigned))),
+        U32(x) => setup(x, move |x| Ok(x.mapv(sign_for_unsigned))),
+        U64(x) => setup(x, move |x| Ok(x.mapv(sign_for_unsigned))),
+        I8(x) => setup(x, move |x| Ok(x.mapv(sign))),
+        I16(x) => setup(x, move |x| Ok(x.mapv(sign))),
+        I32(x) => setup(x, move |x| Ok(x.mapv(sign))),
+        I64(x) => setup(x, move |x| Ok(x.mapv(sign))),
     }
 }

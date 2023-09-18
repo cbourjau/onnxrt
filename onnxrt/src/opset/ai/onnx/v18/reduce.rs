@@ -78,8 +78,7 @@ where
     D: Bounded + Copy + PartialOrd + Zero + Float,
 {
     Ok(reduce_sum_square(data, axes, keep_dims, noop_empty)?
-        .mapv(|el| el.sqrt())
-        .into())
+        .mapv(|el| el.sqrt()))
 }
 
 fn reduce_log_sum<D>(
@@ -138,7 +137,7 @@ where
     let reduced = reduce(data, axes, D::zero(), fold_sum, keep_dims, noop_empty)?;
     let n_reduced: D = reduced.len().as_();
     let scaling = n_initial / n_reduced;
-    Ok(reduced.mapv(|v| v / scaling).into())
+    Ok(reduced.mapv(|v| v / scaling))
 }
 
 fn reduce<T, F>(
@@ -217,7 +216,7 @@ where
     } else {
         reduced
     };
-    Ok(reduced.into())
+    Ok(reduced)
 }
 
 struct State {

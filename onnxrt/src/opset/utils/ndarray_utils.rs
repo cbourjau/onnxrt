@@ -87,8 +87,7 @@ where
     // Unwrap is fine below since we just computed the common shape above.
     Ok(Zip::from(a.broadcast(common_shape).unwrap())
         .and_broadcast(b)
-        .map_collect(op)
-        .into())
+        .map_collect(op))
 }
 
 #[cfg(tests)]

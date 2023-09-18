@@ -34,7 +34,7 @@ pub fn setup_gap(ctx: OpContext) -> Result<ExecutionStep> {
     use FloatingPoint::*;
 
     match inputs {
-        F32(a) => setup(a, move |a| global_average_pool(a)),
-        F64(a) => setup(a, move |a| global_average_pool(a)),
+        F32(a) => setup(a, global_average_pool),
+        F64(a) => setup(a, global_average_pool),
     }
 }
