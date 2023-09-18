@@ -44,7 +44,18 @@ pub enum Value {
 
 /// Sender Consuming a `Value` and forwarding it to the `Sender` of the correct type.
 #[derive(Debug)]
-pub enum ValueSender {
+pub struct ValueSender(TaggedDispatcher);
+
+/// Typed sender. Used to send values of known types *out* of "setup" functions.
+#[derive(Default, Debug, Clone)]
+pub struct Dispatcher<T>(Arc<Mutex<Vec<SyncSender<T>>>>);
+
+/// Object returned by "setup" functions. Only used during the setup
+/// phase. Downstream nodes can subscribe to this object to receive
+/// outputs of previous nodes. It serves as a one to many channel
+/// where all consumers receive a send object.
+#[derive(Debug)]
+pub enum TaggedDispatcher {
     Bool(Dispatcher<ArcArrayD<bool>>),
     F32(Dispatcher<ArcArrayD<f32>>),
     F64(Dispatcher<ArcArrayD<f64>>),
@@ -58,34 +69,8 @@ pub enum ValueSender {
     U16(Dispatcher<ArcArrayD<u16>>),
     U32(Dispatcher<ArcArrayD<u32>>),
     U64(Dispatcher<ArcArrayD<u64>>),
+
     String(Dispatcher<ArcArrayD<String>>),
-}
-
-/// Typed sender. Used to send values of known types *out* of "setup" functions.
-#[derive(Default, Debug)]
-pub struct Dispatcher<T>(Arc<Mutex<Vec<SyncSender<T>>>>);
-
-/// Object returned by "setup" functions. Only used during the setup
-/// phase. Downstream nodes can subscribe to this object to receive
-/// outputs of previous nodes. It serves as a one to many channel
-/// where all consumers receive a send object.
-#[derive(Debug)]
-pub enum TaggedDispatcher {
-    Bool(Arc<Mutex<Vec<SyncSender<ArcArrayD<bool>>>>>),
-    F32(Arc<Mutex<Vec<SyncSender<ArcArrayD<f32>>>>>),
-    F64(Arc<Mutex<Vec<SyncSender<ArcArrayD<f64>>>>>),
-
-    I8(Arc<Mutex<Vec<SyncSender<ArcArrayD<i8>>>>>),
-    I16(Arc<Mutex<Vec<SyncSender<ArcArrayD<i16>>>>>),
-    I32(Arc<Mutex<Vec<SyncSender<ArcArrayD<i32>>>>>),
-    I64(Arc<Mutex<Vec<SyncSender<ArcArrayD<i64>>>>>),
-
-    U8(Arc<Mutex<Vec<SyncSender<ArcArrayD<u8>>>>>),
-    U16(Arc<Mutex<Vec<SyncSender<ArcArrayD<u16>>>>>),
-    U32(Arc<Mutex<Vec<SyncSender<ArcArrayD<u32>>>>>),
-    U64(Arc<Mutex<Vec<SyncSender<ArcArrayD<u64>>>>>),
-
-    String(Arc<Mutex<Vec<SyncSender<ArcArrayD<String>>>>>),
 }
 
 /// Object obtained by subscribing to a `Dispatcher`. Used inside
@@ -117,7 +102,7 @@ pub fn value_channel(dtype: &DataType) -> (ValueSender, TaggedDispatcher) {
             match dtype {
                 $(DataType::$var => {
                     let (sdr, disp) = ArcArrayD::<$ty>::channel();
-                    (ValueSender::$var(sdr), disp)
+                    (ValueSender(TaggedDispatcher::$var(sdr)), disp)
                 })*
             }
         }
@@ -144,7 +129,7 @@ impl ValueSender {
             ($($var:tt),*) => {
                 match (self, value) {
                     $(
-                        (Self::$var(sdr), Value::$var(val)) => {
+                        (Self(TaggedDispatcher::$var(sdr)), Value::$var(val)) => {
                             sdr.send(val)
                         },
                     )*
@@ -157,22 +142,22 @@ impl ValueSender {
     }
 
     pub fn dtype(&self) -> DataType {
-        match self {
-            Self::Bool(_) => DataType::Bool,
-            Self::F32(_) => DataType::F32,
-            Self::F64(_) => DataType::F64,
+        match self.0 {
+            TaggedDispatcher::Bool(_) => DataType::Bool,
+            TaggedDispatcher::F32(_) => DataType::F32,
+            TaggedDispatcher::F64(_) => DataType::F64,
 
-            Self::I8(_) => DataType::I8,
-            Self::I16(_) => DataType::I16,
-            Self::I32(_) => DataType::I32,
-            Self::I64(_) => DataType::I64,
+            TaggedDispatcher::I8(_) => DataType::I8,
+            TaggedDispatcher::I16(_) => DataType::I16,
+            TaggedDispatcher::I32(_) => DataType::I32,
+            TaggedDispatcher::I64(_) => DataType::I64,
 
-            Self::U8(_) => DataType::U8,
-            Self::U16(_) => DataType::U16,
-            Self::U32(_) => DataType::U32,
-            Self::U64(_) => DataType::U64,
+            TaggedDispatcher::U8(_) => DataType::U8,
+            TaggedDispatcher::U16(_) => DataType::U16,
+            TaggedDispatcher::U32(_) => DataType::U32,
+            TaggedDispatcher::U64(_) => DataType::U64,
 
-            Self::String(_) => DataType::String,
+            TaggedDispatcher::String(_) => DataType::String,
         }
     }
 }
@@ -199,7 +184,7 @@ impl TaggedDispatcher {
                 match self {
                     $(Self::$variant(senders) => {
                         let (sdr, rec) = sync_channel(1);
-                        senders.lock().unwrap().push(sdr);
+                        senders.0.lock().unwrap().push(sdr);
                         TaggedReceiver::$variant(rec)
                     })*
                 }
@@ -294,7 +279,7 @@ macro_rules! impl_sendable {
                 Self: Sized,
             {
                 let sender = Dispatcher::<Self>::default();
-                let disp = $dispatcher(sender.0.clone());
+                let disp = $dispatcher(sender.clone());
                 (sender, disp)
             }
         }
