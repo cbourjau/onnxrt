@@ -9,7 +9,7 @@ mod session;
 pub(crate) use attribute::Attributes;
 pub use edges::Value;
 pub(crate) use edges::{
-    value_channel, DataType, Dispatcher, Sendable, TaggedReceiver, ValueSender,
+    value_channel, DataType, Sendable, TaggedDispatcher, TaggedReceiver, ValueSender,
 };
 pub use opset::get_opset;
 pub use session::Session;

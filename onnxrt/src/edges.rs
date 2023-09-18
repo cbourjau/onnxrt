@@ -72,7 +72,7 @@ pub struct Sender<T> {
 /// outputs of previous nodes. It serves as a one to many channel
 /// where all consumers receive a send object.
 #[derive(Debug)]
-pub enum Dispatcher {
+pub enum TaggedDispatcher {
     Bool(Arc<Mutex<Vec<SyncSender<ArcArrayD<bool>>>>>),
     F32(Arc<Mutex<Vec<SyncSender<ArcArrayD<f32>>>>>),
     F64(Arc<Mutex<Vec<SyncSender<ArcArrayD<f64>>>>>),
@@ -113,7 +113,7 @@ pub enum TaggedReceiver {
 }
 
 /// Create a value-channel used as an entry point in a session
-pub fn value_channel(dtype: &DataType) -> (ValueSender, Dispatcher) {
+pub fn value_channel(dtype: &DataType) -> (ValueSender, TaggedDispatcher) {
     macro_rules! map_vars {
         ($(($var:tt, $ty:ty)),*) => {
             match dtype {
@@ -193,7 +193,7 @@ impl<T> Sender<T> {
     }
 }
 
-impl Dispatcher {
+impl TaggedDispatcher {
     /// Subscribe to an upstream slot. Only called during the setup phase.
     pub fn subscribe(&self) -> TaggedReceiver {
         macro_rules! impl_all {
@@ -284,15 +284,15 @@ pub trait Sendable {
     /// Type which is send over the channel
     // type ArcType;
 
-    fn channel() -> (Sender<Self>, Dispatcher)
+    fn channel() -> (Sender<Self>, TaggedDispatcher)
     where
         Self: Sized;
 }
 
-macro_rules! impl_dispatchable {
+macro_rules! impl_sendable {
     ($ty:ty, $dispatcher:path) => {
         impl Sendable for ArcArrayD<$ty> {
-            fn channel() -> (Sender<Self>, Dispatcher)
+            fn channel() -> (Sender<Self>, TaggedDispatcher)
             where
                 Self: Sized,
             {
@@ -304,20 +304,20 @@ macro_rules! impl_dispatchable {
     };
 }
 
-impl_dispatchable!(i8, Dispatcher::I8);
-impl_dispatchable!(i16, Dispatcher::I16);
-impl_dispatchable!(i32, Dispatcher::I32);
-impl_dispatchable!(i64, Dispatcher::I64);
+impl_sendable!(i8, TaggedDispatcher::I8);
+impl_sendable!(i16, TaggedDispatcher::I16);
+impl_sendable!(i32, TaggedDispatcher::I32);
+impl_sendable!(i64, TaggedDispatcher::I64);
 
-impl_dispatchable!(u8, Dispatcher::U8);
-impl_dispatchable!(u16, Dispatcher::U16);
-impl_dispatchable!(u32, Dispatcher::U32);
-impl_dispatchable!(u64, Dispatcher::U64);
+impl_sendable!(u8, TaggedDispatcher::U8);
+impl_sendable!(u16, TaggedDispatcher::U16);
+impl_sendable!(u32, TaggedDispatcher::U32);
+impl_sendable!(u64, TaggedDispatcher::U64);
 
-impl_dispatchable!(f32, Dispatcher::F32);
-impl_dispatchable!(f64, Dispatcher::F64);
-impl_dispatchable!(String, Dispatcher::String);
-impl_dispatchable!(bool, Dispatcher::Bool);
+impl_sendable!(f32, TaggedDispatcher::F32);
+impl_sendable!(f64, TaggedDispatcher::F64);
+impl_sendable!(String, TaggedDispatcher::String);
+impl_sendable!(bool, TaggedDispatcher::Bool);
 
 impl DataType {
     pub fn from_i32(type_number: i32) -> Result<Self> {

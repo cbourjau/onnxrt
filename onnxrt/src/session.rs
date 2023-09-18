@@ -8,7 +8,9 @@ use onnx_protos::onnx_proto3::{
 use protobuf::{Message, MessageField};
 use pyo3::prelude::*;
 
-use crate::{value_channel, Attributes, DataType, Dispatcher, TaggedReceiver, Value, ValueSender};
+use crate::{
+    value_channel, Attributes, DataType, TaggedDispatcher, TaggedReceiver, Value, ValueSender,
+};
 
 #[pyclass(subclass)]
 pub struct Session {
@@ -31,7 +33,7 @@ pub type ExecFnSignature = Box<dyn Fn() -> Result<()> + Send>;
 
 pub struct ExecutionStep {
     pub fun: ExecFnSignature,
-    pub outputs: Vec<Dispatcher>,
+    pub outputs: Vec<TaggedDispatcher>,
 }
 
 pub struct OpContext<'a> {
@@ -41,13 +43,13 @@ pub struct OpContext<'a> {
     pub attrs: Attributes,
     pub opset: &'a HashMap<&'static str, SetupFnSignature>,
     pub node: &'a NodeProto,
-    pub scope: &'a HashMap<String, Dispatcher>,
+    pub scope: &'a HashMap<String, TaggedDispatcher>,
 }
 
 /// Signature of "wire" functions executed in the setup phase.
 pub type SetupFnSignature = Box<dyn Fn(OpContext) -> Result<ExecutionStep> + Sync>;
 
-type Scope = HashMap<String, Dispatcher>;
+type Scope = HashMap<String, TaggedDispatcher>;
 
 impl<'a> OpContext<'a> {
     fn new(
@@ -307,7 +309,7 @@ impl std::fmt::Debug for Session {
 /// outer scope are called.
 #[allow(clippy::type_complexity)]
 fn setup_steps(
-    mut scope: HashMap<String, Dispatcher>,
+    mut scope: HashMap<String, TaggedDispatcher>,
     nodes: &[NodeProto],
     output_names: &[String],
     setup_dict: &HashMap<&'static str, SetupFnSignature>,

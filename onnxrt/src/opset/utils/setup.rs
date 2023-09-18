@@ -4,7 +4,7 @@ use crate::edges::{value_channel, DataType};
 use crate::opset::utils::*;
 use crate::Value;
 use crate::{
-    edges::{Dispatcher, Sender},
+    edges::{Sender, TaggedDispatcher},
     Sendable,
 };
 use std::collections::{HashMap, HashSet};
@@ -106,7 +106,7 @@ where
 pub trait VariadicDispatchable {
     type Senders;
 
-    fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>);
+    fn channels(n: usize) -> (Self::Senders, Vec<TaggedDispatcher>);
 
     /// Send the outputs through the created channels. This could be
     /// it's own trait on `Self::Senders` but it might be easier to
@@ -123,7 +123,7 @@ where
 {
     type Senders = Vec<Sender<<T as IntoArc>::Output>>;
 
-    fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>) {
+    fn channels(n: usize) -> (Self::Senders, Vec<TaggedDispatcher>) {
         let mut sdrs = vec![];
         let mut recs = vec![];
 
@@ -148,7 +148,7 @@ pub trait SendableOutputs {
     type Senders;
 
     /// Create `Sender`s and `Receiver`s (`Dispatcher`s) for the implementing output type.
-    fn channels() -> (Self::Senders, Vec<Dispatcher>);
+    fn channels() -> (Self::Senders, Vec<TaggedDispatcher>);
 
     /// Send the outputs through the created channels. This could be
     /// it's own trait on `Self::Senders` but it might be easier to
@@ -165,7 +165,7 @@ where
 {
     type Senders = Sender<<A as IntoArc>::Output>;
 
-    fn channels() -> (Self::Senders, Vec<Dispatcher>) {
+    fn channels() -> (Self::Senders, Vec<TaggedDispatcher>) {
         let (sdr, disp) = <A as IntoArc>::Output::channel();
         (sdr, vec![disp])
     }
@@ -184,7 +184,7 @@ macro_rules! impl_SendableOutputs_for_tuples {
         {
             type Senders = ($(Sender<<$ty as IntoArc>::Output>,)*);
 
-            fn channels() -> (Self::Senders, Vec<Dispatcher>) {
+            fn channels() -> (Self::Senders, Vec<TaggedDispatcher>) {
                 $(
                     let $name = <$ty as IntoArc>::Output::channel();
                 )*
