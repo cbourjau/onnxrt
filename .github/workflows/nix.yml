@@ -22,14 +22,14 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
       - name: Setup cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
-      - name: Rustfmt
-        run: |
-          nix develop --command \
-          cargo fmt --check --all
       - name: Clippy
         run: |
           nix develop --command \
           cargo clippy
+      - name: Rustfmt
+        run: |
+          nix develop --command \
+          cargo fmt --check --all
       - name: Build
         run: |
           nix develop --command \
