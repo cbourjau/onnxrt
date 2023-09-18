@@ -29,7 +29,7 @@ pub fn setup_range(ctx: OpContext) -> Result<ExecutionStep> {
             let l = l.into_shape(())?.to_owned().into_scalar();
             let d = d.into_shape(())?.to_owned().into_scalar();
 
-            Ok::<ArcArrayD<_>, _>(range(s, l, d).into_dyn().into())
+            Ok(range(s, l, d).into_dyn())
         })
     )
 }

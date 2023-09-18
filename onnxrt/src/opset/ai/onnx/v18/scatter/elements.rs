@@ -32,7 +32,7 @@ where
     F: Fn(&mut T, T),
 {
     let axis = Axis(axis.for_len(data.ndim()));
-    // let axis = Axis(convert_negative_index(axis, data.ndim()));
+
     let axis_data_len = data.shape()[axis.0];
     for ((mut data_lane, idx_lane), updates_lane) in data
         .lanes_mut(axis)
@@ -68,10 +68,9 @@ impl ScatterElements {
 
 pub fn setup_scatter_elements(ctx: OpContext) -> Result<ExecutionStep> {
     let state = ScatterElements::from_attrs(&ctx.attrs)?;
-    let [data, indices, updates]: [TaggedReceiver; 3] = ctx
-        .subscribe_to_inputs()
-        .try_into()
-        .map_err(|e| anyhow!("ScatterElements: Unexpected number of inputs: '{:?}'", e))?;
+    let (data, indices, updates): (_, OnnxIndex, _) = ctx.subscribe_to_inputs().narrow()?;
+
+    let indices = indices.into_i64();
 
     let data_and_updates: HomogeneousFixed<2> = vec![data, updates].narrow()?;
 
@@ -83,107 +82,64 @@ pub fn setup_scatter_elements(ctx: OpContext) -> Result<ExecutionStep> {
 
     macro_rules! match_arm {
         ($data:tt, $indices:tt, $updates:tt, $reduction:expr) => {
-            setup(($data, $updates), move |(data, updates)| {
-                let indices = $indices.recv()?;
-                let out = scatter_elements(
-                    data.to_owned(),
-                    indices.view(),
-                    updates.view(),
-                    state.axis,
-                    $reduction,
-                )?;
-                Ok::<ArcArrayD<_>, _>(out.into())
-            })
+            setup(
+                ($data, $indices, $updates),
+                move |(data, indices, updates)| {
+                    let out = scatter_elements(
+                        data.to_owned(),
+                        indices.view(),
+                        updates.view(),
+                        state.axis,
+                        $reduction,
+                    )?;
+                    Ok(out)
+                },
+            )
         };
     }
 
     use HomogeneousFixed::*;
-    match indices {
-        TaggedReceiver::I32(indices) => match data_and_updates {
-            U8([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            U16([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            U32([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            U64([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I8([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I16([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I32([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I64([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            F32([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            F64([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            String([data, updates]) => {
-                match_arm!(data, indices, updates, |a, b| {
-                    *a = b;
-                })
-            }
-            Bool([data, updates]) => {
-                match_arm!(data, indices, updates, |a, b| {
-                    *a = b;
-                })
-            }
-        },
-        TaggedReceiver::I64(indices) => match data_and_updates {
-            U8([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            U16([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            U32([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            U64([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I8([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I16([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I32([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            I64([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            F32([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            F64([data, updates]) => {
-                match_arm!(data, indices, updates, state.reduction.as_function())
-            }
-            String([data, updates]) => {
-                match_arm!(data, indices, updates, |a, b| {
-                    *a = b;
-                })
-            }
-            Bool([data, updates]) => {
-                match_arm!(data, indices, updates, |a, b| {
-                    *a = b;
-                })
-            }
-        },
-        _ => bail!("ScatterElements: 'indices' must be of type tensor(int32) or tensor(int64)"),
+    match data_and_updates {
+        U8([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        U16([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        U32([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        U64([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        I8([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        I16([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        I32([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        I64([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        F32([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        F64([data, updates]) => {
+            match_arm!(data, indices, updates, state.reduction.as_function())
+        }
+        String([data, updates]) => {
+            match_arm!(data, indices, updates, |a, b| {
+                *a = b;
+            })
+        }
+        Bool([data, updates]) => {
+            match_arm!(data, indices, updates, |a, b| {
+                *a = b;
+            })
+        }
     }
 }
 

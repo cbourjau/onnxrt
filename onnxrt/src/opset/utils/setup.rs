@@ -118,16 +118,17 @@ pub trait VariadicDispatchable {
 
 impl<T> VariadicDispatchable for Vec<T>
 where
-    T: Sendable + Clone,
+    T: IntoArc,
+    <T as IntoArc>::Output: Sendable + Clone,
 {
-    type Senders = Vec<Sender<T>>;
+    type Senders = Vec<Sender<<T as IntoArc>::Output>>;
 
     fn channels(n: usize) -> (Self::Senders, Vec<Dispatcher>) {
         let mut sdrs = vec![];
         let mut recs = vec![];
 
         for _ in 0..n {
-            let (sdr, rec) = T::channel();
+            let (sdr, rec) = <T as IntoArc>::Output::channel();
             sdrs.push(sdr);
             recs.push(rec);
         }
@@ -136,7 +137,7 @@ where
 
     fn send_via(self, senders: &Self::Senders) -> Result<()> {
         for (item, sdr) in self.into_iter().zip(senders.iter()) {
-            sdr.send(item)?;
+            sdr.send(item.into_arc()?)?;
         }
         Ok(())
     }
@@ -159,17 +160,18 @@ pub trait SendableOutputs {
 
 impl<A> SendableOutputs for A
 where
-    A: Sendable + Clone,
+    A: IntoArc,
+    <A as IntoArc>::Output: Sendable + Clone,
 {
-    type Senders = Sender<A>;
+    type Senders = Sender<<A as IntoArc>::Output>;
 
     fn channels() -> (Self::Senders, Vec<Dispatcher>) {
-        let (sdr, disp) = A::channel();
+        let (sdr, disp) = <A as IntoArc>::Output::channel();
         (sdr, vec![disp])
     }
 
     fn send_via(self, sender: &Self::Senders) -> Result<()> {
-        sender.send(self)?;
+        sender.send(self.into_arc()?)?;
         Ok(())
     }
 }
@@ -178,19 +180,19 @@ macro_rules! impl_SendableOutputs_for_tuples {
     ($($ty:tt),* | $($name:ident),* | $($idx:tt),*) => {
         impl<$($ty),*> SendableOutputs for ($($ty,)*)
         where
-            $($ty: Sendable + Clone),*
+            $($ty: IntoArc, <$ty as IntoArc>::Output: Sendable + Clone),*
         {
-            type Senders = ($(Sender<$ty>,)*);
+            type Senders = ($(Sender<<$ty as IntoArc>::Output>,)*);
 
             fn channels() -> (Self::Senders, Vec<Dispatcher>) {
                 $(
-                    let $name = $ty::channel();
+                    let $name = <$ty as IntoArc>::Output::channel();
                 )*
                 (($($name.0,)*), vec![$($name.1),*])
             }
 
             fn send_via(self, sender: &Self::Senders) -> Result<()> {
-                $(sender.$idx.send(self.$idx)?;)*
+                $(sender.$idx.send(self.$idx.into_arc()?)?;)*
                 Ok(())
             }
         }
@@ -275,6 +277,18 @@ pub trait InChannels {
     fn recv(&self) -> Result<Self::Items>;
 }
 
+// Implementation for scalars (rather than tuples)
+impl<T> InChannels for T
+where
+    T: InChannel,
+{
+    type Items = T::Item;
+
+    fn recv(&self) -> Result<Self::Items> {
+        self.recv()
+    }
+}
+
 /// Operators such as 'Constant' do not have inputs.
 impl InChannels for () {
     type Items = ();
@@ -316,3 +330,49 @@ impl_InChannels!(T1, T2 | Z | 0, 1, 2);
 impl_InChannels!(T1, T2, T3 | Z | 0, 1, 2, 3);
 impl_InChannels!(T1, T2, T3, T4 | Z | 0, 1, 2, 3, 4);
 impl_InChannels!(T1, T2, T3, T4, T5 | Z | 0, 1, 2, 3, 4, 5);
+
+pub struct MappedIntoI64<T> {
+    inner: T,
+}
+
+impl Integer {
+    pub fn into_i64(self) -> MappedIntoI64<Self> {
+        MappedIntoI64 { inner: self }
+    }
+}
+
+impl OnnxIndex {
+    pub fn into_i64(self) -> MappedIntoI64<Self> {
+        MappedIntoI64 { inner: self }
+    }
+}
+
+impl InChannel for MappedIntoI64<Integer> {
+    type Item = ArrayD<i64>;
+
+    fn recv(&self) -> Result<Self::Item> {
+        use Integer::*;
+        match &self.inner {
+            I8(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I16(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I32(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I64(rec) => Ok(rec.recv()?.to_owned()),
+            U8(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            U16(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            U32(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            U64(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+        }
+    }
+}
+
+impl InChannel for MappedIntoI64<OnnxIndex> {
+    type Item = ArrayD<i64>;
+
+    fn recv(&self) -> Result<Self::Item> {
+        use OnnxIndex::*;
+        match &self.inner {
+            I32(rec) => Ok(rec.recv()?.mapv(|e| e as i64)),
+            I64(rec) => Ok(rec.recv()?.to_owned()),
+        }
+    }
+}

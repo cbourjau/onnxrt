@@ -11,7 +11,7 @@ pub use ndarray::prelude::*;
 
 pub use self::narrowed_arguments::{
     FloatingPoint, Homogeneous, HomogeneousFixed, HomogeneousNumeric, HomogeneousNumericFixed,
-    Narrow, Numeric, OnnxIndex,
+    Integer, Narrow, Numeric, OnnxIndex,
 };
 pub use self::ndarray_utils::{
     co_broadcast, convert_negative_index, zip_map_with_co_broadcast, Index,
@@ -30,9 +30,24 @@ pub trait IntoArc {
     fn into_arc(self) -> Result<Self::Output>;
 }
 
-impl<T> IntoArc for Result<ArrayD<T>> {
+// // Deprecated
+// impl<T> IntoArc for Result<ArrayD<T>> {
+//     type Output = ArcArrayD<T>;
+//     fn into_arc(self) -> Result<Self::Output> {
+//         self.map(Into::into)
+//     }
+// }
+
+impl<T> IntoArc for ArcArrayD<T> {
     type Output = ArcArrayD<T>;
     fn into_arc(self) -> Result<Self::Output> {
-        self.map(Into::into)
+        Ok(self)
+    }
+}
+
+impl<T> IntoArc for ArrayD<T> {
+    type Output = ArcArrayD<T>;
+    fn into_arc(self) -> Result<Self::Output> {
+        Ok(self.into())
     }
 }

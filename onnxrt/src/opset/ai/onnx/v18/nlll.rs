@@ -105,66 +105,54 @@ impl State {
 pub fn setup_nlll(ctx: OpContext) -> Result<ExecutionStep> {
     let state = State::from_attrs(&ctx.attrs)?;
 
-    let (input, target, weights) = ctx.input_channels_with_optional().narrow()?;
+    let (input, target, weights): (_, OnnxIndex, _) =
+        ctx.input_channels_with_optional().narrow()?;
+
+    let target = target.into_i64();
 
     use FloatingPoint::*;
-    match target {
-        TaggedReceiver::I64(target) => match (input, weights) {
-            (F32(input), Some(F32(weights))) => {
-                setup((input, target, weights), move |(input, target, weights)| {
-                    Ok::<ArcArrayD<_>, _>(
-                        nlll(
-                            input.view(),
-                            target.view(),
-                            Some(weights.view().into_dimensionality()?),
-                            state.ignore_index,
-                            state.reduction,
-                        )?
-                        .into(),
-                    )
-                })
-            }
-            (F32(input), None) => setup((input, target), move |(input, target)| {
-                Ok::<ArcArrayD<_>, _>(
-                    nlll(
-                        input.view(),
-                        target.view(),
-                        None,
-                        state.ignore_index,
-                        state.reduction,
-                    )?
-                    .into(),
+    match (input, weights) {
+        (F32(input), Some(F32(weights))) => {
+            setup((input, target, weights), move |(input, target, weights)| {
+                nlll(
+                    input.view(),
+                    target.view(),
+                    Some(weights.view().into_dimensionality()?),
+                    state.ignore_index,
+                    state.reduction,
                 )
-            }),
-            (F64(input), Some(F64(weights))) => {
-                setup((input, target, weights), move |(input, target, weights)| {
-                    Ok::<ArcArrayD<_>, _>(
-                        nlll(
-                            input.view(),
-                            target.view(),
-                            Some(weights.view().into_dimensionality()?),
-                            state.ignore_index,
-                            state.reduction,
-                        )?
-                        .into(),
-                    )
-                })
-            }
-            (F64(input), None) => setup((input, target), move |(input, target)| {
-                Ok::<ArcArrayD<_>, _>(
-                    nlll(
-                        input.view(),
-                        target.view(),
-                        None,
-                        state.ignore_index,
-                        state.reduction,
-                    )?
-                    .into(),
+            })
+        }
+        (F32(input), None) => setup((input, target), move |(input, target)| {
+            nlll(
+                input.view(),
+                target.view(),
+                None,
+                state.ignore_index,
+                state.reduction,
+            )
+        }),
+        (F64(input), Some(F64(weights))) => {
+            setup((input, target, weights), move |(input, target, weights)| {
+                nlll(
+                    input.view(),
+                    target.view(),
+                    Some(weights.view().into_dimensionality()?),
+                    state.ignore_index,
+                    state.reduction,
                 )
-            }),
-            _ => bail!("NegativeLogLikelihoodLoss: Inconsistent types for 'input' and 'weights'"),
-        },
-        _ => panic!(),
+            })
+        }
+        (F64(input), None) => setup((input, target), move |(input, target)| {
+            nlll(
+                input.view(),
+                target.view(),
+                None,
+                state.ignore_index,
+                state.reduction,
+            )
+        }),
+        _ => bail!("NegativeLogLikelihoodLoss: Inconsistent types for 'input' and 'weights'"),
     }
 }
 

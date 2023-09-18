@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
 
+use itertools::sorted;
+
 use crate::opset::utils::*;
 use crate::session::SetupFnSignature;
-use crate::{channel, Sendable};
-use itertools::sorted;
 
 mod arg_min_max;
 mod batch_normalization;
@@ -43,12 +43,14 @@ mod relu_with_attr;
 mod reshape;
 mod scatter;
 mod shape;
+mod sign;
 mod simple_element_wise;
 mod size;
 mod slice;
 mod softmax;
 mod softmax_cross_entropy_loss;
 mod split;
+mod string_normalizer;
 mod sum;
 mod topk;
 mod transpose;
@@ -124,12 +126,14 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("ScatterElements", Box::new(scatter::elements::setup_scatter_elements));
     d.insert("ScatterND", Box::new(scatter::nd::setup_scatter_nd));
     d.insert("Shape", Box::new(shape::setup_shape));
+    d.insert("Sign", Box::new(sign::setup_sign));
     d.insert("Size", Box::new(size::setup_size));
     d.insert("Slice", Box::new(slice::setup_slice));
     d.insert("Softmax", Box::new(softmax::setup_softmax));    
     d.insert("SoftmaxCrossEntropyLoss", Box::new(softmax_cross_entropy_loss::setup_scme));
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));
+    d.insert("StringNormalizer", Box::new(string_normalizer::setup_string_normalizer));
     d.insert("Sub", binary_op_factory!(numeric, |a, b| Ok(a - b)));
     d.insert("Sum", Box::new(sum::setup_sum));
     d.insert("ThresholdedRelu", Box::new(relu_with_attr::setup_thresholded_relu));
@@ -193,7 +197,7 @@ fn setup_concat(ctx: OpContext) -> Result<ExecutionStep> {
         Homogeneous,
         inputs,
         rec,
-        setup((rec,), move |(inputs,)| state.concat((inputs,)))
+        setup(rec, move |inputs| state.concat((inputs,)))
     )
 }
 

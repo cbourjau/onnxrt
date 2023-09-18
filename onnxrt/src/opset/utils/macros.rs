@@ -12,6 +12,12 @@ macro_rules! setup_all {
             F32, F64, I8, I16, I32, I64, U8, U16, U32, U64
         )
     };
+    (Integer, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+        setup_all!(
+            Numeric, $tagged_rec, $rec_name, $setup,
+            I8, I16, I32, I64, U8, U16, U32, U64
+        )
+    };
     (FloatingPoint, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
             FloatingPoint, $tagged_rec, $rec_name, $setup,
@@ -112,7 +118,7 @@ macro_rules! binary_op_factory {
 macro_rules! bin_numeric_with_co_broadcast {
     ($fun:expr) => {
         binary_op_factory!(numeric, |a: ArcArrayD<_>, b: ArcArrayD<_>| {
-            zip_map_with_co_broadcast(a.view(), b.view(), $fun).into_arc()
+            zip_map_with_co_broadcast(a.view(), b.view(), $fun)
         })
     };
 }

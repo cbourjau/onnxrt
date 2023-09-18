@@ -87,13 +87,13 @@ pub fn setup_random_uniform_like(ctx: OpContext) -> Result<ExecutionStep> {
     macro_rules! non_float_arm {
         ($rec:tt) => {
             match state.dtype {
-            Some(FloatDataType::F32) => setup(($rec,), move |(a,)| {
+            Some(FloatDataType::F32) => setup($rec, move |a| {
                 let one_d = state.sample::<f32>(a.len())?;
-                Ok::<ArcArrayD<_>, _>(Array1::from_vec(one_d).into_shape(a.shape())?.into())
+                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
             }),
-            Some(FloatDataType::F64) => setup(($rec,), move |(a,)| {
+            Some(FloatDataType::F64) => setup($rec, move |a| {
                 let one_d = state.sample::<f64>(a.len())?;
-                Ok::<ArcArrayD<_>, _>(Array1::from_vec(one_d).into_shape(a.shape())?.into())
+                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
             }),
             None => bail!(
                 "RandomUniformLike: Attribute 'dtype' must be specified for given input dtype"
@@ -103,23 +103,23 @@ pub fn setup_random_uniform_like(ctx: OpContext) -> Result<ExecutionStep> {
 
     match a {
         F32(rec) => match state.dtype {
-            None | Some(FloatDataType::F32) => setup((rec,), move |(a,)| {
+            None | Some(FloatDataType::F32) => setup(rec, move |a| {
                 let one_d = state.sample::<f32>(a.len())?;
-                Ok::<ArcArrayD<_>, _>(Array1::from_vec(one_d).into_shape(a.shape())?.into())
+                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
             }),
-            Some(FloatDataType::F64) => setup((rec,), move |(a,)| {
+            Some(FloatDataType::F64) => setup(rec, move |a| {
                 let one_d = state.sample::<f64>(a.len())?;
-                Ok::<ArcArrayD<_>, _>(Array1::from_vec(one_d).into_shape(a.shape())?.into())
+                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
             }),
         },
         F64(rec) => match state.dtype {
-            Some(FloatDataType::F32) => setup((rec,), move |(a,)| {
+            Some(FloatDataType::F32) => setup(rec, move |a| {
                 let one_d = state.sample::<f32>(a.len())?;
-                Ok::<ArcArrayD<_>, _>(Array1::from_vec(one_d).into_shape(a.shape())?.into())
+                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
             }),
-            None | Some(FloatDataType::F64) => setup((rec,), move |(a,)| {
+            None | Some(FloatDataType::F64) => setup(rec, move |a| {
                 let one_d = state.sample::<f64>(a.len())?;
-                Ok::<ArcArrayD<_>, _>(Array1::from_vec(one_d).into_shape(a.shape())?.into())
+                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
             }),
         },
         Bool(rec) => non_float_arm!(rec),

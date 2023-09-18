@@ -216,6 +216,6 @@ fn run_all() {
 
 #[test]
 fn run_one_test() {
-    let tc = get_node_test("test_nllloss_NCd1_mean_weight_negative_ii").unwrap();
+    let tc = get_node_test("test_strnormalizer_export_monday_casesensintive_upper").unwrap();
     run_test_case(&tc).and_then(|tr| tr.compare()).unwrap();
 }

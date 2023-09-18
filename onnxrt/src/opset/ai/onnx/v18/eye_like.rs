@@ -64,55 +64,35 @@ pub fn setup_eyelike(ctx: OpContext) -> Result<ExecutionStep> {
     let k = state.k as isize;
     setup_all!(Numeric, input, rec, {
         match dtype {
-            DataType::U8 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<u8>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into())
+            DataType::U8 => setup(rec, move |input| {
+                Ok::<ArrayD<u8>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::U16 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<u16>, _>(
-                    eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into(),
-                )
+            DataType::U16 => setup(rec, move |input| {
+                Ok::<ArrayD<u16>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::U32 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<u32>, _>(
-                    eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into(),
-                )
+            DataType::U32 => setup(rec, move |input| {
+                Ok::<ArrayD<u32>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::U64 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<u64>, _>(
-                    eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into(),
-                )
+            DataType::U64 => setup(rec, move |input| {
+                Ok::<ArrayD<u64>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::I8 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<i8>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into())
+            DataType::I8 => setup(rec, move |input| {
+                Ok::<ArrayD<i8>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::I16 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<i16>, _>(
-                    eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into(),
-                )
+            DataType::I16 => setup(rec, move |input| {
+                Ok::<ArrayD<i16>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::I32 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<i32>, _>(
-                    eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into(),
-                )
+            DataType::I32 => setup(rec, move |input| {
+                Ok::<ArrayD<i32>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::I64 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<i64>, _>(
-                    eye_like(input.shape().try_into()?, 1, k)?.into_dyn().into(),
-                )
+            DataType::I64 => setup(rec, move |input| {
+                Ok::<ArrayD<i64>, _>(eye_like(input.shape().try_into()?, 1, k)?.into_dyn())
             }),
-            DataType::F32 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<f32>, _>(
-                    eye_like(input.shape().try_into()?, 1.0, k)?
-                        .into_dyn()
-                        .into(),
-                )
+            DataType::F32 => setup(rec, move |input| {
+                Ok::<ArrayD<f32>, _>(eye_like(input.shape().try_into()?, 1.0, k)?.into_dyn())
             }),
-            DataType::F64 => setup((rec,), move |(input,)| {
-                Ok::<ArcArrayD<f64>, _>(
-                    eye_like(input.shape().try_into()?, 1.0, k)?
-                        .into_dyn()
-                        .into(),
-                )
+            DataType::F64 => setup(rec, move |input| {
+                Ok::<ArrayD<f64>, _>(eye_like(input.shape().try_into()?, 1.0, k)?.into_dyn())
             }),
             _ => bail!("EyeLike: Not implemented for output type {:?}", dtype),
         }
