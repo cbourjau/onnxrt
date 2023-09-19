@@ -51,9 +51,11 @@ pub struct ValueSender(TaggedDispatcher);
 pub struct Dispatcher<T>(Arc<Mutex<Vec<SyncSender<T>>>>);
 
 /// Object returned by "setup" functions. Only used during the setup
-/// phase. Downstream nodes can subscribe to this object to receive
-/// outputs of previous nodes. It serves as a one to many channel
-/// where all consumers receive a send object.
+/// phase. It connects one output to N downstream inputs. The
+/// `TaggedDispatcher` is not itself a receiver; it is only a proxy
+/// object. Downstream nodes can subscribe to this object to receive
+/// outputs of previous nodes. It serves as a T-channel where all
+/// consumers receive a clone of the sent object.
 #[derive(Debug)]
 pub enum TaggedDispatcher {
     Bool(Dispatcher<ArcArrayD<bool>>),
