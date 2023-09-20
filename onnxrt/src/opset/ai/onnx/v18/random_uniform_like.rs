@@ -6,7 +6,7 @@ use rand::distributions::{Distribution, Uniform};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use crate::{edges::DataType, opset::utils::*};
+use crate::{opset::utils::*, DataType};
 
 enum FloatDataType {
     F32,

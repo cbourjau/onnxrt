@@ -1,28 +1,9 @@
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, bail, Result};
-use onnx_protos::onnx_proto3::{tensor_proto, type_proto, ValueInfoProto};
-use protobuf::Enum;
+use anyhow::{anyhow, Result};
 
-use crate::ArcArrayD;
-
-/// Data types which may be exchange between nodes.
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum DataType {
-    Bool,
-    F32,
-    F64,
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    String,
-}
+use crate::{ArcArrayD, DataType};
 
 /// Enum capable of representing any possible value. Primarily used in `Session::run`.
 /// A concrete tensor
@@ -42,37 +23,45 @@ pub enum Value {
     U8(ArcArrayD<u8>),
 }
 
-/// Sender Consuming a `Value` and forwarding it to the `Sender` of the correct type.
-#[derive(Debug)]
-pub struct ValueSender(TaggedDispatcher);
+#[derive(Default, Debug, Clone)]
+struct Channel<T> {
+    /// Senders feeding into subscribers
+    senders: Arc<Mutex<Vec<SyncSender<T>>>>,
+}
 
 /// Typed sender. Used to send values of known types *out* of "setup" functions.
 #[derive(Default, Debug, Clone)]
-pub struct Dispatcher<T>(Arc<Mutex<Vec<SyncSender<T>>>>);
+pub struct Sender<T>(Channel<T>);
+
+/// Sender Consuming a `Value` and forwarding it to the `Sender` of the correct type.
+#[derive(Debug)]
+pub struct ValueSender(TaggedChannel);
 
 /// Object returned by "setup" functions. Only used during the setup
 /// phase. It connects one output to N downstream inputs. The
-/// `TaggedDispatcher` is not itself a receiver; it is only a proxy
+/// `Dispatcher` is not itself a receiver; it is only a proxy
 /// object. Downstream nodes can subscribe to this object to receive
 /// outputs of previous nodes. It serves as a T-channel where all
 /// consumers receive a clone of the sent object.
+pub struct Dispatcher(TaggedChannel);
+
 #[derive(Debug)]
-pub enum TaggedDispatcher {
-    Bool(Dispatcher<ArcArrayD<bool>>),
-    F32(Dispatcher<ArcArrayD<f32>>),
-    F64(Dispatcher<ArcArrayD<f64>>),
+enum TaggedChannel {
+    Bool(Channel<ArcArrayD<bool>>),
+    F32(Channel<ArcArrayD<f32>>),
+    F64(Channel<ArcArrayD<f64>>),
 
-    I8(Dispatcher<ArcArrayD<i8>>),
-    I16(Dispatcher<ArcArrayD<i16>>),
-    I32(Dispatcher<ArcArrayD<i32>>),
-    I64(Dispatcher<ArcArrayD<i64>>),
+    I8(Channel<ArcArrayD<i8>>),
+    I16(Channel<ArcArrayD<i16>>),
+    I32(Channel<ArcArrayD<i32>>),
+    I64(Channel<ArcArrayD<i64>>),
 
-    U8(Dispatcher<ArcArrayD<u8>>),
-    U16(Dispatcher<ArcArrayD<u16>>),
-    U32(Dispatcher<ArcArrayD<u32>>),
-    U64(Dispatcher<ArcArrayD<u64>>),
+    U8(Channel<ArcArrayD<u8>>),
+    U16(Channel<ArcArrayD<u16>>),
+    U32(Channel<ArcArrayD<u32>>),
+    U64(Channel<ArcArrayD<u64>>),
 
-    String(Dispatcher<ArcArrayD<String>>),
+    String(Channel<ArcArrayD<String>>),
 }
 
 /// Object obtained by subscribing to a `Dispatcher`. Used inside
@@ -98,13 +87,13 @@ pub enum TaggedReceiver {
 }
 
 /// Create a value-channel used as an entry point in a session
-pub fn value_channel(dtype: &DataType) -> (ValueSender, TaggedDispatcher) {
+pub fn value_channel(dtype: &DataType) -> (ValueSender, Dispatcher) {
     macro_rules! map_vars {
         ($(($var:tt, $ty:ty)),*) => {
             match dtype {
                 $(DataType::$var => {
-                    let (sdr, disp) = ArcArrayD::<$ty>::channel();
-                    (ValueSender(TaggedDispatcher::$var(sdr)), disp)
+                    let (Sender(sdr), disp) = ArcArrayD::<$ty>::channel();
+                    (ValueSender(TaggedChannel::$var(sdr)), disp)
                 })*
             }
         }
@@ -131,7 +120,7 @@ impl ValueSender {
             ($($var:tt),*) => {
                 match (self, value) {
                     $(
-                        (Self(TaggedDispatcher::$var(sdr)), Value::$var(val)) => {
+                        (Self(TaggedChannel::$var(sdr)), Value::$var(val)) => {
                             sdr.send(val)
                         },
                     )*
@@ -144,49 +133,40 @@ impl ValueSender {
     }
 
     pub fn dtype(&self) -> DataType {
-        match self.0 {
-            TaggedDispatcher::Bool(_) => DataType::Bool,
-            TaggedDispatcher::F32(_) => DataType::F32,
-            TaggedDispatcher::F64(_) => DataType::F64,
-
-            TaggedDispatcher::I8(_) => DataType::I8,
-            TaggedDispatcher::I16(_) => DataType::I16,
-            TaggedDispatcher::I32(_) => DataType::I32,
-            TaggedDispatcher::I64(_) => DataType::I64,
-
-            TaggedDispatcher::U8(_) => DataType::U8,
-            TaggedDispatcher::U16(_) => DataType::U16,
-            TaggedDispatcher::U32(_) => DataType::U32,
-            TaggedDispatcher::U64(_) => DataType::U64,
-
-            TaggedDispatcher::String(_) => DataType::String,
-        }
+        self.0.dtype()
     }
 }
 
-impl<T> Dispatcher<T> {
+impl<T> Sender<T> {
     pub fn send(&self, value: T) -> Result<()>
     where
         T: Clone,
     {
-        for sdr in self.0.lock().unwrap().iter() {
-            // TODO: We could define a helpful error here with
-            // information about which nodes were involved.
+        self.0.send(value)
+    }
+}
+
+impl<T> Channel<T> {
+    pub fn send(&self, value: T) -> Result<()>
+    where
+        T: Clone,
+    {
+        for sdr in self.senders.lock().unwrap().iter() {
             sdr.send(value.clone()).unwrap();
         }
         Ok(())
     }
 }
 
-impl TaggedDispatcher {
+impl TaggedChannel {
     /// Subscribe to an upstream slot. Only called during the setup phase.
     pub fn subscribe(&self) -> TaggedReceiver {
         macro_rules! impl_all {
             ($($variant:tt ),*) => {{
                 match self {
-                    $(Self::$variant(senders) => {
+                    $(Self::$variant(Channel{senders}) => {
                         let (sdr, rec) = sync_channel(1);
-                        senders.0.lock().unwrap().push(sdr);
+                        senders.lock().unwrap().push(sdr);
                         TaggedReceiver::$variant(rec)
                     })*
                 }
@@ -215,6 +195,18 @@ impl TaggedDispatcher {
 
             Self::String(_) => DataType::String,
         }
+    }
+}
+
+impl Dispatcher {
+    /// Subscribe to an upstream slot. Only called during the setup phase.
+    pub fn subscribe(&self) -> TaggedReceiver {
+        self.0.subscribe()
+    }
+
+    /// Data type of this object.
+    pub fn dtype(&self) -> DataType {
+        self.0.dtype()
     }
 }
 
@@ -268,7 +260,7 @@ impl TaggedReceiver {
 pub trait Sendable {
     /// Create a new empty `TaggedDispatcher` (second element) fed by
     /// the `Dispatcher` returned as the first element.
-    fn channel() -> (Dispatcher<Self>, TaggedDispatcher)
+    fn channel() -> (Sender<Self>, Dispatcher)
     where
         Self: Sized;
 }
@@ -276,93 +268,29 @@ pub trait Sendable {
 macro_rules! impl_sendable {
     ($ty:ty, $dispatcher:path) => {
         impl Sendable for ArcArrayD<$ty> {
-            fn channel() -> (Dispatcher<Self>, TaggedDispatcher)
+            fn channel() -> (Sender<Self>, Dispatcher)
             where
                 Self: Sized,
             {
-                let sender = Dispatcher::<Self>::default();
-                let disp = $dispatcher(sender.clone());
+                let sender = Sender::<Self>::default();
+                let disp = Dispatcher($dispatcher(sender.0.clone()));
                 (sender, disp)
             }
         }
     };
 }
 
-impl_sendable!(i8, TaggedDispatcher::I8);
-impl_sendable!(i16, TaggedDispatcher::I16);
-impl_sendable!(i32, TaggedDispatcher::I32);
-impl_sendable!(i64, TaggedDispatcher::I64);
+impl_sendable!(i8, TaggedChannel::I8);
+impl_sendable!(i16, TaggedChannel::I16);
+impl_sendable!(i32, TaggedChannel::I32);
+impl_sendable!(i64, TaggedChannel::I64);
 
-impl_sendable!(u8, TaggedDispatcher::U8);
-impl_sendable!(u16, TaggedDispatcher::U16);
-impl_sendable!(u32, TaggedDispatcher::U32);
-impl_sendable!(u64, TaggedDispatcher::U64);
+impl_sendable!(u8, TaggedChannel::U8);
+impl_sendable!(u16, TaggedChannel::U16);
+impl_sendable!(u32, TaggedChannel::U32);
+impl_sendable!(u64, TaggedChannel::U64);
 
-impl_sendable!(f32, TaggedDispatcher::F32);
-impl_sendable!(f64, TaggedDispatcher::F64);
-impl_sendable!(String, TaggedDispatcher::String);
-impl_sendable!(bool, TaggedDispatcher::Bool);
-
-impl DataType {
-    pub fn from_i32(type_number: i32) -> Result<Self> {
-        use tensor_proto::DataType::*;
-        let dtype_proto = tensor_proto::DataType::from_i32(type_number)
-            .ok_or_else(|| anyhow!("Invalid type number: {}", type_number))?;
-        Ok(match dtype_proto {
-            // Defined in tensor_proto::DataType (cf onnx.proto)
-            BOOL => DataType::Bool,
-            DOUBLE => DataType::F64,
-            FLOAT => DataType::F32,
-            INT8 => DataType::I8,
-            INT16 => DataType::I16,
-            INT32 => DataType::I32,
-            INT64 => DataType::I64,
-            STRING => DataType::String,
-            UINT8 => DataType::U8,
-            UINT16 => DataType::U16,
-            UINT32 => DataType::U32,
-            UINT64 => DataType::U64,
-            val => bail!("Unsupported type `{:?}`", val),
-        })
-    }
-    pub fn from_value_info(value_info: &ValueInfoProto) -> Result<DataType> {
-        let err_fn = || {
-            anyhow!(
-                "Type information is missing from `ValueInfo`: [information hidden for brevity]",
-            )
-        };
-        if let type_proto::Value::TensorType(type_proto::Tensor { elem_type, .. }) = value_info
-            .type_
-            .as_ref()
-            .ok_or_else(err_fn)?
-            .value
-            .as_ref()
-            .ok_or_else(err_fn)?
-        {
-            Self::from_i32(*elem_type)
-        } else {
-            Err(err_fn())
-        }
-    }
-
-    pub fn standard_name(&self) -> &str {
-        match self {
-            DataType::Bool => "tensor(bool)",
-
-            DataType::I8 => "tensor(int8)",
-            DataType::I16 => "tensor(int16)",
-            DataType::I32 => "tensor(int32)",
-            DataType::I64 => "tensor(int64)",
-
-            DataType::U8 => "tensor(uint8)",
-            DataType::U16 => "tensor(uint16)",
-            DataType::U32 => "tensor(uint32)",
-            DataType::U64 => "tensor(uint64)",
-
-            DataType::F32 => "tensor(float)",
-            DataType::F64 => "tensor(double)",
-
-            DataType::String => "tensor(string)",
-        }
-    }
-}
+impl_sendable!(f32, TaggedChannel::F32);
+impl_sendable!(f64, TaggedChannel::F64);
+impl_sendable!(String, TaggedChannel::String);
+impl_sendable!(bool, TaggedChannel::Bool);

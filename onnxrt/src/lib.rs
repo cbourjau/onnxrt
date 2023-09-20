@@ -1,16 +1,15 @@
 use ndarray::{ArcArray, IxDyn};
 
 mod attribute;
-mod edges;
+mod channels;
+mod data_types;
 mod opset;
 mod python_api;
 mod session;
 
 pub(crate) use attribute::Attributes;
-pub use edges::Value;
-pub(crate) use edges::{
-    value_channel, DataType, Sendable, TaggedDispatcher, TaggedReceiver, ValueSender,
-};
+pub use channels::{value_channel, Sendable, TaggedReceiver, Value, ValueSender};
+pub use data_types::DataType;
 pub use opset::get_opset;
 pub use session::Session;
 

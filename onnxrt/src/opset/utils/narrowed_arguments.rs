@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 
 use anyhow::{anyhow, bail, Result};
 
-use crate::{edges::DataType, ArcArrayD, TaggedReceiver};
+use crate::{ArcArrayD, DataType, TaggedReceiver};
 
 /// Narrow inputs into a smaller subset of expected types
 /// This trait should not be implemented direct. Instead,
