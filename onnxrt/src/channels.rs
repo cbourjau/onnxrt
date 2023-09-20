@@ -3,25 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Result};
 
-use crate::{ArcArrayD, DataType};
-
-/// Enum capable of representing any possible value. Primarily used in `Session::run`.
-/// A concrete tensor
-#[derive(Clone, Debug, PartialEq)]
-pub enum Value {
-    Bool(ArcArrayD<bool>),
-    F32(ArcArrayD<f32>),
-    F64(ArcArrayD<f64>),
-    I16(ArcArrayD<i16>),
-    I32(ArcArrayD<i32>),
-    I64(ArcArrayD<i64>),
-    I8(ArcArrayD<i8>),
-    String(ArcArrayD<String>),
-    U16(ArcArrayD<u16>),
-    U32(ArcArrayD<u32>),
-    U64(ArcArrayD<u64>),
-    U8(ArcArrayD<u8>),
-}
+use crate::{ArcArrayD, DataType, Value};
 
 #[derive(Default, Debug, Clone)]
 struct Channel<T> {
