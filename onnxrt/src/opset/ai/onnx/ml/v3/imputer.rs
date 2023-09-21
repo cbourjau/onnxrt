@@ -30,12 +30,12 @@ pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
     let attrs = ctx.attrs.clone();
     let a_ch = ctx.subscribe_to_inputs().narrow()?;
     match a_ch {
-        TaggedReceiver::F32(a_ch) => {
+        TaggedTensorReceiver::F32(a_ch) => {
             let keys: Vec<f32> = attrs.get("imputed_value_floats")?.try_into()?;
             let value = attrs.get_with_default("replaced_value_float", 0.0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
-        TaggedReceiver::F64(a_ch) => {
+        TaggedTensorReceiver::F64(a_ch) => {
             let keys = Vec::<f32>::try_from(attrs.get("imputed_value_floats")?)?
                 .into_iter()
                 .map(|el| el as f64)
@@ -43,12 +43,12 @@ pub fn setup_imputer(ctx: OpContext) -> Result<ExecutionStep> {
             let value = attrs.get_with_default("replaced_value_float", 0.0)? as f64;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
-        TaggedReceiver::I64(a_ch) => {
+        TaggedTensorReceiver::I64(a_ch) => {
             let keys: Vec<i64> = attrs.get("imputed_value_int64s")?.try_into()?;
             let value = attrs.get_with_default("replaced_value_int64", 0)?;
             wrap_1_input(a_ch, move |a| impute(a, &keys, value))
         }
-        TaggedReceiver::I32(a_ch) => {
+        TaggedTensorReceiver::I32(a_ch) => {
             let keys: Vec<i64> = attrs.get("imputed_value_int64s")?.try_into()?;
             let value = attrs.get_with_default("replaced_value_int64", 0)?;
             wrap_1_input(a_ch, move |a| {

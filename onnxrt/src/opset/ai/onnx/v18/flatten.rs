@@ -31,7 +31,7 @@ pub fn setup_flatten(ctx: OpContext) -> Result<ExecutionStep> {
     let input = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         input,
         input,
         setup(input, move |input| {

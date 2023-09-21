@@ -143,31 +143,31 @@ pub fn setup_label_encoder(ctx: OpContext) -> Result<ExecutionStep> {
     let a_ch = ctx.subscribe_to_inputs().narrow()?;
 
     match (a_ch, label_encoder) {
-        (TaggedReceiver::String(a_ch), LabelEncoder::StringToString { dict, default }) => {
+        (TaggedTensorReceiver::String(a_ch), LabelEncoder::StringToString { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::String(a_ch), LabelEncoder::StringToI64 { dict, default }) => {
+        (TaggedTensorReceiver::String(a_ch), LabelEncoder::StringToI64 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::String(a_ch), LabelEncoder::StringToF32 { dict, default }) => {
+        (TaggedTensorReceiver::String(a_ch), LabelEncoder::StringToF32 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::I64(a_ch), LabelEncoder::I64ToI64 { dict, default }) => {
+        (TaggedTensorReceiver::I64(a_ch), LabelEncoder::I64ToI64 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::I64(a_ch), LabelEncoder::I64ToString { dict, default }) => {
+        (TaggedTensorReceiver::I64(a_ch), LabelEncoder::I64ToString { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::I64(a_ch), LabelEncoder::I64ToF32 { dict, default }) => {
+        (TaggedTensorReceiver::I64(a_ch), LabelEncoder::I64ToF32 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::F32(a_ch), LabelEncoder::F32ToString { dict, default }) => {
+        (TaggedTensorReceiver::F32(a_ch), LabelEncoder::F32ToString { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::F32(a_ch), LabelEncoder::F32ToI64 { dict, default }) => {
+        (TaggedTensorReceiver::F32(a_ch), LabelEncoder::F32ToI64 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
-        (TaggedReceiver::F32(a_ch), LabelEncoder::F32ToF32 { dict, default }) => {
+        (TaggedTensorReceiver::F32(a_ch), LabelEncoder::F32ToF32 { dict, default }) => {
             wrap_1_input(a_ch, move |a| replace(a, &dict, &default))
         }
         _ => panic!(),
@@ -198,10 +198,10 @@ pub fn setup_category_mapper(ctx: OpContext) -> Result<ExecutionStep> {
     let a_ch = ctx.subscribe_to_inputs().narrow()?;
 
     match a_ch {
-        TaggedReceiver::I64(a_ch) => {
+        TaggedTensorReceiver::I64(a_ch) => {
             wrap_1_input(a_ch, move |a| replace(a, &i64_to_string, &default_string))
         }
-        TaggedReceiver::String(a_ch) => {
+        TaggedTensorReceiver::String(a_ch) => {
             wrap_1_input(a_ch, move |a| replace(a, &string_to_int, &default_int64))
         }
         _ => bail!("Illegal input type"),

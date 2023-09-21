@@ -147,7 +147,7 @@ pub fn setup_gather_nd(ctx: OpContext) -> Result<ExecutionStep> {
     let (data, indices): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data,
         inp,
         setup((inp, indices), move |(inp, indices)| {

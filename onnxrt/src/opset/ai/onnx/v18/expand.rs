@@ -23,7 +23,7 @@ pub fn setup_expand(ctx: OpContext) -> Result<ExecutionStep> {
     let (input, shape): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         input,
         input,
         setup((input, shape), |(input, shape)| {

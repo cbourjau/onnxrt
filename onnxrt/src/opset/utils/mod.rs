@@ -19,7 +19,7 @@ pub use self::ndarray_utils::{
 pub use self::setup::{
     setup, setup_variadic_hetero_output, setup_variadic_out, wrap_1_input, FromAttributes,
 };
-pub use crate::channels::TaggedReceiver;
+pub use crate::channels::{TaggedReceiver, TaggedTensorReceiver};
 pub use crate::session::{get_implicit_inputs, ExecutionStep, OpContext};
 pub use crate::ArcArrayD;
 pub(crate) use crate::Attributes;

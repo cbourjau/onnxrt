@@ -151,7 +151,7 @@ fn setup_unsqueeze(ctx: OpContext) -> Result<ExecutionStep> {
     let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data_ch,
         data_ch,
         setup((data_ch, axes_ch), unsqueeze)
@@ -227,7 +227,7 @@ fn setup_squeeze(ctx: OpContext) -> Result<ExecutionStep> {
     let (data_ch, axes_ch): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data_ch,
         data_ch,
         setup((data_ch, axes_ch), squeeze)

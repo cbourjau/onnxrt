@@ -12,7 +12,7 @@ pub fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
     let depth = depth.into_i64();
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         values,
         values,
         setup((indices, depth, values), move |(indices, depth, values)| {

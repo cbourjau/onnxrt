@@ -1,12 +1,11 @@
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
-
 use anyhow::{anyhow, bail, Context, Result};
 use onnx_protos::onnx_proto3::{
     AttributeProto, GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto,
 };
 use protobuf::{Message, MessageField};
 use pyo3::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use crate::channels::Dispatcher;
 use crate::{value_channel, Attributes, DataType, TaggedReceiver, Value, ValueSender};
@@ -67,7 +66,7 @@ impl<'a> OpContext<'a> {
     pub fn input_dtypes(&self) -> Vec<DataType> {
         let mut out = vec![];
         for name in &self.node.input {
-            out.push(self.scope.get(name).unwrap().dtype());
+            out.push(self.scope.get(name).unwrap().tensor_dtype().unwrap());
         }
         out
     }
@@ -252,7 +251,11 @@ impl Session {
         self.outputs
             .iter()
             .map(|(name, output)| {
-                let dtype = output.dtype();
+                let dtype = if let TaggedReceiver::Tensor(t) = output {
+                    t.dtype()
+                } else {
+                    todo!()
+                };
                 (name.as_str(), dtype)
             })
             .collect()
@@ -265,7 +268,7 @@ impl Session {
             .iter()
             .filter(|(_, (_, default))| default.is_none())
             .map(|(name, (input, _default))| {
-                let dtype = input.dtype();
+                let dtype = input.tensor_dtype().unwrap();
                 (name.as_str(), dtype)
             })
             .collect()
@@ -411,7 +414,7 @@ fn prepare_implicit_inputs(
 
     let implicit_names = get_implicit_inputs(graph);
     for name in implicit_names.iter() {
-        let dtype = outer_scope.get(*name).unwrap().dtype();
+        let dtype = outer_scope.get(*name).unwrap().tensor_dtype().unwrap();
         dtypes.insert(name, dtype);
     }
 

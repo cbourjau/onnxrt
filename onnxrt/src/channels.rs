@@ -1,7 +1,7 @@
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 
 use crate::{ArcArrayD, DataType, Value};
 
@@ -46,11 +46,18 @@ enum TaggedChannel {
     String(Channel<ArcArrayD<String>>),
 }
 
+#[derive(Debug)]
+pub enum TaggedReceiver {
+    Tensor(TaggedTensorReceiver),
+    Sequence(TaggedSequenceReceiver),
+    Map,
+}
+
 /// Object obtained by subscribing to a `Dispatcher`. Used inside
 /// "wire" functions and to obtain the final values of a session. The
 /// values of each variant are typed std receivers.
 #[derive(Debug)]
-pub enum TaggedReceiver {
+pub enum TaggedTensorReceiver {
     Bool(Receiver<ArcArrayD<bool>>),
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
@@ -66,6 +73,25 @@ pub enum TaggedReceiver {
     U64(Receiver<ArcArrayD<u64>>),
 
     String(Receiver<ArcArrayD<String>>),
+}
+
+#[derive(Debug)]
+pub enum TaggedSequenceReceiver {
+    Bool(Receiver<Vec<ArcArrayD<bool>>>),
+    F32(Receiver<Vec<ArcArrayD<f32>>>),
+    F64(Receiver<Vec<ArcArrayD<f64>>>),
+
+    I8(Receiver<Vec<ArcArrayD<i8>>>),
+    I16(Receiver<Vec<ArcArrayD<i16>>>),
+    I32(Receiver<Vec<ArcArrayD<i32>>>),
+    I64(Receiver<Vec<ArcArrayD<i64>>>),
+
+    U8(Receiver<Vec<ArcArrayD<u8>>>),
+    U16(Receiver<Vec<ArcArrayD<u16>>>),
+    U32(Receiver<Vec<ArcArrayD<u32>>>),
+    U64(Receiver<Vec<ArcArrayD<u64>>>),
+
+    String(Receiver<Vec<ArcArrayD<String>>>),
 }
 
 /// Create a value-channel used as an entry point in a session
@@ -106,7 +132,7 @@ impl ValueSender {
                             sdr.send(val)
                         },
                     )*
-                        (sdr, val) => Err(anyhow!("Expected {:?}, found {:?}", sdr.dtype(), val)),
+                        (sdr, val) => Err(anyhow!("Expected {:?}, found {:?}", sdr, val)),
                 }
             }
         }
@@ -114,8 +140,8 @@ impl ValueSender {
         map_vars!(Bool, F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, String)
     }
 
-    pub fn dtype(&self) -> DataType {
-        self.0.dtype()
+    pub fn tensor_dtype(&self) -> Result<DataType> {
+        self.0.tensor_dtype()
     }
 }
 
@@ -149,7 +175,7 @@ impl TaggedChannel {
                     $(Self::$variant(Channel{senders}) => {
                         let (sdr, rec) = sync_channel(1);
                         senders.lock().unwrap().push(sdr);
-                        TaggedReceiver::$variant(rec)
+                        TaggedReceiver::Tensor(TaggedTensorReceiver::$variant(rec))
                     })*
                 }
             }};
@@ -158,9 +184,9 @@ impl TaggedChannel {
     }
 
     /// Data type of this object.
-    pub fn dtype(&self) -> DataType {
+    pub fn tensor_dtype(&self) -> Result<DataType> {
         // Name it dtype everywhere
-        match self {
+        Ok(match self {
             Self::Bool(_) => DataType::Bool,
             Self::F32(_) => DataType::F32,
             Self::F64(_) => DataType::F64,
@@ -176,7 +202,7 @@ impl TaggedChannel {
             Self::U64(_) => DataType::U64,
 
             Self::String(_) => DataType::String,
-        }
+        })
     }
 }
 
@@ -187,8 +213,8 @@ impl Dispatcher {
     }
 
     /// Data type of this object.
-    pub fn dtype(&self) -> DataType {
-        self.0.dtype()
+    pub fn tensor_dtype(&self) -> Result<DataType> {
+        self.0.tensor_dtype()
     }
 }
 
@@ -198,24 +224,41 @@ impl TaggedReceiver {
     /// receiving.
     pub fn recv(&self) -> Result<Value> {
         match self {
-            Self::Bool(rec) => Ok(Value::Bool(rec.recv()?)),
-            Self::F32(rec) => Ok(Value::F32(rec.recv()?)),
-            Self::F64(rec) => Ok(Value::F64(rec.recv()?)),
+            Self::Tensor(tensor) => {
+                use TaggedTensorReceiver::*;
+                match tensor {
+                    Bool(tensor) => Ok(Value::Bool(tensor.recv()?)),
+                    F32(tensor) => Ok(Value::F32(tensor.recv()?)),
+                    F64(tensor) => Ok(Value::F64(tensor.recv()?)),
 
-            Self::I8(rec) => Ok(Value::I8(rec.recv()?)),
-            Self::I16(rec) => Ok(Value::I16(rec.recv()?)),
-            Self::I32(rec) => Ok(Value::I32(rec.recv()?)),
-            Self::I64(rec) => Ok(Value::I64(rec.recv()?)),
+                    I8(tensor) => Ok(Value::I8(tensor.recv()?)),
+                    I16(tensor) => Ok(Value::I16(tensor.recv()?)),
+                    I32(tensor) => Ok(Value::I32(tensor.recv()?)),
+                    I64(tensor) => Ok(Value::I64(tensor.recv()?)),
 
-            Self::U8(rec) => Ok(Value::U8(rec.recv()?)),
-            Self::U16(rec) => Ok(Value::U16(rec.recv()?)),
-            Self::U32(rec) => Ok(Value::U32(rec.recv()?)),
-            Self::U64(rec) => Ok(Value::U64(rec.recv()?)),
+                    U8(tensor) => Ok(Value::U8(tensor.recv()?)),
+                    U16(tensor) => Ok(Value::U16(tensor.recv()?)),
+                    U32(tensor) => Ok(Value::U32(tensor.recv()?)),
+                    U64(tensor) => Ok(Value::U64(tensor.recv()?)),
 
-            Self::String(rec) => Ok(Value::String(rec.recv()?)),
+                    String(tensor) => Ok(Value::String(tensor.recv()?)),
+                }
+            }
+            Self::Sequence(_) => unimplemented!(),
+            Self::Map => unimplemented!(),
         }
     }
 
+    pub fn unpack_tensor_receiver(self) -> Result<TaggedTensorReceiver> {
+        match self {
+            Self::Tensor(t) => Ok(t),
+            Self::Sequence(_) => bail!("expected 'tensor' found 'sequence'"),
+            Self::Map => bail!("expected 'tensor' found 'map'"),
+        }
+    }
+}
+
+impl TaggedTensorReceiver {
     /// Data type of this object.
     pub fn dtype(&self) -> DataType {
         // Name it dtype everywhere
