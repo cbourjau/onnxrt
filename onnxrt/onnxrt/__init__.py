@@ -11,22 +11,13 @@ class NodeInformation:
 class InferenceSession:
     s: onnxrt.Session
 
-    @classmethod
-    def from_file(cls, path):
-        ret = cls()
-        ret.s = onnxrt.Session(path)
-        return ret
-
-    @classmethod
-    def from_bytes(cls, bytes):
-        ret = cls()
-        ret.s = onnxrt.Session.py_from_bytes(bytes)
-        return ret
-
-    def __init__(self, model_path = None):
-        if model_path is None:
-            return
-        self.s = onnxrt.Session(model_path)
+    def __init__(self, model):
+        if isinstance(model, str):
+            self.s = onnxrt.Session(model)
+        elif isinstance(model, bytes):
+            self.s = onnxrt.Session.py_from_bytes(model)
+        else:
+            raise TypeError("model must be either str or bytes")
 
     def get_inputs(self):
         return [NodeInformation(name) for name in self.s.input_names]
@@ -47,7 +38,7 @@ class InferenceSession:
 # Make a compatibility layer for the onnxruntime.InferenceSession
 class CompatInferenceSession(InferenceSession):
     def __init__(self, model_bytes):
-        self.s = onnxrt.Session.py_from_bytes(model_bytes)
+        self.s = onnxrt.Session(model_bytes)
 
     def run(self, output_names, inputs):
         casted = {}
