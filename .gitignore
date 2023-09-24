@@ -3,3 +3,5 @@
 *.pyc
 /.envrc
 /.direnv/
+
+onnxrt/test_python/.model_cache/

@@ -11,15 +11,20 @@ import onnxruntime as ort
 MOBILENET_v2_7 = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"
 
 
+def get_cache_dir():
+    cachedir = Path(__file__).parent / ".model_cache"
+    cachedir.mkdir(exist_ok=True)
+    return cachedir
+
+
 def get_model_path():
-    cachdir = Path(__file__).parent / ".model_cache"
-    model_path = (cachdir / "mobilenetv2-7.onnx")
+    model_path = (get_cache_dir() / "mobilenetv2-7.onnx")
     if model_path.exists():
         return model_path
 
     with urllib.request.urlopen(MOBILENET_v2_7) as model_bytes:
         buf = model_bytes.read()
-        with open("mobilenetv2-7.onnx", "wb") as f:
+        with open(model_path, "wb") as f:
             f.write(buf)
 
         return model_path

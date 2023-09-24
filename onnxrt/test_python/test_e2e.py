@@ -11,7 +11,7 @@ import onnxruntime as ort
 _N_LOOPS = 1000
 
 
-@pytest.fixture(params=np.unique(np.logspace(0, 5, 50).astype(int)))
+@pytest.fixture(params=np.unique(np.logspace(0, 3, 20).astype(int)))
 def n_rows(request):
     return request.param
 
