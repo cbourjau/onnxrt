@@ -83,12 +83,11 @@ impl Session {
 
     #[getter(output_names)]
     pub fn py_output_names(&self) -> Vec<String> {
-        let hm: Vec<String> = self
+        self
             .outputs
             .iter()
             .map(|(k, _)| k.to_string())
-            .collect_vec();
-        hm
+            .collect()
     }
 }
 
