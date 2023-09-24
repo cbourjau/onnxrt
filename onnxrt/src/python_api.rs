@@ -77,8 +77,7 @@ impl Session {
 
     #[getter(input_names)]
     pub fn py_input_names(&self) -> Vec<String> {
-        let hm: Vec<String> = self.inputs.0.keys().map(|k| k.to_string()).collect_vec();
-        hm
+       self.inputs.0.keys().map(|k| k.to_string()).collect()
     }
 
     #[getter(output_names)]
