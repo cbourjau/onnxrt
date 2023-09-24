@@ -136,7 +136,7 @@ impl Session {
         bytes: &[u8],
         setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
-        let model_proto: ModelProto = Message::parse_from_bytes(bytes).unwrap();
+        let model_proto = Message::parse_from_bytes(bytes).unwrap();
         Self::from_model_proto(&model_proto, setup_dict)
     }
 
