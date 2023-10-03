@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Result};
 
+use crate::data_types::{MapType, SequenceType, TensorType, ValueType};
 use crate::{ArcArrayD, DataType, Value};
 
 #[derive(Default, Debug, Clone)]
@@ -95,31 +96,29 @@ pub enum TaggedSequenceReceiver {
 }
 
 /// Create a value-channel used as an entry point in a session
-pub fn value_channel(dtype: &DataType) -> (ValueSender, Dispatcher) {
-    macro_rules! map_vars {
-        ($(($var:tt, $ty:ty)),*) => {
-            match dtype {
-                $(DataType::$var => {
-                    let (Sender(sdr), disp) = ArcArrayD::<$ty>::channel();
-                    (ValueSender(TaggedChannel::$var(sdr)), disp)
-                })*
-            }
+pub fn value_channel(ty: &ValueType) -> (ValueSender, Dispatcher) {
+    match ty {
+        ValueType::Tensor(TensorType(dtype)) => match dtype {
+            DataType::Bool => ArcArrayD::<bool>::value_channel(),
+            DataType::I8 => ArcArrayD::<i8>::value_channel(),
+            DataType::I16 => ArcArrayD::<i16>::value_channel(),
+            DataType::I32 => ArcArrayD::<i32>::value_channel(),
+            DataType::I64 => ArcArrayD::<i64>::value_channel(),
+            DataType::U8 => ArcArrayD::<u8>::value_channel(),
+            DataType::U16 => ArcArrayD::<u16>::value_channel(),
+            DataType::U32 => ArcArrayD::<u32>::value_channel(),
+            DataType::U64 => ArcArrayD::<u64>::value_channel(),
+            DataType::F32 => ArcArrayD::<f32>::value_channel(),
+            DataType::F64 => ArcArrayD::<f64>::value_channel(),
+            DataType::String => ArcArrayD::<String>::value_channel(),
+        },
+        ValueType::Sequence(SequenceType::Tensor(_)) => {
+            unimplemented!("'Sequence's are not yet supported")
+        }
+        ValueType::Map(MapType { .. }) => {
+            unimplemented!("'Map's are not yet supported")
         }
     }
-    map_vars!(
-        (Bool, bool),
-        (F32, f32),
-        (F64, f64),
-        (I8, i8),
-        (I16, i16),
-        (I32, i32),
-        (I64, i64),
-        (U8, u8),
-        (U16, u16),
-        (U32, u32),
-        (U64, u64),
-        (String, String)
-    )
 }
 
 impl ValueSender {
@@ -142,6 +141,10 @@ impl ValueSender {
 
     pub fn tensor_dtype(&self) -> Result<DataType> {
         self.0.tensor_dtype()
+    }
+
+    pub fn value_type(&self) -> Result<ValueType> {
+        unimplemented!()
     }
 }
 
@@ -288,6 +291,9 @@ pub trait Sendable {
     fn channel() -> (Sender<Self>, Dispatcher)
     where
         Self: Sized;
+
+    /// Create a `ValueSender` for objects of type `Self`.
+    fn value_channel() -> (ValueSender, Dispatcher);
 }
 
 macro_rules! impl_sendable {
@@ -300,6 +306,12 @@ macro_rules! impl_sendable {
                 let sender = Sender::<Self>::default();
                 let disp = Dispatcher($dispatcher(sender.0.clone()));
                 (sender, disp)
+            }
+            fn value_channel() -> (ValueSender, Dispatcher) {
+                let channel = Channel::<Self>::default();
+                let sdr = ValueSender($dispatcher(channel.clone()));
+                let disp = Dispatcher($dispatcher(channel));
+                (sdr, disp)
             }
         }
     };

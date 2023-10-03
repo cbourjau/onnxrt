@@ -19,6 +19,27 @@ pub enum DataType {
     String,
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct TensorType(pub DataType);
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum SequenceType {
+    Tensor(TensorType),
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub struct MapType {
+    pub key: DataType,
+    pub value: DataType,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum ValueType {
+    Tensor(TensorType),
+    Sequence(SequenceType),
+    Map(MapType),
+}
+
 impl DataType {
     pub fn from_i32(type_number: i32) -> Result<Self> {
         use tensor_proto::DataType::*;
@@ -41,44 +62,72 @@ impl DataType {
             val => bail!("Unsupported type `{:?}`", val),
         })
     }
-    pub fn from_value_info(value_info: &ValueInfoProto) -> Result<DataType> {
+}
+
+impl ValueType {
+    pub fn from_value_info(value_info: &ValueInfoProto) -> Result<Self> {
         let err_fn = || {
             anyhow!(
                 "Type information is missing from `ValueInfo`: [information hidden for brevity]",
             )
         };
-        if let type_proto::Value::TensorType(type_proto::Tensor { elem_type, .. }) = value_info
+        let val_type_info = value_info
             .type_
             .as_ref()
             .ok_or_else(err_fn)?
             .value
             .as_ref()
-            .ok_or_else(err_fn)?
-        {
-            Self::from_i32(*elem_type)
-        } else {
-            Err(err_fn())
+            .ok_or_else(err_fn)?;
+
+        use type_proto as typro;
+        match val_type_info {
+            typro::Value::TensorType(typro::Tensor {
+                elem_type: type_number,
+                ..
+            }) => Ok(Self::Tensor(TensorType(DataType::from_i32(*type_number)?))),
+
+            // typro::Value::SequenceType(typro::Sequence { elem_type, .. }) => {
+            //     match elem_type.0.as_ref().map(|el| el.value.clone()).flatten() {
+            //         Some(typro::Value::TensorType(typro::Tensor {
+            //             elem_type: type_number,
+            //             ..
+            //         })) => Ok(Self::Tensor(TensorType(DataType::from_i32(type_number)?))),
+            //         _ => bail!("'Sequence' value type is not supported"),
+            //     }
+            // }
+
+            // typro::Value::OptionalType(_) => {
+            //     bail!("'Optional' value type is not supported")
+            // }
+
+            // typro::Value::MapType(typro::Map { .. }) => {
+            //     bail!("'Map' value type is not supported")
+            // }
+            val_type_info => bail!("Unsupported input type: {:?}", val_type_info),
         }
     }
 
     pub fn standard_name(&self) -> &str {
         match self {
-            DataType::Bool => "tensor(bool)",
+            Self::Tensor(TensorType(dtype)) => match dtype {
+                DataType::Bool => "tensor(bool)",
 
-            DataType::I8 => "tensor(int8)",
-            DataType::I16 => "tensor(int16)",
-            DataType::I32 => "tensor(int32)",
-            DataType::I64 => "tensor(int64)",
+                DataType::I8 => "tensor(int8)",
+                DataType::I16 => "tensor(int16)",
+                DataType::I32 => "tensor(int32)",
+                DataType::I64 => "tensor(int64)",
 
-            DataType::U8 => "tensor(uint8)",
-            DataType::U16 => "tensor(uint16)",
-            DataType::U32 => "tensor(uint32)",
-            DataType::U64 => "tensor(uint64)",
+                DataType::U8 => "tensor(uint8)",
+                DataType::U16 => "tensor(uint16)",
+                DataType::U32 => "tensor(uint32)",
+                DataType::U64 => "tensor(uint64)",
 
-            DataType::F32 => "tensor(float)",
-            DataType::F64 => "tensor(double)",
+                DataType::F32 => "tensor(float)",
+                DataType::F64 => "tensor(double)",
 
-            DataType::String => "tensor(string)",
+                DataType::String => "tensor(string)",
+            },
+            _ => panic!(),
         }
     }
 }
