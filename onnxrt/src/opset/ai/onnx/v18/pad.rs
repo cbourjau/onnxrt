@@ -37,7 +37,7 @@ where
 
             (0..x.ndim())
                 .map(|ax| match axes_to_pad.get(&ax) {
-                    Some(pad) => pad.clone(),
+                    Some(pad) => *pad,
                     None => Padding { front: 0, back: 0 },
                 })
                 .collect()
