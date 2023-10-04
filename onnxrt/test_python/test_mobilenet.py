@@ -43,7 +43,7 @@ def test_foo():
     inp = {"data": np.ones(shape=(1,3,224,224), dtype=np.float32)}
 
     sess_cpp = create_ort_session(model)
-    sess = ortrs.InferenceSession().from_file(str(model))
+    sess = ortrs.InferenceSession(str(model))
 
     t0 = perf_counter()
     out_cpp = sess_cpp.run(None, inp)
