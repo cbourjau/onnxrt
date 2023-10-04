@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
 use numpy::PyReadonlyArrayDyn;
 use numpy::ToPyArray;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -77,16 +76,12 @@ impl Session {
 
     #[getter(input_names)]
     pub fn py_input_names(&self) -> Vec<String> {
-       self.inputs.0.keys().map(|k| k.to_string()).collect()
+        self.inputs.0.keys().map(|k| k.to_string()).collect()
     }
 
     #[getter(output_names)]
     pub fn py_output_names(&self) -> Vec<String> {
-        self
-            .outputs
-            .iter()
-            .map(|(k, _)| k.to_string())
-            .collect()
+        self.outputs.iter().map(|(k, _)| k.to_string()).collect()
     }
 }
 
