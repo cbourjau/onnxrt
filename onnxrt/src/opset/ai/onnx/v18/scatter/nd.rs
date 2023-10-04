@@ -99,10 +99,7 @@ impl ScatterNd {
 
 pub fn setup_scatter_nd(ctx: OpContext) -> Result<ExecutionStep> {
     let state = ScatterNd::from_attrs(&ctx.attrs)?;
-    let [data, indices, updates]: [TaggedReceiver; 3] = ctx
-        .subscribe_to_inputs()
-        .try_into()
-        .map_err(|e| anyhow!("ScatterND: Unexpected number of inputs: '{:?}'", e))?;
+    let (data, indices, updates) = ctx.subscribe_to_inputs().narrow()?;
 
     let data_and_updates: HomogeneousFixed<2> = vec![data, updates].narrow()?;
 
@@ -126,7 +123,7 @@ pub fn setup_scatter_nd(ctx: OpContext) -> Result<ExecutionStep> {
     use HomogeneousFixed::*;
     // The bool and string case are special cases which prohibit us from using setup_all...
     match indices {
-        TaggedReceiver::I32(indices) => match data_and_updates {
+        TaggedTensorReceiver::I32(indices) => match data_and_updates {
             U8([data, updates]) => {
                 match_arm!(data, indices, updates, state.reduction.as_function())
             }
@@ -168,7 +165,7 @@ pub fn setup_scatter_nd(ctx: OpContext) -> Result<ExecutionStep> {
                 })
             }
         },
-        TaggedReceiver::I64(indices) => match data_and_updates {
+        TaggedTensorReceiver::I64(indices) => match data_and_updates {
             U8([data, updates]) => {
                 match_arm!(data, indices, updates, state.reduction.as_function())
             }

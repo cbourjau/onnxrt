@@ -10,7 +10,7 @@ name = "onnxrt"
 crate-type = [
  "cdylib",
  "rlib", # Needed for the tests to link correctly
- ]
+]
 
 
 [dependencies]

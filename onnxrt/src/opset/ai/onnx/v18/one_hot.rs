@@ -1,18 +1,18 @@
-use super::*;
+use crate::opset::utils::*;
 
 pub fn setup_one_hot(ctx: OpContext) -> Result<ExecutionStep> {
     let axis = ctx.attrs.get_with_default("axis", -1)?;
 
     // Spec: Standard is insanely lose around `indices` and
     // `depth`. Technically, floats may be used as indices, but that
-    // is just a terrible. Thus, this is only implemented
+    // is just terrible. Thus, this is only implemented
     // for integers.
     let (indices, depth, values): (Integer, Integer, _) = ctx.subscribe_to_inputs().narrow()?;
     let indices = indices.into_i64();
     let depth = depth.into_i64();
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         values,
         values,
         setup((indices, depth, values), move |(indices, depth, values)| {

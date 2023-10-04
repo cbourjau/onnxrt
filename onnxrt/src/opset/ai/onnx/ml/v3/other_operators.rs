@@ -8,7 +8,7 @@ pub fn setup_array_feature_extractor(ctx: OpContext) -> Result<ExecutionStep> {
         ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data_ch,
         data_ch,
         setup((data_ch, indices_ch), array_feature_extractor)

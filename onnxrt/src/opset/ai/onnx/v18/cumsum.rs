@@ -82,6 +82,6 @@ pub fn setup_cumsum(ctx: OpContext) -> Result<ExecutionStep> {
             }
         }
     }
-    use TaggedReceiver::*;
+    use TaggedTensorReceiver::*;
     Ok(match_all!(F32, F64, I32, I64, U32, U64))
 }

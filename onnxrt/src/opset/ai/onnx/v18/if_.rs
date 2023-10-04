@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use onnx_protos::onnx_proto3::GraphProto;
 
-use crate::{edges::value_channel, opset::utils::*, Session};
+use crate::{channels::value_channel, opset::utils::*, Session};
 
 #[derive(Debug)]
 struct If {

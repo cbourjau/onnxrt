@@ -25,7 +25,7 @@ def predict_and_compare(fn, kwargs):
     out_cpp = {outname.name: v for outname, v in zip(sess_cpp.get_outputs(), out_cpp)}
     print({k: arr.shape for k, arr in out_cpp.items()})
 
-    sess_rs = ortrs.Session(fn)
+    sess_rs = ortrs.InferenceSession(fn)
 
     t0 = perf_counter()
     out_rs = sess_rs.run(kwargs)

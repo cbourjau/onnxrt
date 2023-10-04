@@ -122,7 +122,7 @@ pub fn setup_unique(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Unique::from_attrs(&ctx.attrs)?;
     let (x,) = ctx.subscribe_to_inputs().narrow()?;
 
-    use TaggedReceiver::*;
+    use TaggedTensorReceiver::*;
     match x {
         F32(rec) => setup((rec,), move |(x,)| {
             let (a, b, c, d) = state.compute((x.mapv(OrderedFloat).into(),))?;

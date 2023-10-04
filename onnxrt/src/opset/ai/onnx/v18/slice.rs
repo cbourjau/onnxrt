@@ -77,7 +77,7 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
     match (axes, steps) {
         (Some(axes), Some(steps)) => {
             setup_all!(
-                TaggedReceiver,
+                TaggedTensorReceiver,
                 data,
                 data,
                 setup(
@@ -96,7 +96,7 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
         }
         (None, Some(steps)) => {
             setup_all!(
-                TaggedReceiver,
+                TaggedTensorReceiver,
                 data,
                 data,
                 setup(
@@ -115,7 +115,7 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
         }
         (Some(axes), None) => {
             setup_all!(
-                TaggedReceiver,
+                TaggedTensorReceiver,
                 data,
                 data,
                 setup(
@@ -134,7 +134,7 @@ pub fn setup_slice(ctx: OpContext) -> Result<ExecutionStep> {
         }
         (None, None) => {
             setup_all!(
-                TaggedReceiver,
+                TaggedTensorReceiver,
                 data,
                 data,
                 setup((data, starts, ends), move |(data, starts, ends)| {

@@ -62,7 +62,7 @@ pub fn setup_gather(ctx: OpContext) -> Result<ExecutionStep> {
     let (data, indices): (_, OnnxIndex) = ctx.subscribe_to_inputs().narrow()?;
     let indices = indices.into_i64();
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data,
         data,
         setup((data, indices), move |(data, indices)| {

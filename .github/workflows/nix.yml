@@ -45,4 +45,4 @@ jobs:
       - name: Run Python tests
         run: |
           nix develop --command \
-          pytest onnxrt/test_python
+          python -m pytest onnxrt/test_python

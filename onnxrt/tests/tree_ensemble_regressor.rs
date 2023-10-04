@@ -1,0 +1,40 @@
+use std::collections::HashMap;
+
+use ndarray::array;
+use onnxrt::{get_opset, Session, Value};
+
+#[test]
+fn test_tree_ensemble_regressor() {
+    let setup_dict = get_opset();
+    let session = Session::from_file(
+        "../onnxruntime/onnxruntime/test/testdata/tree_ensemble_as_tensor.onnx",
+        &setup_dict,
+    )
+    .unwrap();
+
+    let input = array![
+        [0., 1., 1.7999999523162842, 3.],
+        [0., 1., 1.7999999523, 3.],
+        [0., 1., 1.79999995232, 3.],
+    ]
+    .into_dyn()
+    .into();
+    let inputs = HashMap::from_iter([("X".to_string(), Value::F64(input))]);
+
+    let expected: HashMap<_, _> = [(
+        "variable".to_string(),
+        Value::F64(
+            array![
+                [0.7284910678863525],
+                [0.7284910678863525],
+                [0.9134243130683899]
+            ]
+            .into_dyn()
+            .into(),
+        ),
+    )]
+    .into_iter()
+    .collect();
+    let got = session.run_named(&inputs).unwrap();
+    assert_eq!(got, expected);
+}
