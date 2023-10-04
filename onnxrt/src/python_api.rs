@@ -22,6 +22,12 @@ impl Session {
         Self::from_file(path, &get_opset()).map_err(|e| PyValueError::new_err(format!("{:?}", e)))
     }
 
+    #[staticmethod]
+    pub fn py_from_bytes(model_bytes: Vec<u8>) -> PyResult<Self> {
+        Self::from_bytes(&model_bytes, &get_opset())
+            .map_err(|e| PyValueError::new_err(format!("{:?}", e)))
+    }
+
     #[pyo3(name = "run")]
     pub fn py_run<'py>(&self, inputs: &'py PyDict) -> PyResult<&'py PyDict> {
         let py = inputs.py();
@@ -66,6 +72,16 @@ impl Session {
             .map(|(k, v)| (k.to_string(), v.standard_name().to_string()))
             .collect();
         hm
+    }
+
+    #[getter(input_names)]
+    pub fn py_input_names(&self) -> Vec<String> {
+        self.inputs.0.keys().map(|k| k.to_string()).collect()
+    }
+
+    #[getter(output_names)]
+    pub fn py_output_names(&self) -> Vec<String> {
+        self.outputs.iter().map(|(k, _)| k.to_string()).collect()
     }
 }
 

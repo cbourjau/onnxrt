@@ -18,14 +18,14 @@ pub struct Session {
     /// Explicit inputs of the top-level graph.
     explicit_input_names: Vec<String>,
     /// Mandatory inputs for this session
-    inputs: Inputs,
+    pub(crate) inputs: Inputs,
     /// Output channels which are filled after all `steps` where called.
     pub(crate) outputs: Vec<(String, TaggedReceiver)>,
 }
 
 /// Collection of input `ValueSender`s and their optional default values.
 #[derive(Debug)]
-struct Inputs(HashMap<String, (ValueSender, Option<Value>)>);
+pub struct Inputs(pub HashMap<String, (ValueSender, Option<Value>)>);
 
 /// Signature of functions executed at runtime.
 pub type ExecFnSignature = Box<dyn Fn() -> Result<()> + Send>;
@@ -133,13 +133,19 @@ impl<'a> OpContext<'a> {
 }
 
 impl Session {
+    pub fn from_bytes(
+        bytes: &[u8],
+        setup_dict: &HashMap<&'static str, SetupFnSignature>,
+    ) -> Result<Self> {
+        let model_proto = Message::parse_from_bytes(bytes).unwrap();
+        Self::from_model_proto(&model_proto, setup_dict)
+    }
+
     pub fn from_file<P: AsRef<Path>>(
         path: P,
         setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
-        let bytes = std::fs::read(path).unwrap();
-        let model_proto: ModelProto = Message::parse_from_bytes(&bytes[..]).unwrap();
-        Self::from_model_proto(&model_proto, setup_dict)
+        Self::from_bytes(&std::fs::read(path)?, setup_dict)
     }
 
     pub fn from_model_proto(

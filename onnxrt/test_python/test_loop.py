@@ -49,7 +49,7 @@ def break_cond_model(tmp_path):
 
 def test_loop_terminate_trip_count(trip_count_model):
     """Break by reaching the maximum trip count."""
-    session = ortrs.Session(trip_count_model)
+    session = ortrs.InferenceSession(trip_count_model)
 
     inputs = {"a": np.array([1.0, 2.0, 3.0]), "b": np.array([4, 5, 6])}
     (out_a, out_sum, out_idx) = session.run(
@@ -63,7 +63,7 @@ def test_loop_terminate_trip_count(trip_count_model):
 
 def test_loop_terminate_break_condidtion(break_cond_model):
     """Break by having the 'body' return a truthy break condition"""
-    session = ortrs.Session(break_cond_model)
+    session = ortrs.InferenceSession(break_cond_model)
 
     inputs = {"a": np.array([1.0, 2.0, 3.0]), "b": np.array([4, 5, 6])}
     (out_a, out_sum, out_idx) = session.run(

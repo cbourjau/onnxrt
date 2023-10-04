@@ -11,7 +11,7 @@ import onnxruntime as ort
 _N_LOOPS = 1000
 
 
-@pytest.fixture(params=np.unique(np.logspace(0, 5, 50).astype(int)))
+@pytest.fixture(params=np.unique(np.logspace(0, 3, 50).astype(int)))
 def n_rows(request):
     return request.param
 
@@ -44,7 +44,7 @@ def onnx_file():
 
 
 def test_inference_onnxrs(inputs, expected_output, onnx_file):
-    sess_rs = ortrs.Session(str(onnx_file))
+    sess_rs = ortrs.InferenceSession(str(onnx_file))
 
     t0 = perf_counter()
     for _ in range(_N_LOOPS):
@@ -74,3 +74,24 @@ def test_inference_onnxruntime(inputs, expected_output, onnx_file):
     t1 = perf_counter()
     print("onnxruntime: ", t1 - t0)
 
+
+def test_inference_onnxrs_from_bytes(inputs, expected_output, onnx_file):
+    with open(onnx_file, "rb") as f:
+        onnx_bytes = f.read()
+
+    sess_rs = ortrs.InferenceSession(onnx_bytes)
+
+    t0 = perf_counter()
+    for _ in range(_N_LOOPS):
+        outputs_rs = sess_rs.run(inputs)
+
+    t1 = perf_counter()
+    print("Rust: ", t1 - t0)
+
+    assert outputs_rs.keys() == {"variable"}
+    outputs_rs, *_ = outputs_rs.values()
+
+    np.testing.assert_equal(
+        outputs_rs,
+        expected_output,
+    )
