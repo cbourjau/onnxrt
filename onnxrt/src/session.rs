@@ -145,7 +145,7 @@ impl Session {
         path: P,
         setup_dict: &HashMap<&'static str, SetupFnSignature>,
     ) -> Result<Self> {
-        Self::from_bytes(&std::fs::read(path).unwrap(), setup_dict)
+        Self::from_bytes(&std::fs::read(path)?, setup_dict)
     }
 
     pub fn from_model_proto(
