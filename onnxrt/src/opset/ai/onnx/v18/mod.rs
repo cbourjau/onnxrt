@@ -35,6 +35,7 @@ mod min_max;
 mod mod_;
 mod nlll;
 mod one_hot;
+mod pad;
 mod pow;
 mod random_uniform_like;
 mod range;
@@ -109,6 +110,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("NegativeLogLikelihoodLoss", Box::new(nlll::setup_nlll));
     d.insert("OneHot", Box::new(one_hot::setup_one_hot));
     d.insert("Or", binary_op_factory!(boolean, |a, b| Ok(a | b)));
+    d.insert("Pad", Box::new(pad::setup_pad));
     d.insert("Pow", Box::new(pow::setup_pow));
     d.insert("Range", Box::new(range::setup_range));
     d.insert("RandomUniformLike", Box::new(random_uniform_like::setup_random_uniform_like));
