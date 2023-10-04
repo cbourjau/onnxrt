@@ -293,7 +293,9 @@ impl TryFrom<&TensorProto> for Value {
                     .map(<$ty>::from_le_bytes)
             }};
         }
+
         let shape: Vec<_> = tensor.dims.iter().map(|v| *v as usize).collect();
+
         macro_rules! match_arm {
             ($var:tt, $expl_field:expr, $rust_ty:ty) => {{
                 let explicit_field = &$expl_field;

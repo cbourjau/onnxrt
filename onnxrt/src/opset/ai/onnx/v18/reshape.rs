@@ -6,7 +6,7 @@ pub fn setup_reshape(ctx: OpContext) -> Result<ExecutionStep> {
     let (data, shape): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data,
         data,
         setup((data, shape), move |(data, shape)| {

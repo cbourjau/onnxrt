@@ -181,14 +181,12 @@ impl TopK {
 pub fn setup_topk(ctx: OpContext) -> Result<ExecutionStep> {
     let state = TopK::from_attrs(&ctx.attrs)?;
 
-    let (x, k): (TaggedReceiver, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
-
-    let x = vec![x].narrow()?;
+    let (x, k): (_, Receiver<ArcArrayD<i64>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        HomogeneousNumericFixed,
+        Numeric,
         x,
-        [x],
+        x,
         setup((x, k), move |(x, k)| state.compute(x, k.view()))
     )
 }

@@ -18,7 +18,7 @@ pub fn setup_cast_like(ctx: OpContext) -> Result<ExecutionStep> {
     setup_cast_(inp, to_type)
 }
 
-fn setup_cast_(input: TaggedReceiver, to: DataType) -> Result<ExecutionStep> {
+fn setup_cast_(input: TaggedTensorReceiver, to: DataType) -> Result<ExecutionStep> {
     macro_rules! make_output_fallible {
         ($inp:expr, $cast:expr) => {{
             wrap_1_input($inp, |a| {
@@ -55,20 +55,20 @@ fn setup_cast_(input: TaggedReceiver, to: DataType) -> Result<ExecutionStep> {
     }
 
     match input {
-        TaggedReceiver::F32(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::F64(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::F32(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::F64(a_ch) => num_to_num!(a_ch),
 
-        TaggedReceiver::I8(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::I16(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::I32(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::I64(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::I8(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::I16(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::I32(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::I64(a_ch) => num_to_num!(a_ch),
 
-        TaggedReceiver::U8(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::U16(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::U32(a_ch) => num_to_num!(a_ch),
-        TaggedReceiver::U64(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::U8(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::U16(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::U32(a_ch) => num_to_num!(a_ch),
+        TaggedTensorReceiver::U64(a_ch) => num_to_num!(a_ch),
 
-        TaggedReceiver::Bool(a_ch) => match to {
+        TaggedTensorReceiver::Bool(a_ch) => match to {
             DataType::F32 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f32).into())),
             DataType::F64 => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el as u8 as f64).into())),
 
@@ -85,7 +85,7 @@ fn setup_cast_(input: TaggedReceiver, to: DataType) -> Result<ExecutionStep> {
             DataType::Bool => wrap_1_input(a_ch, Ok),
             DataType::String => wrap_1_input(a_ch, |a| Ok(a.mapv(|el| el.to_string()).into())),
         },
-        TaggedReceiver::String(a_ch) => match to {
+        TaggedTensorReceiver::String(a_ch) => match to {
             DataType::F32 => make_output_fallible!(a_ch, |el| el.parse::<f32>()),
             DataType::F64 => make_output_fallible!(a_ch, |el| el.parse::<f64>()),
 

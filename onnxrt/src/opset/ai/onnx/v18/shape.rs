@@ -39,7 +39,7 @@ pub fn setup_shape(ctx: OpContext) -> Result<ExecutionStep> {
     let state = Shape::from_attrs(&ctx.attrs)?;
     let data = ctx.subscribe_to_inputs().narrow()?;
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         data,
         data,
         setup(data, move |data| state.compute(data))

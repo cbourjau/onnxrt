@@ -1,14 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
-
 use anyhow::{anyhow, bail, Context, Result};
 use onnx_protos::onnx_proto3::{
     AttributeProto, GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto,
 };
 use protobuf::{Message, MessageField};
 use pyo3::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
-use crate::{value_channel, Attributes, DataType, Dispatcher, TaggedReceiver, Value, ValueSender};
+use crate::channels::Dispatcher;
+use crate::data_types::{TensorType, ValueType};
+use crate::{value_channel, Attributes, DataType, TaggedReceiver, Value, ValueSender};
 
 #[pyclass(subclass)]
 pub struct Session {
@@ -41,7 +42,7 @@ pub struct OpContext<'a> {
     pub attrs: Attributes,
     pub opset: &'a HashMap<&'static str, SetupFnSignature>,
     pub node: &'a NodeProto,
-    pub scope: &'a HashMap<String, Dispatcher>,
+    pub scope: &'a Scope,
 }
 
 /// Signature of "wire" functions executed in the setup phase.
@@ -66,7 +67,7 @@ impl<'a> OpContext<'a> {
     pub fn input_dtypes(&self) -> Vec<DataType> {
         let mut out = vec![];
         for name in &self.node.input {
-            out.push(self.scope.get(name).unwrap().dtype());
+            out.push(self.scope.get(name).unwrap().tensor_dtype().unwrap());
         }
         out
     }
@@ -253,24 +254,28 @@ impl Session {
             .collect()
     }
 
-    pub fn output_dtypes(&self) -> Vec<(&str, DataType)> {
+    pub fn output_dtypes(&self) -> Vec<(&str, ValueType)> {
         self.outputs
             .iter()
             .map(|(name, output)| {
-                let dtype = output.dtype();
+                let dtype = if let TaggedReceiver::Tensor(t) = output {
+                    ValueType::Tensor(TensorType(t.dtype()))
+                } else {
+                    todo!()
+                };
                 (name.as_str(), dtype)
             })
             .collect()
     }
 
     /// Get data types of the required inputs
-    pub fn input_dtypes(&self) -> HashMap<&str, DataType> {
+    pub fn input_dtypes(&self) -> HashMap<&str, ValueType> {
         self.inputs
             .0
             .iter()
             .filter(|(_, (_, default))| default.is_none())
             .map(|(name, (input, _default))| {
-                let dtype = input.dtype();
+                let dtype = input.value_type().unwrap();
                 (name.as_str(), dtype)
             })
             .collect()
@@ -313,7 +318,7 @@ impl std::fmt::Debug for Session {
 /// outer scope are called.
 #[allow(clippy::type_complexity)]
 fn setup_steps(
-    mut scope: HashMap<String, Dispatcher>,
+    mut scope: Scope,
     nodes: &[NodeProto],
     output_names: &[String],
     setup_dict: &HashMap<&'static str, SetupFnSignature>,
@@ -367,7 +372,7 @@ fn prepare_inputs(inputs: &[ValueInfoProto]) -> Result<(Inputs, Scope)> {
     let mut scope = HashMap::new();
     for input in inputs {
         let input_name = &input.name;
-        let data_type = DataType::from_value_info(input)?;
+        let data_type = ValueType::from_value_info(input)?;
         let (sdr, disp) = value_channel(&data_type);
         input_senders.insert(input_name.to_string(), (sdr, None));
         scope.insert(input_name.to_string(), disp);
@@ -388,7 +393,9 @@ fn prepare_initializer(
 ) -> anyhow::Result<(Inputs, Scope)> {
     let mut value_dispatchers = inputs.0;
     for initializer in initializers {
+        // FIXME: Initializers for non-tensors?
         let ty = DataType::from_i32(initializer.data_type)?;
+        let ty = ValueType::Tensor(TensorType(ty));
 
         let value: Value = initializer.try_into()?;
 
@@ -416,11 +423,13 @@ fn prepare_implicit_inputs(
 
     let implicit_names = get_implicit_inputs(graph);
     for name in implicit_names.iter() {
-        let dtype = outer_scope.get(*name).unwrap().dtype();
+        let dtype = outer_scope.get(*name).unwrap().tensor_dtype().unwrap();
         dtypes.insert(name, dtype);
     }
 
     for (name, dtype) in dtypes.into_iter() {
+        // FIXME: implicit non-tensor inputs?
+        let dtype = ValueType::Tensor(TensorType(dtype));
         let (sdr, disp) = value_channel(&dtype);
         value_dispatchers.insert(name.to_string(), (sdr, None));
         scope.insert(name.to_string(), disp);

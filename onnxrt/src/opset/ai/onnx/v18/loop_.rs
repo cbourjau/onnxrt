@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use onnx_protos::onnx_proto3::GraphProto;
 
-use crate::{edges::value_channel, opset::utils::*, session::get_implicit_inputs, Session, Value};
+use crate::{
+    channels::value_channel, opset::utils::*, session::get_implicit_inputs, Session, Value,
+};
 
 struct Loop {
     body: Session,

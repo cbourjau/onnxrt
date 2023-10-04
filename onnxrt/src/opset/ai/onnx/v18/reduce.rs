@@ -258,7 +258,9 @@ fn fold_sum<T: Copy + Add<Output = T>>(acc: &T, el: &T) -> T {
     *acc + *el
 }
 
-fn validate_inputs(ctx: OpContext) -> Result<(TaggedReceiver, Option<Receiver<ArcArrayD<i64>>>)> {
+fn validate_inputs(
+    ctx: OpContext,
+) -> Result<(TaggedTensorReceiver, Option<Receiver<ArcArrayD<i64>>>)> {
     let (data, axes): (Option<_>, _) = ctx.input_channels_with_optional().narrow()?;
     let data = data.ok_or_else(|| anyhow!("Input `data` is missing"))?;
     Ok((data, axes))
@@ -270,7 +272,7 @@ macro_rules! create_setup_function {
             let state = State::new(&ctx.attrs)?;
             let (data_ch, axes_ch) = validate_inputs(ctx)?;
 
-            use TaggedReceiver::*;
+            use TaggedTensorReceiver::*;
             match data_ch {
                 $($variant(data_ch) => setup((data_ch, axes_ch), move |(data, axes)| {
                     let axes = axes.map(|axes| axes.as_standard_layout().to_owned());

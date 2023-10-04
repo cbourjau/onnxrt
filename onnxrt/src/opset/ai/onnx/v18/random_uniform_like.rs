@@ -6,7 +6,7 @@ use rand::distributions::{Distribution, Uniform};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use crate::{edges::DataType, opset::utils::*};
+use crate::{opset::utils::*, DataType};
 
 enum FloatDataType {
     F32,
@@ -82,7 +82,7 @@ pub fn setup_random_uniform_like(ctx: OpContext) -> Result<ExecutionStep> {
     let state = RandomUniformLike::from_attrs(&ctx.attrs)?;
 
     let (a,) = ctx.subscribe_to_inputs().narrow()?;
-    use TaggedReceiver::*;
+    use TaggedTensorReceiver::*;
 
     macro_rules! non_float_arm {
         ($rec:tt) => {

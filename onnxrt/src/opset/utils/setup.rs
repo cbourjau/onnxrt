@@ -1,11 +1,11 @@
 //! Module with traits and functions to simplify implementation work
 
-use crate::edges::{value_channel, DataType};
+use crate::channels::value_channel;
+use crate::data_types::ValueType;
 use crate::opset::utils::*;
-use crate::Value;
 use crate::{
-    edges::{Dispatcher, Sender},
-    Sendable,
+    channels::{Dispatcher, Sender},
+    Sendable, Value,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
@@ -69,7 +69,7 @@ where
 pub fn setup_variadic_hetero_output<F, InCh, In>(
     in_channels: InCh,
     fun: F,
-    dtypes: Vec<(String, DataType)>,
+    dtypes: Vec<(String, ValueType)>,
 ) -> Result<ExecutionStep>
 where
     InCh: InChannels<Items = In> + Send + 'static,

@@ -37,7 +37,7 @@ pub fn setup_compress(ctx: OpContext) -> Result<ExecutionStep> {
     let (input, cond): (_, Receiver<ArcArrayD<bool>>) = ctx.subscribe_to_inputs().narrow()?;
 
     setup_all!(
-        TaggedReceiver,
+        TaggedTensorReceiver,
         input,
         inp,
         setup((inp, cond), move |(inp, cond)| {

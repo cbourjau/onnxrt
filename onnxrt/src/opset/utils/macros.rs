@@ -1,8 +1,8 @@
 #[macro_export]
 macro_rules! setup_all {
-    (TaggedReceiver, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
+    (TaggedTensorReceiver, $tagged_rec:expr, $rec_name:tt, $setup:expr) => {
         setup_all!(
-            TaggedReceiver, $tagged_rec, $rec_name, $setup,
+            TaggedTensorReceiver, $tagged_rec, $rec_name, $setup,
             F32, F64, I8, I16, I32, I64, U8, U16, U32, U64, Bool, String
         )
     };
@@ -65,7 +65,7 @@ macro_rules! binary_op_factory {
     (boolean, $fun:expr) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {
             let (a_ch, b_ch) = ctx.subscribe_to_inputs().narrow()?;
-            use TaggedReceiver::*;
+            use TaggedTensorReceiver::*;
             match (a_ch, b_ch) {
                 (Bool(a_ch), Bool(b_ch)) => setup((a_ch, b_ch), move |(a, b)| $fun(a, b)),
                 // Internal error. This should never happen!

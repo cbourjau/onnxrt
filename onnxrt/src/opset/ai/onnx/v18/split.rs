@@ -5,31 +5,12 @@ pub fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
 
     let state = Split::new(&ctx)?;
 
-    // `input_channels` creates channels and must only be called once!
-    let input_channels = ctx.subscribe_to_inputs();
-    if input_channels.len() > 2 {
-        bail!("Split: Unexpected number of inputs");
-    }
-
-    let mut input_channels = input_channels.into_iter();
-    let a_ch = input_channels
-        .next()
-        .ok_or_else(|| anyhow!("Split: Missing required input 'input'"))?;
-
-    // Optional input
-    let split = if let Some(split) = input_channels.next() {
-        if let TaggedReceiver::I64(rec) = split {
-            Some(rec)
-        } else {
-            bail!("Split: 'split' input must be of type 'tensor(i64)'");
-        }
-    } else {
-        None
-    };
+    let (a_ch, split): (_, Option<Receiver<ArcArrayD<i64>>>) =
+        ctx.input_channels_with_optional().narrow()?;
     match split {
         Some(split) => {
             setup_all!(
-                TaggedReceiver,
+                TaggedTensorReceiver,
                 a_ch,
                 a_ch,
                 setup_variadic_out(
@@ -41,7 +22,7 @@ pub fn setup_split(ctx: OpContext) -> Result<ExecutionStep> {
         }
         None => {
             setup_all!(
-                TaggedReceiver,
+                TaggedTensorReceiver,
                 a_ch,
                 a_ch,
                 setup_variadic_out((a_ch,), move |(a,)| state.split(a), n_outputs)

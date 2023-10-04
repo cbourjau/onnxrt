@@ -3,7 +3,7 @@ use std::sync::mpsc::Receiver;
 
 use anyhow::{anyhow, bail, Result};
 
-use crate::{edges::DataType, ArcArrayD, TaggedReceiver};
+use crate::{ArcArrayD, DataType, TaggedReceiver, TaggedTensorReceiver};
 
 /// Narrow inputs into a smaller subset of expected types
 /// This trait should not be implemented direct. Instead,
@@ -143,6 +143,22 @@ where
     }
 }
 
+impl PartialNarrow<TaggedReceiver> for TaggedTensorReceiver {
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = it
+            .next()
+            .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+        match item {
+            TaggedReceiver::Tensor(t) => Ok(t),
+            TaggedReceiver::Sequence(_) => bail!("Expected 'tensor' found 'sequence'"),
+            TaggedReceiver::Map => bail!("Expected 'tensor' found 'map'"),
+        }
+    }
+}
+
 impl PartialNarrow<TaggedReceiver> for TaggedReceiver {
     fn parse<I>(it: &mut I) -> Result<Self>
     where
@@ -164,12 +180,16 @@ macro_rules! impl_PartialNarrow_for_Receiver {
             {
                 let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
                 match item {
-                    TaggedReceiver::$variant(value) => Ok(value),
-                    tr => bail!(
-                        "Expected data type '{:?}', found '{:?}'",
-                        DataType::$variant,
-                        tr.dtype()
-                    ),
+                    TaggedReceiver::Tensor(t) => match t {
+                        TaggedTensorReceiver::$variant(value) => Ok(value),
+                        tr => bail!(
+                            "Expected data type '{:?}', found '{:?}'",
+                            DataType::$variant,
+                            tr.dtype()
+                        ),
+                    },
+                    TaggedReceiver::Sequence(_) => bail!("expected 'tensor' found 'sequence'"),
+                    TaggedReceiver::Map => bail!("expected 'tensor' found 'map'"),
                 }
             }
         }
@@ -189,6 +209,7 @@ impl_PartialNarrow_for_Receiver!(U32, u32);
 impl_PartialNarrow_for_Receiver!(U64, u64);
 impl_PartialNarrow_for_Receiver!(U8, u8);
 
+/// Map to a subset of tensor types
 macro_rules! map_to_sub_set {
     ($item:expr, $from:tt, $to:ty, $msg:expr, $($variant:ident),*) => {
         match $item {
@@ -220,8 +241,8 @@ impl PartialNarrow<TaggedReceiver> for Numeric {
     {
         let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
         Ok(map_to_sub_set!(
-            item,
-            TaggedReceiver,
+            item.unpack_tensor_receiver()?,
+            TaggedTensorReceiver,
             Self,
             "Expected numeric input",
             U8,
@@ -245,8 +266,8 @@ impl PartialNarrow<TaggedReceiver> for Integer {
     {
         let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
         Ok(map_to_sub_set!(
-            item,
-            TaggedReceiver,
+            item.unpack_tensor_receiver()?,
+            TaggedTensorReceiver,
             Self,
             "Expected integer point input",
             U8,
@@ -268,8 +289,8 @@ impl PartialNarrow<TaggedReceiver> for FloatingPoint {
     {
         let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
         Ok(map_to_sub_set!(
-            item,
-            TaggedReceiver,
+            item.unpack_tensor_receiver()?,
+            TaggedTensorReceiver,
             Self,
             "Expected floating point input",
             F32,
@@ -285,8 +306,8 @@ impl PartialNarrow<TaggedReceiver> for OnnxIndex {
     {
         let item = <TaggedReceiver as PartialNarrow<_>>::parse(it)?;
         Ok(map_to_sub_set!(
-            item,
-            TaggedReceiver,
+            item.unpack_tensor_receiver()?,
+            TaggedTensorReceiver,
             Self,
             "Expected floating point input",
             I32,
@@ -429,6 +450,22 @@ impl PartialNarrowLast<Option<TaggedReceiver>> for Vec<TaggedReceiver> {
     }
 }
 
+impl PartialNarrowLast<Option<TaggedReceiver>> for Vec<TaggedTensorReceiver> {
+    fn parse<I>(it: I) -> Result<Self>
+    where
+        Self: Sized,
+        I: Iterator<Item = Option<TaggedReceiver>>,
+    {
+        let mut res = vec![];
+        for (i, item) in it.enumerate() {
+            let item = item
+                .ok_or_else(|| anyhow!("The '{}'th variadic input is required but missing", i))?;
+            res.push(item.unpack_tensor_receiver()?);
+        }
+        Ok(res)
+    }
+}
+
 impl PartialNarrowLast<TaggedReceiver> for Homogeneous {
     fn parse<I>(mut it: I) -> Result<Self>
     where
@@ -440,12 +477,13 @@ impl PartialNarrowLast<TaggedReceiver> for Homogeneous {
 
         macro_rules! match_all_variants {
             ($($variant:tt),* ) => {
-                match first {
+                match first.unpack_tensor_receiver()? {
                     $(
-                    TaggedReceiver::$variant(first) => {
+                    TaggedTensorReceiver::$variant(first) => {
                         let mut items = vec![first];
                         for item in it {
-                            if let TaggedReceiver::$variant(item) = item {
+                            let item = item.unpack_tensor_receiver()?;
+                            if let TaggedTensorReceiver::$variant(item) = item {
                                 items.push(item);
                             } else {
                                 bail!(
