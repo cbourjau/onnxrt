@@ -1,3 +1,7 @@
+// Disable some lints until pyo3 is up-to-date
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(non_local_definitions)]
+
 use std::collections::HashMap;
 
 use numpy::PyReadonlyArrayDyn;

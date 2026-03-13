@@ -31,7 +31,7 @@ pub fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
             .then
             .input_names()
             .into_iter()
-            .chain(state.else_.input_names().into_iter()),
+            .chain(state.else_.input_names()),
     );
 
     let graph_input_channels: HashMap<_, _> = cumulated_input_names

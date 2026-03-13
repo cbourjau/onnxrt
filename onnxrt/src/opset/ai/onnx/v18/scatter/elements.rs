@@ -74,10 +74,10 @@ pub fn setup_scatter_elements(ctx: OpContext) -> Result<ExecutionStep> {
 
     let data_and_updates: HomogeneousFixed<2> = vec![data, updates].narrow()?;
 
-    if state.reduction != Reduction::None {
-        if let HomogeneousFixed::String(_) = data_and_updates {
-            bail!("ScatterElements: 'reduction' is only supported for numeric types")
-        }
+    if state.reduction != Reduction::None
+        && let HomogeneousFixed::String(_) = data_and_updates
+    {
+        bail!("ScatterElements: 'reduction' is only supported for numeric types")
     }
 
     macro_rules! match_arm {

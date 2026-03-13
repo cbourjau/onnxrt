@@ -73,12 +73,12 @@ impl Conv {
         let padding = PaddingType::from_attrs(attrs)?;
         match padding {
             PaddingType::SameUpper | PaddingType::SameLower => {
-                if let Some(strides) = strides.as_ref() {
-                    if strides.iter().any(|&el| el > 1) {
-                        bail!(
-                            "Conv: Strides != 1 may only be used with explicit padding or 'VALID' 'auto_pad'"
-                        );
-                    }
+                if let Some(strides) = strides.as_ref()
+                    && strides.iter().any(|&el| el > 1)
+                {
+                    bail!(
+                        "Conv: Strides != 1 may only be used with explicit padding or 'VALID' 'auto_pad'"
+                    );
                 };
             }
             _ => {}
@@ -122,12 +122,12 @@ impl Conv {
 
         let out_channels = w.shape()[0];
 
-        if let Some(b) = b {
-            if out_channels != b.shape()[0] {
-                bail!(
-                    "Conv: Inconsistent input shapes. The length of the bias tensor must match the first dimension of the weight tensor."
-                )
-            }
+        if let Some(b) = b
+            && out_channels != b.shape()[0]
+        {
+            bail!(
+                "Conv: Inconsistent input shapes. The length of the bias tensor must match the first dimension of the weight tensor."
+            )
         };
 
         Ok(())
@@ -317,7 +317,7 @@ impl SplitPad {
     }
 }
 fn split_pad(total_pad: usize) -> SplitPad {
-    if total_pad % 2 == 0 {
+    if total_pad.is_multiple_of(2) {
         // both are equal
         SplitPad {
             smaller: total_pad / 2,

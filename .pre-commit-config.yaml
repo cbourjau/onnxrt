@@ -24,6 +24,13 @@ repos:
         types: [rust]
         require_serial: true
         pass_filenames: false
+      - id: cargo-clippy
+        name: cargo-clippy
+        entry: pixi run -e default cargo clippy --all-targets --all-features -- -D warnings
+        language: system
+        types: [rust]
+        require_serial: true
+        pass_filenames: false
       # ruff
       - id: ruff
         name: ruff

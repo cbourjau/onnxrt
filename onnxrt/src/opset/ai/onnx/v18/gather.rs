@@ -47,7 +47,7 @@ impl Gather {
 
         // Move axes around before reshaping
         let permuted_shape: Vec<_> = (1..=axis)
-            .chain([0].into_iter())
+            .chain([0])
             .chain((axis + 1)..current_shape.len())
             .collect();
 

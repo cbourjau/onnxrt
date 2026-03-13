@@ -110,7 +110,7 @@ fn concat_values(values: &[Value]) -> Result<Value> {
         }};
     }
 
-    match values.get(0).unwrap() {
+    match values.first().unwrap() {
         Value::F32(_) => match_arm!(F32, values),
         Value::F64(_) => match_arm!(F64, values),
         Value::I16(_) => match_arm!(I16, values),
