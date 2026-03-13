@@ -1,6 +1,6 @@
 name: Update lockfiles
 
-permissions: 
+permissions:
   contents: write
   pull-requests: write
 

@@ -131,7 +131,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Sign", Box::new(sign::setup_sign));
     d.insert("Size", Box::new(size::setup_size));
     d.insert("Slice", Box::new(slice::setup_slice));
-    d.insert("Softmax", Box::new(softmax::setup_softmax));    
+    d.insert("Softmax", Box::new(softmax::setup_softmax));
     d.insert("SoftmaxCrossEntropyLoss", Box::new(softmax_cross_entropy_loss::setup_scme));
     d.insert("Split", Box::new(split::setup_split));
     d.insert("Squeeze", Box::new(setup_squeeze));

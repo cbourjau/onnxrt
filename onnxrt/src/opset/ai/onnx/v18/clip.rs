@@ -1,7 +1,7 @@
 use std::sync::mpsc::Receiver;
 
-use crate::opset::utils::*;
 use crate::Sendable;
+use crate::opset::utils::*;
 
 pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
     let (input, min, max): (Option<_>, _, _) = ctx.input_channels_with_optional().narrow()?;

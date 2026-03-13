@@ -60,7 +60,7 @@ macro_rules! setup_all {
 /// two inputs of identical type.
 #[macro_export]
 macro_rules! binary_op_factory {
-    // Special case booleans for now since the other varians use
+    // Special case booleans for now since the other variants use
     // HomogeneousNumericFixed under the hood
     (boolean, $fun:expr) => {
         Box::new(move |ctx: OpContext| -> Result<ExecutionStep> {

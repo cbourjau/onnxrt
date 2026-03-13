@@ -33,7 +33,7 @@ where
         Some(axes) => {
             let axes = axes.iter().map(|&ax| convert_negative_index(ax, x.ndim()));
 
-            let axes_to_pad: HashMap<_, _> = HashMap::from_iter(axes.zip(pads.into_iter()));
+            let axes_to_pad: HashMap<_, _> = HashMap::from_iter(axes.zip(pads));
 
             (0..x.ndim())
                 .map(|ax| match axes_to_pad.get(&ax) {
@@ -90,7 +90,7 @@ struct Padding {
 impl Padding {
     /// Padding information is encoded as `[x1_begin, x2_begin, ..., x1_end, x2_end,...]`
     fn from_pads(pads: &[i64]) -> Result<Vec<Self>> {
-        if pads.len() % 2 != 0 {
+        if !pads.len().is_multiple_of(2) {
             bail!("Pad: Length of 'pads' input must be divisible by two")
         }
 

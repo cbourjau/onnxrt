@@ -1,5 +1,3 @@
-use std::iter::repeat;
-
 use ndarray::{SliceInfo, SliceInfoElem};
 
 use super::reduction::Reduction;
@@ -42,7 +40,7 @@ where
             .zip(data.shape())
             .map(|(idx, dim_len)| idx.for_len(*dim_len))
             .map(|idx| SliceInfoElem::Index(idx as isize))
-            .chain(repeat((0..).into()).take(leftover_ndims))
+            .chain(std::iter::repeat_n((0..).into(), leftover_ndims))
             .collect();
         let slice_info: SliceInfo<_, IxDyn, IxDyn> = slices.try_into()?;
         data.slice_mut(slice_info)
@@ -103,10 +101,10 @@ pub fn setup_scatter_nd(ctx: OpContext) -> Result<ExecutionStep> {
 
     let data_and_updates: HomogeneousFixed<2> = vec![data, updates].narrow()?;
 
-    if state.reduction != Reduction::None {
-        if let HomogeneousFixed::String(_) | HomogeneousFixed::Bool(_) = data_and_updates {
-            bail!("ScatterND: 'reduction' is only supported for numeric types")
-        }
+    if state.reduction != Reduction::None
+        && let HomogeneousFixed::String(_) | HomogeneousFixed::Bool(_) = data_and_updates
+    {
+        bail!("ScatterND: 'reduction' is only supported for numeric types")
     }
 
     macro_rules! match_arm {

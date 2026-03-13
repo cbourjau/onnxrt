@@ -1,7 +1,4 @@
-use std::{
-    iter::repeat,
-    ops::{AddAssign, DivAssign, MulAssign, SubAssign},
-};
+use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
 use num::Float;
 use num_traits::AsPrimitive;
@@ -42,7 +39,7 @@ impl BatchNormalization {
     {
         let new_shape: Vec<_> = [1, x.shape()[1]]
             .into_iter()
-            .chain(repeat(1).take(x.ndim() - 2))
+            .chain(std::iter::repeat_n(1, x.ndim() - 2))
             .collect();
 
         let scale = scale.into_shape(new_shape.as_slice())?;

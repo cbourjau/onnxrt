@@ -11,12 +11,9 @@ struct State {
 }
 
 impl State {
-    fn cumsum<D, Idx: Clone>(
-        &self,
-        (x, axis): (ArcArrayD<D>, ArcArrayD<Idx>),
-    ) -> Result<ArcArrayD<D>>
+    fn cumsum<D, Idx>(&self, (x, axis): (ArcArrayD<D>, ArcArrayD<Idx>)) -> Result<ArcArrayD<D>>
     where
-        Idx: PrimInt + AsPrimitive<i64>,
+        Idx: PrimInt + AsPrimitive<i64> + Clone,
         D: Zero + Clone + Copy + AddAssign + Sub<Output = D>,
     {
         let rank = x.shape().len();

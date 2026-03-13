@@ -166,14 +166,14 @@ where
             .map(|idx| convert_negative_index(*idx, rank))
             .collect::<HashSet<_>>()
     };
-    if let Some(max_axis_input) = axes.iter().max() {
-        if *max_axis_input >= rank {
-            bail!(
-                "Input `axes={}` is incompatible tensor of `rank={}`",
-                *max_axis_input,
-                rank
-            );
-        }
+    if let Some(max_axis_input) = axes.iter().max()
+        && *max_axis_input >= rank
+    {
+        bail!(
+            "Input `axes={}` is incompatible tensor of `rank={}`",
+            *max_axis_input,
+            rank
+        );
     }
     // Reorder the axes to put the once that are being reduced at the end
     let regrouped_axes: Vec<_> = (0..rank)

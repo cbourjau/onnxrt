@@ -4,8 +4,8 @@ use crate::channels::value_channel;
 use crate::data_types::ValueType;
 use crate::opset::utils::*;
 use crate::{
-    channels::{Dispatcher, Sender},
     Sendable, Value,
+    channels::{Dispatcher, Sender},
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;

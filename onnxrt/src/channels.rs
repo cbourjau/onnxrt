@@ -1,7 +1,7 @@
-use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 use crate::data_types::{MapType, SequenceType, TensorType, ValueType};
 use crate::{ArcArrayD, DataType, Value};

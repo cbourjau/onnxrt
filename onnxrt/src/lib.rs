@@ -8,7 +8,7 @@ mod python_api;
 mod session;
 
 pub(crate) use attribute::Attributes;
-pub use channels::{value_channel, Sendable, TaggedReceiver, TaggedTensorReceiver, ValueSender};
+pub use channels::{Sendable, TaggedReceiver, TaggedTensorReceiver, ValueSender, value_channel};
 pub use data_types::DataType;
 pub use opset::get_opset;
 pub use session::Session;

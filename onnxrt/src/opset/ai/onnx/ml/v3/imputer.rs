@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ndarray::Axis;
 
 use crate::opset::utils::*;

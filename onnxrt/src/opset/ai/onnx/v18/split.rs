@@ -65,7 +65,7 @@ impl Split {
                     num_outputs,
                 )
             }
-            if len_axis % num_outputs == 0 {
+            if len_axis.is_multiple_of(num_outputs) {
                 len_axis / num_outputs
             } else {
                 len_axis / num_outputs + 1

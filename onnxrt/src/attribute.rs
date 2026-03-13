@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, bail, Result};
-use ndarray::{array, Array};
+use anyhow::{Result, anyhow, bail};
+use ndarray::{Array, array};
 use protobuf::MessageField;
 
 use crate::{ArcArrayD, Value};
 use onnx_protos::onnx_proto3::{
-    attribute_proto::AttributeType, AttributeProto, GraphProto, NodeProto, TensorProto,
+    AttributeProto, GraphProto, NodeProto, TensorProto, attribute_proto::AttributeType,
 };
 
 // Vectors should be ArcArrayD

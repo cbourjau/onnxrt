@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::fs::read;
 
-use anyhow::{anyhow, bail, Result};
-use approx::{abs_diff_eq, relative_eq, ulps_eq, AbsDiffEq, RelativeEq, UlpsEq};
+use anyhow::{Result, anyhow, bail};
+use approx::{AbsDiffEq, RelativeEq, UlpsEq, abs_diff_eq, relative_eq, ulps_eq};
 use num::Float;
 use num_traits::AsPrimitive;
 use onnx_protos::onnx_proto3::TensorProto;
 use protobuf::Message;
-use upstream_test_data::{all_node_tests, get_node_test, TestCase};
+use upstream_test_data::{TestCase, all_node_tests, get_node_test};
 
-use ::onnxrt::{get_opset, ArcArrayD, Session, Value};
+use ::onnxrt::{ArcArrayD, Session, Value, get_opset};
 
 struct TestResult {
     expected: HashMap<String, Value>,

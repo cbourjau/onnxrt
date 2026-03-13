@@ -25,7 +25,7 @@ fn validation<T>(data: &ArrayViewD<T>, indices: &ArrayViewD<i64>, batch_dims: us
     }
 
     if batch_dims > 1 {
-        bail!("GatherND: 'batch_dims > 1' are not yet suppported. Please file an issue.")
+        bail!("GatherND: 'batch_dims > 1' are not yet supported. Please file an issue.")
     }
 
     if data.shape()[..batch_dims] != indices.shape()[..batch_dims] {

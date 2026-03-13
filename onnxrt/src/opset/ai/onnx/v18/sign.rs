@@ -19,11 +19,7 @@ fn sign_for_unsigned<T>(el: T) -> T
 where
     T: One + Zero + PartialOrd + Ord,
 {
-    if el > T::zero() {
-        T::one()
-    } else {
-        T::zero()
-    }
+    if el > T::zero() { T::one() } else { T::zero() }
 }
 
 pub fn setup_sign(ctx: OpContext) -> Result<ExecutionStep> {

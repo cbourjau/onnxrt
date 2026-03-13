@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 use num::Zero;
 
-use crate::opset::utils::*;
 use crate::DataType;
+use crate::opset::utils::*;
 
 fn eye_like<T>(shape: [usize; 2], elem: T, k: isize) -> Result<Array2<T>>
 where

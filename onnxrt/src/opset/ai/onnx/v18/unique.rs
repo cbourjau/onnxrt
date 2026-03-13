@@ -39,8 +39,8 @@ impl Unique {
 
         for (idx, view) in data.axis_iter(axis).enumerate() {
             let wrapped = OrderedArray(view);
-            if let Some(occurences_in_x) = map.get_mut(&wrapped) {
-                occurences_in_x.push(idx);
+            if let Some(occurrences_in_x) = map.get_mut(&wrapped) {
+                occurrences_in_x.push(idx);
                 continue;
             }
 
