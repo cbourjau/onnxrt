@@ -6,7 +6,7 @@ mod setup;
 // Prelude for op implementations
 pub use std::sync::mpsc::Receiver;
 
-pub use anyhow::{anyhow, bail, Result};
+pub use anyhow::{Result, anyhow, bail};
 pub use ndarray::prelude::*;
 
 pub use self::narrowed_arguments::{
@@ -14,15 +14,15 @@ pub use self::narrowed_arguments::{
     Integer, Narrow, Numeric, OnnxIndex,
 };
 pub use self::ndarray_utils::{
-    co_broadcast, convert_negative_index, zip_map_with_co_broadcast, Index,
+    Index, co_broadcast, convert_negative_index, zip_map_with_co_broadcast,
 };
 pub use self::setup::{
-    setup, setup_variadic_hetero_output, setup_variadic_out, wrap_1_input, FromAttributes,
+    FromAttributes, setup, setup_variadic_hetero_output, setup_variadic_out, wrap_1_input,
 };
-pub use crate::channels::{TaggedReceiver, TaggedTensorReceiver};
-pub use crate::session::{get_implicit_inputs, ExecutionStep, OpContext};
 pub use crate::ArcArrayD;
 pub(crate) use crate::Attributes;
+pub use crate::channels::{TaggedReceiver, TaggedTensorReceiver};
+pub use crate::session::{ExecutionStep, OpContext};
 pub use crate::{bin_numeric_with_co_broadcast, binary_op_factory, setup_all};
 
 pub trait IntoArc {

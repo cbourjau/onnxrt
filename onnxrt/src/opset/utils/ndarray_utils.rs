@@ -1,7 +1,7 @@
 //! Utils to help with the tensor operation of an operation
 //! This module is not concerned with the monomophization ("setup")
 //! step.
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use itertools::izip;
 use ndarray::{ArrayD, ArrayViewD, Dimension, IntoDimension, IxDyn, Zip};
 
@@ -90,7 +90,7 @@ where
         .map_collect(op))
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use ndarray::array;
@@ -99,7 +99,8 @@ mod tests {
     fn co_broadcast() {
         let a = array![[1, 1, 1], [1, 1, 1], [1, 1, 1]].into_dyn();
         let b = array![1, 1, 1].into_dyn();
-        let res = zip_map_with_co_broadcast(a.into(), b.into(), |el_a, el_b| *el_a - *el_b);
+        let res = zip_map_with_co_broadcast((&a).into(), (&b).into(), |el_a, el_b| *el_a - *el_b)
+            .unwrap();
         let exp = array![[0, 0, 0], [0, 0, 0], [0, 0, 0]].into_dyn();
         assert_eq!(res, exp)
     }

@@ -187,7 +187,7 @@ where
     let len_reduce_axis = initial_shape
         .iter()
         .zip(&reduce_mask)
-        .filter(|(_, &red_this)| red_this)
+        .filter(|&(_, &red_this)| red_this)
         .fold(1, |acc, el| acc * el.0);
 
     let new_shape: Vec<_> = initial_shape
@@ -235,19 +235,11 @@ impl State {
 }
 
 fn fold_max<T: PartialOrd + Copy>(acc: &T, el: &T) -> T {
-    if el > acc {
-        *el
-    } else {
-        *acc
-    }
+    if el > acc { *el } else { *acc }
 }
 
 fn fold_min<T: PartialOrd + Copy>(acc: &T, el: &T) -> T {
-    if el < acc {
-        *el
-    } else {
-        *acc
-    }
+    if el < acc { *el } else { *acc }
 }
 
 fn fold_mul<T: Copy + Mul<Output = T>>(acc: &T, el: &T) -> T {
