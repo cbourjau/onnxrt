@@ -1,5 +1,5 @@
-use crate::opset::utils::*;
 use crate::Value;
+use crate::opset::utils::*;
 
 struct ConstantOfShape {
     // rank-0 tensor

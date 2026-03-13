@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ordered_float::OrderedFloat;
 
 use crate::opset::utils::*;

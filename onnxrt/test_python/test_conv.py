@@ -98,7 +98,7 @@ def test_error_msg():
     ],
 )
 def test_conv_with_groups(
-        tmp_path, len_x, len_w, in_channels, out_channels, n_groups, auto_pad, strides, pads
+    tmp_path, len_x, len_w, in_channels, out_channels, n_groups, auto_pad, strides, pads
 ):
     # Unclear at the moment how the interplay between strides and
     # padding should be...
@@ -110,7 +110,9 @@ def test_conv_with_groups(
     ch_per_gr = in_channels // n_groups
     NW = out_channels * ch_per_gr * len_w * len_w
     x = np.arange(0, NX, dtype=np.float32).reshape(BATCH, in_channels, len_x, len_x)
-    w = np.arange(0, NW, dtype=np.float32).reshape(out_channels, ch_per_gr, len_w, len_w)
+    w = np.arange(0, NW, dtype=np.float32).reshape(
+        out_channels, ch_per_gr, len_w, len_w
+    )
     b = np.zeros((out_channels,), dtype=np.float32)
 
     model = make_model(tmp_path, x, w, b, auto_pad, pads, [strides] * 2)

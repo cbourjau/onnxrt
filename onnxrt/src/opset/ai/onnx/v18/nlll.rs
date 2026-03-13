@@ -48,7 +48,7 @@ where
             let c: usize = (*target)
                 .try_into()
                 .map_err(|_| anyhow!(
-                    "NegativeLogLikelihoodLoss: 'target' values must equal 'ingore_index' or be within '[0, n_channels)'"
+                    "NegativeLogLikelihoodLoss: 'target' values must equal 'ignore_index' or be within '[0, n_channels)'"
                 ))?;
 
             n_not_ignored += 1;

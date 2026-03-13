@@ -1,5 +1,5 @@
-use anyhow::{anyhow, bail, Result};
-use onnx_protos::onnx_proto3::{tensor_proto, type_proto, ValueInfoProto};
+use anyhow::{Result, anyhow, bail};
+use onnx_protos::onnx_proto3::{ValueInfoProto, tensor_proto, type_proto};
 use protobuf::Enum;
 
 /// Data types which may be exchange between nodes.

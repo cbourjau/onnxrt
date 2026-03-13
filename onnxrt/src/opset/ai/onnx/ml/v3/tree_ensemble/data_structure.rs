@@ -3,7 +3,7 @@ use std::iter::Sum;
 use std::ops::AddAssign;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use itertools::izip;
 use ndarray::{Array2, ArrayD, Axis};
 use num_traits::{AsPrimitive, Float, Zero};
@@ -272,7 +272,7 @@ where
         // Structure the trees in order of their class (aka target)
         for observed_ids_per_tree in target_id_of_tree.iter() {
             if observed_ids_per_tree.len() > 1 {
-                panic!("All leafs of a tree must have the same target id.");
+                panic!("All leaves of a tree must have the same target id.");
             }
         }
 

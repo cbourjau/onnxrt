@@ -115,14 +115,18 @@ impl Conv {
         let in_ch_per_group = w.shape()[1];
 
         if in_channels / self.group != in_ch_per_group {
-            bail!("Conv: Inconsistent input shapes. The second dimension of 'X' times the number of groups given in the 'group' attribute must match the second dimension of 'W'. ")
+            bail!(
+                "Conv: Inconsistent input shapes. The second dimension of 'X' times the number of groups given in the 'group' attribute must match the second dimension of 'W'. "
+            )
         };
 
         let out_channels = w.shape()[0];
 
         if let Some(b) = b {
             if out_channels != b.shape()[0] {
-                bail!("Conv: Inconsistent input shapes. The length of the bias tensor must match the first dimension of the weight tensor.")
+                bail!(
+                    "Conv: Inconsistent input shapes. The length of the bias tensor must match the first dimension of the weight tensor."
+                )
             }
         };
 

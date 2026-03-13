@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use onnx_protos::onnx_proto3::GraphProto;
 
-use crate::{channels::value_channel, opset::utils::*, Session};
+use crate::{Session, channels::value_channel, opset::utils::*};
 
 #[derive(Debug)]
 struct If {
@@ -42,12 +42,14 @@ pub fn setup_if(ctx: OpContext) -> Result<ExecutionStep> {
     // Create output channels by "selecting" the outputs of either of
     // the two branches.
     assert_eq!(state.then.outputs.len(), state.else_.outputs.len());
-    assert!(state
-        .then
-        .output_dtypes()
-        .iter()
-        .zip(&state.else_.output_dtypes())
-        .all(|((_, dtype_left), (_, dtype_right))| dtype_left == dtype_right));
+    assert!(
+        state
+            .then
+            .output_dtypes()
+            .iter()
+            .zip(&state.else_.output_dtypes())
+            .all(|((_, dtype_left), (_, dtype_right))| dtype_left == dtype_right)
+    );
 
     let mut out_dispatchers = vec![];
     let mut out_senders = vec![];

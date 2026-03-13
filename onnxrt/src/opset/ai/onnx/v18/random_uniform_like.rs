@@ -2,11 +2,11 @@
 // The rng will be rebuild for each invocation. If a seed is given,
 // the result will be the same each time this operator is called.
 use num_traits::AsPrimitive;
+use rand::SeedableRng;
 use rand::distributions::{Distribution, Uniform};
 use rand::rngs::StdRng;
-use rand::SeedableRng;
 
-use crate::{opset::utils::*, DataType};
+use crate::{DataType, opset::utils::*};
 
 enum FloatDataType {
     F32,
@@ -87,19 +87,20 @@ pub fn setup_random_uniform_like(ctx: OpContext) -> Result<ExecutionStep> {
     macro_rules! non_float_arm {
         ($rec:tt) => {
             match state.dtype {
-            Some(FloatDataType::F32) => setup($rec, move |a| {
-                let one_d = state.sample::<f32>(a.len())?;
-                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
-            }),
-            Some(FloatDataType::F64) => setup($rec, move |a| {
-                let one_d = state.sample::<f64>(a.len())?;
-                Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
-            }),
-            None => bail!(
-                "RandomUniformLike: Attribute 'dtype' must be specified for given input dtype"
-            ),
-        }
-        }}
+                Some(FloatDataType::F32) => setup($rec, move |a| {
+                    let one_d = state.sample::<f32>(a.len())?;
+                    Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
+                }),
+                Some(FloatDataType::F64) => setup($rec, move |a| {
+                    let one_d = state.sample::<f64>(a.len())?;
+                    Ok(Array1::from_vec(one_d).into_shape(a.shape())?)
+                }),
+                None => bail!(
+                    "RandomUniformLike: Attribute 'dtype' must be specified for given input dtype"
+                ),
+            }
+        };
+    }
 
     match a {
         F32(rec) => match state.dtype {

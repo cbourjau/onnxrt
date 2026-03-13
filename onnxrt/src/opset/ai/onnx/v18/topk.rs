@@ -72,7 +72,7 @@ where
             // Find the smallest element currently in the heap. It is
             // wrapped in a `Reverse`. If the current element `x` is
             // larger than the *unwrapped* element we replace it.
-            if x > elem.0 .0 {
+            if x > elem.0.0 {
                 *elem = (Reverse(x), idx);
             }
         }

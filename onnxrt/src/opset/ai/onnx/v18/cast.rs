@@ -1,5 +1,5 @@
-use crate::opset::utils::*;
 use crate::DataType;
+use crate::opset::utils::*;
 
 pub fn setup_cast(ctx: OpContext) -> Result<ExecutionStep> {
     let to_type = DataType::from_i32(i64::try_from(ctx.attrs.get("to")?)? as i32)?;
@@ -32,8 +32,8 @@ fn setup_cast_(input: TaggedTensorReceiver, to: DataType) -> Result<ExecutionSte
     // Match arm for casts from numbers to number
     macro_rules! num_to_num {
         ($a_ch:tt) => {{
-            use num::zero;
             use DataType::*;
+            use num::zero;
             match to {
                 Bool => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el != zero()).into())),
                 F32 => wrap_1_input($a_ch, |a| Ok(a.mapv(|el| el as f32).into())),

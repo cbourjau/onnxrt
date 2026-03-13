@@ -1,5 +1,5 @@
 //! Utils to help with the tensor operation of an operation
-//! This module is not concerned with the monomophization ("setup")
+//! This module is not concerned with the monomorphization ("setup")
 //! step.
 use anyhow::{Result, bail};
 use itertools::izip;

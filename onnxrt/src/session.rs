@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use onnx_protos::onnx_proto3::{
     AttributeProto, GraphProto, ModelProto, NodeProto, TensorProto, ValueInfoProto,
 };
@@ -9,7 +9,7 @@ use std::path::Path;
 
 use crate::channels::Dispatcher;
 use crate::data_types::{TensorType, ValueType};
-use crate::{value_channel, Attributes, DataType, TaggedReceiver, Value, ValueSender};
+use crate::{Attributes, DataType, TaggedReceiver, Value, ValueSender, value_channel};
 
 #[pyclass(subclass)]
 pub struct Session {
@@ -288,7 +288,7 @@ impl Session {
             .collect()
     }
 
-    /// Get names of required input names (including implict ones).
+    /// Get names of required input names (including implicit ones).
     /// The order is not deterministic!
     pub(crate) fn input_names(&self) -> Vec<&str> {
         self.inputs

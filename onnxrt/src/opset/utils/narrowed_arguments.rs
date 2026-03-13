@@ -1,7 +1,7 @@
 // Some helper types for validating inputs.
 use std::sync::mpsc::Receiver;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 use crate::{ArcArrayD, DataType, TaggedReceiver, TaggedTensorReceiver};
 
@@ -419,7 +419,7 @@ where
             let it = items.into_iter().flatten();
             Ok(Some(T::parse(it)?))
         } else {
-            bail!("Missing mandetory inputs")
+            bail!("Missing mandatory inputs")
         }
     }
 }

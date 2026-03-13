@@ -14,3 +14,23 @@ test = "cargo test"
 maturin = ">=1.12.6,<2"
 rust = ">=1.94.0"
 python = ">=3.14.3"
+
+
+[feature.lint.dependencies]
+pre-commit = "*"
+insert-license-header = "*"
+docformatter = "*"
+ruff = "*"
+prettier = "*"
+nbstripout = "*"
+taplo = "*"
+pre-commit-hooks = "*"
+typos = "*"
+mypy = "*"
+[feature.lint.tasks]
+pre-commit-install = "pre-commit install"
+pre-commit-run = "pre-commit run -a"
+
+
+[environments]
+lint = ["default", "lint"]

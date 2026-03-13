@@ -1,9 +1,5 @@
 [workspace]
-members = [
- "onnx_protos",
- "onnxrt",
- "upstream_test_data"
-]
+members = ["onnx_protos", "onnxrt", "upstream_test_data"]
 resolver = "3"
 
 [profile.release]

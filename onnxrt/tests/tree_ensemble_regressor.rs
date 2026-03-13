@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use ndarray::array;
-use onnxrt::{get_opset, Session, Value};
+use onnxrt::{Session, Value, get_opset};
 
 #[test]
 fn test_tree_ensemble_regressor() {

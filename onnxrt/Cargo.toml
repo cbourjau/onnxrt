@@ -8,8 +8,8 @@ edition = "2024"
 name = "onnxrt"
 # "cdylib" is necessary to produce a shared library for Python to import from.
 crate-type = [
- "cdylib",
- "rlib", # Needed for the tests to link correctly
+  "cdylib",
+  "rlib",   # Needed for the tests to link correctly
 ]
 
 
@@ -41,4 +41,3 @@ pyo3-build-config = "0.19"
 approx = "0.5.1"
 ndarray = { version = "0.15.6", features = ["approx-0_5"] }
 upstream_test_data = { path = "../upstream_test_data" }
-

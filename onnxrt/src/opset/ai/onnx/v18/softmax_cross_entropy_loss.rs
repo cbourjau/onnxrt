@@ -1,4 +1,4 @@
-use super::nlll::{nlll, Reduction};
+use super::nlll::{Reduction, nlll};
 use super::softmax::softmax;
 use crate::opset::utils::*;
 
@@ -46,8 +46,8 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
     );
 
     macro_rules! match_arm {
-        ($scores:expr, $lables:expr, None, $with_lp:ident) => {
-            setup(($scores, $lables), move |(scores, labels)| {
+        ($scores:expr, $labels:expr, None, $with_lp:ident) => {
+            setup(($scores, $labels), move |(scores, labels)| {
                 let log_prob = softmax(scores.to_owned(), 1)?.mapv(|el| el.ln());
                 let out = nlll(
                     log_prob.view(),
@@ -59,9 +59,9 @@ pub fn setup_scme(ctx: OpContext) -> Result<ExecutionStep> {
                 optional_output!(out, log_prob, $with_lp)
             })
         };
-        ($scores:expr, $lables:expr, $weights:expr, $with_lp:ident) => {
+        ($scores:expr, $labels:expr, $weights:expr, $with_lp:ident) => {
             setup(
-                ($scores, $lables, $weights),
+                ($scores, $labels, $weights),
                 move |(scores, labels, weights)| {
                     let log_prob = softmax(scores.to_owned(), 1)?.mapv(|el| el.ln());
                     let out = nlll(
