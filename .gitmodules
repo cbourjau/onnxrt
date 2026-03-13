@@ -4,3 +4,6 @@
 [submodule "onnx"]
 	path = onnx
 	url = https://github.com/onnx/onnx.git
+[submodule "onnx-tests"]
+	path = onnx-tests
+	url = git@github.com:cbourjau/onnx-tests.git

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from onnxrt import onnxrt
 
 
@@ -53,3 +55,11 @@ class CompatInferenceSession(InferenceSession):
             output_names = ret.keys()
 
         return [ret[name] for name in output_names]
+
+
+def _run_onnxrt(model) -> dict:
+    """Inference function used by onnx-tests."""
+    import onnxrt
+
+    sess = onnxrt.InferenceSession(model.SerializeToString())
+    return sess.run({})

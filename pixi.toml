@@ -9,6 +9,7 @@ version = "0.1.0"
 fmt = "cargo fmt"
 build = "cargo build --tests"
 test = "cargo test"
+build-wheel = "maturin build --release -m onnxrt/Cargo.toml"
 
 [dependencies]
 maturin = ">=1.12.6,<2"
@@ -31,6 +32,29 @@ mypy = "*"
 pre-commit-install = "pre-commit install"
 pre-commit-run = "pre-commit run -a"
 
+[feature.onnx-tests.dependencies]
+hypothesis = ">=6.130.4"
+mypy = ">=1.15.0"
+ndonnx = ">=0.10.1"
+numpy = ">=2.2.4"
+onnx = ">=1.18.0"
+onnxruntime = ">=1.20.1"
+pip = "*"
+pytest = ">=8.3.5"
+python = ">=3.10"
+ruff = ">=0.11.3"
+setuptools = ">=61"
+setuptools-scm = "*"
+spox = ">=0.16"
+[feature.onnx-tests.tasks.onnx-tests-install]
+cmd = "pip install --no-deps target/wheels/onnxrt-*.whl --force && pip install --no-build-isolation --no-deps --disable-pip-version-check -e onnx-tests"
+depends-on = "build-wheel"
+
+[feature.onnx-tests.tasks.onnx-tests]
+cmd = "pytest onnx-tests/tests/test_elementwise.py -k 'not float16'"
+env = { "RUN_CANDIDATE" = "onnxrt._run_onnxrt" }
+
 
 [environments]
 lint = ["default", "lint"]
+onnx-tests = { no-default-feature = true, features = ["onnx-tests"] }
