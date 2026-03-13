@@ -48,7 +48,7 @@ impl<T> InferenceTree<T> {
         T: Float,
     {
         match self {
-            Self::Split(ref split) => {
+            Self::Split(split) => {
                 let mut current_node = split;
                 loop {
                     let feature_idx = split.feature_idx;
@@ -65,7 +65,7 @@ impl<T> InferenceTree<T> {
                         &current_node.false_node
                     };
                     match next_node.as_ref() {
-                        Self::Split(ref split) => {
+                        Self::Split(split) => {
                             current_node = split;
                         }
                         Self::Leaf(val) => break *val,

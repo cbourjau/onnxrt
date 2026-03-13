@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use onnx_protos::onnx_proto3::GraphProto;
 
 use crate::{
-    channels::value_channel, opset::utils::*, session::get_implicit_inputs, Session, Value,
+    Session, Value, channels::value_channel, opset::utils::*, session::get_implicit_inputs,
 };
 
 struct Loop {
@@ -142,7 +142,7 @@ fn should_continue(max_n: Option<i64>, n: &Value, cond: &Value) -> Result<bool> 
     }
 
     // Check explicit break condition
-    if let Value::Bool(ref arr) = cond {
+    if let Value::Bool(arr) = cond {
         Ok(!arr.to_owned().into_shape(())?.into_scalar())
     } else {
         bail!("Loop: 'cond' must be of type 'bool'")
