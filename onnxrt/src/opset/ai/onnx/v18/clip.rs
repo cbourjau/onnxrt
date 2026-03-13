@@ -33,7 +33,7 @@ fn match_arm<T>(
 ) -> Result<ExecutionStep>
 where
     ArcArrayD<T>: Sendable,
-    T: Sync + Send + 'static + Copy + PartialOrd,
+    T: Sync + Send + 'static + Copy + PartialOrd + IsNan,
 {
     setup((input, min, max), move |(input, min, max)| {
         clip(input, min, max)
@@ -46,19 +46,56 @@ fn clip<T>(
     max: Option<ArcArrayD<T>>,
 ) -> Result<ArcArrayD<T>>
 where
-    T: Copy + PartialOrd,
+    T: Copy + PartialOrd + IsNan,
 {
     let output = if let Some(min) = min {
         let min = min.to_owned().into_shape([])?.into_scalar();
-        input.mapv(|el| if el < min { min } else { el }).into()
+        input
+            .mapv(|el| if (el < min) | min.is_nan() { min } else { el })
+            .into()
     } else {
         input
     };
     let output = if let Some(max) = max {
         let max = max.to_owned().into_shape([])?.into_scalar();
-        output.mapv(|el| if el > max { max } else { el }).into()
+        output
+            .mapv(|el| if (el > max) | max.is_nan() { max } else { el })
+            .into()
     } else {
         output
     };
     Ok(output)
 }
+
+trait IsNan {
+    fn is_nan(&self) -> bool;
+}
+
+macro_rules! impl_isnan_int {
+    ($ty:ty) => {
+        impl IsNan for $ty {
+            fn is_nan(&self) -> bool {
+                false
+            }
+        }
+    };
+}
+impl_isnan_int!(i8);
+impl_isnan_int!(i16);
+impl_isnan_int!(i32);
+impl_isnan_int!(i64);
+impl_isnan_int!(u8);
+impl_isnan_int!(u16);
+impl_isnan_int!(u32);
+impl_isnan_int!(u64);
+macro_rules! impl_isnan_float {
+    ($ty:ty) => {
+        impl IsNan for $ty {
+            fn is_nan(&self) -> bool {
+                Self::is_nan(*self)
+            }
+        }
+    };
+}
+impl_isnan_float!(f32);
+impl_isnan_float!(f64);
