@@ -15,6 +15,7 @@ build-wheel = "maturin build --release -m onnxrt/Cargo.toml"
 maturin = ">=1.12.6,<2"
 rust = ">=1.94.0"
 python = ">=3.14.3"
+rust-src = ">=1.94.0,<2"
 
 
 [feature.lint.dependencies]
