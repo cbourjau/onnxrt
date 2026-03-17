@@ -9,7 +9,7 @@ mod boolean;
 mod identity;
 // mod arg_min_max;
 // mod batch_normalization;
-// mod bitshift;
+mod bitshift;
 // mod cast;
 // mod clip;
 // mod compress;
@@ -69,7 +69,7 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     // d.insert("ArgMax", Box::new(arg_min_max::setup_argmax));
     // d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
     // d.insert("BatchNormalization", Box::new(batch_normalization::setup_bn));
-    // d.insert("BitShift", Box::new(bitshift::setup_bishift));
+    d.insert("BitShift", Box::new(bitshift::setup_bishift) as _);
     d.insert("BitwiseAnd", Box::new(bitwise::setup_bitwise_and) as _);
     d.insert("BitwiseOr", Box::new(bitwise::setup_bitwise_or) as _);
     d.insert("BitwiseXor", Box::new(bitwise::setup_bitwise_xor) as _);

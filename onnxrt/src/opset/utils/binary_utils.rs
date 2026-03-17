@@ -55,7 +55,7 @@ where
 ///         a + &b
 ///     }
 /// }
-/// pub fn setup_add(ctx: OpContext) -> Result<(Box<dyn Executable + Send>, Vec<TaggedReceiver>)> {
+/// pub fn setup_add(ctx: OpContext) -> Result<(Box<dyn Executable + Send + Sync>, Vec<TaggedReceiver>)> {
 ///     Ok(match_binary!(
 ///         (HomogeneousNumericFixed, ctx) => {
 ///             [I8, I16, I32, I64, U8, U16, U32, U64] => AddInt,

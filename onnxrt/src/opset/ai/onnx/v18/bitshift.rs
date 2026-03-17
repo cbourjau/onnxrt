@@ -1,4 +1,5 @@
-use crate::opset::utils::*;
+use crate::{Attributes, Executable, TaggedReceiver, opset::utils::*, session::OpContext};
+use anyhow::bail;
 
 struct BitShift {
     direction: Direction,
@@ -20,29 +21,45 @@ impl BitShift {
 
         Ok(Self { direction })
     }
+}
 
-    fn compute<T>(&self, a: ArrayViewD<T>, b: ArrayViewD<T>) -> Result<ArcArrayD<T>>
-    where
-        T: Clone + std::ops::Shl<Output = T> + std::ops::Shr<Output = T> + Copy,
-    {
+impl<T> BinaryKernel<T> for BitShift
+where
+    T: std::ops::Shl<Output = T> + std::ops::Shr<Output = T> + Copy,
+{
+    fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>> {
         Ok(match self.direction {
-            Direction::Left => zip_map_with_co_broadcast(a, b, |&a, &b| a << b),
-            Direction::Right => zip_map_with_co_broadcast(a, b, |&a, &b| a >> b),
+            Direction::Left => zip_map_with_co_broadcast(a.view(), b.view(), |&a, &b| a << b),
+            Direction::Right => zip_map_with_co_broadcast(a.view(), b.view(), |&a, &b| a >> b),
         }?
         .into())
     }
 }
 
-pub fn setup_bishift(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_bishift(
+    ctx: OpContext,
+) -> Result<(Box<dyn Executable + Send + Sync>, Vec<TaggedReceiver>)> {
+    use HomogeneousFixed::*;
     let state = BitShift::from_attrs(&ctx.attrs)?;
     let inputs = ctx.subscribe_to_inputs().narrow()?;
 
-    use HomogeneousNumericFixed::*;
     match inputs {
-        U8([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
-        U16([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
-        U32([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
-        U64([a, b]) => setup((a, b), move |(a, b)| state.compute(a.view(), b.view())),
-        _ => bail!("BitShift: Expected unsigned input found: {:?}", inputs),
+        U8([a, b]) => {
+            let (c, c_rec) = crate::channels::unbounded();
+            Ok((Box::new(BinaryWrapper { a, b, c, state }), vec![c_rec]))
+        }
+        U16([a, b]) => {
+            let (c, c_rec) = crate::channels::unbounded();
+            Ok((Box::new(BinaryWrapper { a, b, c, state }), vec![c_rec]))
+        }
+        U32([a, b]) => {
+            let (c, c_rec) = crate::channels::unbounded();
+            Ok((Box::new(BinaryWrapper { a, b, c, state }), vec![c_rec]))
+        }
+        U64([a, b]) => {
+            let (c, c_rec) = crate::channels::unbounded();
+            Ok((Box::new(BinaryWrapper { a, b, c, state }), vec![c_rec]))
+        }
+        _ => panic!(),
     }
 }
