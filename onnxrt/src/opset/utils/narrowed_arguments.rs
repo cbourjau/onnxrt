@@ -383,6 +383,31 @@ impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousNumericFixed<N
     }
 }
 
+impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousPrimIntFixed<N> {
+    const N_ITEMS: usize = N;
+
+    fn parse<I>(it: &mut I) -> Result<Self>
+    where
+        I: Iterator<Item = TaggedReceiver>,
+    {
+        let item = <HomogeneousFixed<N> as PartialNarrowLast<_>>::parse(it)?;
+        Ok(map_to_sub_set_fixed_array!(
+            item,
+            HomogeneousFixed,
+            Self,
+            "Expected numerical input",
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64
+        ))
+    }
+}
+
 //////////////// Implementations of `PartialNarrowLast`
 
 // Parse mandatory to mandatory
@@ -675,6 +700,19 @@ pub enum HomogeneousNumericFixed<const N: usize> {
     F32([Receiver<ArcArrayD<f32>>; N]),
     F64([Receiver<ArcArrayD<f64>>; N]),
 
+    I8([Receiver<ArcArrayD<i8>>; N]),
+    I16([Receiver<ArcArrayD<i16>>; N]),
+    I32([Receiver<ArcArrayD<i32>>; N]),
+    I64([Receiver<ArcArrayD<i64>>; N]),
+
+    U8([Receiver<ArcArrayD<u8>>; N]),
+    U16([Receiver<ArcArrayD<u16>>; N]),
+    U32([Receiver<ArcArrayD<u32>>; N]),
+    U64([Receiver<ArcArrayD<u64>>; N]),
+}
+
+#[derive(Debug)]
+pub enum HomogeneousPrimIntFixed<const N: usize> {
     I8([Receiver<ArcArrayD<i8>>; N]),
     I16([Receiver<ArcArrayD<i16>>; N]),
     I32([Receiver<ArcArrayD<i32>>; N]),

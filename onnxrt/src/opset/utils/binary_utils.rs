@@ -108,6 +108,32 @@ macro_rules! make_binary_numeric {
     }
 }
 
+/// Create a setup function for a basic binary operation that does not need specialization for some types.
+///
+/// The first parameter is the function name. The second one is a function that is called in `compute`.
+macro_rules! make_binary_integer {
+    ($name:ident, $fun:expr) => {
+        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable + Send + Sync>, Vec<crate::TaggedReceiver>)> {
+            struct State;
+
+            impl<T> crate::opset::utils::BinaryKernel<T> for State
+            where
+                T: num_traits::PrimInt + Copy,
+            {
+                fn compute(&self, a: crate::ArcArrayD<T>, b: crate::ArcArrayD<T>) -> anyhow::Result<crate::ArcArrayD<T>> {
+                    Ok(crate::opset::utils::zip_map_with_co_broadcast(a.view(), b.view(), $fun)?.into_shared())
+                }
+            }
+
+            crate::opset::utils::match_binary!(
+                (HomogeneousPrimIntFixed, ctx) => {
+                    [I8, I16, I32, I64, U8, U16, U32, U64] => State,
+                }
+            )
+        }
+    }
+}
+
 /// Create a stateless binary operation
 macro_rules! make_binary_boolean {
     ($name:ident, $fun:expr) => {
@@ -127,7 +153,10 @@ macro_rules! make_binary_boolean {
                     a: crate::ArcArrayD<bool>,
                     b: crate::ArcArrayD<bool>,
                 ) -> Result<crate::ArcArrayD<bool>> {
-                    Ok($fun(a, b))
+                    Ok(
+                        crate::opset::utils::zip_map_with_co_broadcast(a.view(), b.view(), $fun)?
+                            .into_shared(),
+                    )
                 }
             }
 
@@ -148,5 +177,6 @@ macro_rules! make_binary_boolean {
 }
 
 pub(crate) use make_binary_boolean;
+pub(crate) use make_binary_integer;
 pub(crate) use make_binary_numeric;
 pub(crate) use match_binary;

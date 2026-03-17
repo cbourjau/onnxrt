@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::session::SetupFnSignature;
 
 mod add;
+mod bitwise;
 mod boolean;
 mod identity;
 // mod arg_min_max;
@@ -69,9 +70,9 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     // d.insert("ArgMin", Box::new(arg_min_max::setup_argmin));
     // d.insert("BatchNormalization", Box::new(batch_normalization::setup_bn));
     // d.insert("BitShift", Box::new(bitshift::setup_bishift));
-    // d.insert("BitwiseAnd", binary_op_factory!(int, |a, b| Ok(a & b)));
-    // d.insert("BitwiseOr", binary_op_factory!(int, |a, b| Ok(a | b)));
-    // d.insert("BitwiseXor", binary_op_factory!(int, |a, b| Ok(a ^ b)));
+    d.insert("BitwiseAnd", Box::new(bitwise::setup_bitwise_and) as _);
+    d.insert("BitwiseOr", Box::new(bitwise::setup_bitwise_or) as _);
+    d.insert("BitwiseXor", Box::new(bitwise::setup_bitwise_xor) as _);
     // d.insert("Cast", Box::new(cast::setup_cast));
     // d.insert("CastLike", Box::new(cast::setup_cast_like));
     // d.insert("Clip", Box::new(clip::setup_clip));
