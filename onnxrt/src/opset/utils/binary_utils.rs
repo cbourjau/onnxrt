@@ -13,7 +13,7 @@ pub struct BinaryWrapper<T, S> {
 }
 
 pub trait BinaryKernel<T> {
-    fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> ArcArrayD<T>;
+    fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>>;
 }
 
 impl<T, S> Executable for BinaryWrapper<T, S>
@@ -24,7 +24,7 @@ where
     fn execute(&self) -> Result<()> {
         let a = self.a.recv().unwrap();
         let b = self.b.recv().unwrap();
-        let res = self.state.compute(a, b);
+        let res = self.state.compute(a, b)?;
         self.c.send(res).unwrap();
         Ok(())
     }
@@ -43,7 +43,7 @@ where
 /// where
 ///     T: Integer + Clone,
 /// {
-///     fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> ArcArrayD<T> {
+///     fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>> {
 ///         a + &b
 ///     }
 /// }
@@ -51,7 +51,7 @@ where
 /// where
 ///     T: Float,
 /// {
-///     fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> ArcArrayD<T> {
+///     fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> Result<ArcArrayD<T>> {
 ///         a + &b
 ///     }
 /// }
@@ -92,10 +92,10 @@ macro_rules! make_binary_numeric {
 
             impl<T> crate::opset::utils::BinaryKernel<T> for State
             where
-                T: num_traits::Num + Clone,
+                T: num_traits::Num + Copy,
             {
-                fn compute(&self, a: crate::ArcArrayD<T>, b: crate::ArcArrayD<T>) -> crate::ArcArrayD<T> {
-                    $fun(a, b)
+                fn compute(&self, a: crate::ArcArrayD<T>, b: crate::ArcArrayD<T>) -> anyhow::Result<crate::ArcArrayD<T>> {
+                    Ok(crate::opset::utils::zip_map_with_co_broadcast(a.view(), b.view(), $fun)?.into_shared())
                 }
             }
 
@@ -126,8 +126,8 @@ macro_rules! make_binary_boolean {
                     &self,
                     a: crate::ArcArrayD<bool>,
                     b: crate::ArcArrayD<bool>,
-                ) -> crate::ArcArrayD<bool> {
-                    $fun(a, b)
+                ) -> Result<crate::ArcArrayD<bool>> {
+                    Ok($fun(a, b))
                 }
             }
 

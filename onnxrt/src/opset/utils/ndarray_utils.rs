@@ -2,8 +2,8 @@
 //! This module is not concerned with the monomorphization ("setup")
 //! step.
 use anyhow::{Result, bail};
-use itertools::izip;
-use ndarray::{ArrayD, ArrayViewD, Dimension, IntoDimension, IxDyn, Zip};
+use itertools::{EitherOrBoth, Itertools};
+use ndarray::{ArrayD, ArrayViewD, Dimension, IntoDimension, Zip};
 
 /// Index types as used in the ONNX standard. Namely i32 and
 /// i64. Negative values are counted from the end of a dimension's
@@ -44,30 +44,35 @@ pub fn convert_negative_index(idx: i64, len: usize) -> usize {
 ///
 /// Uses the [NumPy broadcasting rules]
 //  (https://docs.scipy.org/doc/numpy/user/basics.broadcasting.html#general-broadcasting-rules).
-pub fn co_broadcast<D1, D2, Output>(shape1: &D1, shape2: &D2) -> Result<Output>
+pub fn co_broadcast<D1, D2>(shape1: &D1, shape2: &D2) -> Result<Vec<usize>>
 where
     D1: Dimension,
     D2: Dimension,
-    Output: Dimension,
 {
-    let (k, overflow) = shape1.ndim().overflowing_sub(shape2.ndim());
-    // Swap the order if d2 is longer.
-    if overflow {
-        return co_broadcast::<D2, D1, Output>(shape2, shape1);
-    }
-    // The output should be the same length as shape1.
-    let mut out = Output::zeros(shape1.ndim());
-    for (out, s) in izip!(out.slice_mut(), shape1.slice()) {
-        *out = *s;
-    }
-    for (out, s2) in izip!(&mut out.slice_mut()[k..], shape2.slice()) {
-        if *out != *s2 {
-            if *out == 1 {
-                *out = *s2
-            } else if *s2 != 1 {
-                bail!("Incompatible shapes")
+    let mut out = vec![0; shape1.ndim().max(shape2.ndim())];
+    for (item, out) in shape1
+        .as_array_view()
+        .iter()
+        .rev()
+        .zip_longest(shape2.as_array_view().iter().rev())
+        .zip(out.iter_mut().rev())
+    {
+        *out = match item {
+            EitherOrBoth::Both(l, r) => {
+                if (l == r) | (*l == 1) {
+                    *r
+                } else if *r == 1 {
+                    *l
+                } else {
+                    bail!(
+                        "cannot broadcast shapes `{}` and `{}`",
+                        shape1.as_array_view(),
+                        shape1.as_array_view()
+                    )
+                }
             }
-        }
+            EitherOrBoth::Left(v) | EitherOrBoth::Right(v) => *v,
+        };
     }
     Ok(out)
 }
@@ -82,8 +87,7 @@ where
     B: Clone,
     Op: Fn(&A, &B) -> Out + Send + Sync + 'static + Copy,
 {
-    let common_shape: IxDyn =
-        co_broadcast(&a.shape().into_dimension(), &b.shape().into_dimension())?;
+    let common_shape = co_broadcast(&a.shape().into_dimension(), &b.shape().into_dimension())?;
     // Unwrap is fine below since we just computed the common shape above.
     Ok(Zip::from(a.broadcast(common_shape).unwrap())
         .and_broadcast(b)
