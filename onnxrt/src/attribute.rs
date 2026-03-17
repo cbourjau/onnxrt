@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow, bail};
+use half::f16;
 use ndarray::{Array, array};
 use protobuf::MessageField;
 
@@ -12,6 +13,7 @@ use onnx_protos::onnx_proto3::{
 // Vectors should be ArcArrayD
 #[derive(Clone)]
 pub enum Attribute {
+    F16s(ArcArrayD<f16>),
     F32s(ArcArrayD<f32>),
     F64s(ArcArrayD<f64>),
 
@@ -54,6 +56,7 @@ impl std::fmt::Debug for Attribute {
         }
         match self {
             Self::Bools(values) => vec_debug!("Attribute::Bools", values),
+            Self::F16s(values) => vec_debug!("Attribute::F16s", values),
             Self::F32s(values) => vec_debug!("Attribute::F32s", values),
             Self::F64s(values) => vec_debug!("Attribute::F64s", values),
             Self::Graph(_) => write!(fmt, "Attribute::Graph")?,
@@ -257,6 +260,7 @@ impl TryFrom<&TensorProto> for Attribute {
     fn try_from(tensor: &TensorProto) -> Result<Self, Self::Error> {
         let value = tensor.try_into()?;
         match value {
+            Value::F16(v) => Ok(Attribute::F16s(v)),
             Value::F32(v) => Ok(Attribute::F32s(v)),
             Value::F64(v) => Ok(Attribute::F64s(v)),
 
@@ -314,6 +318,7 @@ impl TryFrom<&TensorProto> for Value {
             }};
         }
         match DataType::from_i32(tensor.data_type)? {
+            DataType::F16 => match_arm!(F16, vec![], f16),
             DataType::F32 => match_arm!(F32, tensor.float_data, f32),
             DataType::F64 => match_arm!(F64, tensor.double_data, f64),
 
@@ -369,6 +374,7 @@ impl TryFrom<&Attribute> for Value {
         Ok(match attr.clone() {
             Attribute::Bools(v) => Value::Bool(v),
 
+            Attribute::F16s(v) => Value::F16(v),
             Attribute::F32s(v) => Value::F32(v),
             Attribute::F64s(v) => Value::F64(v),
 

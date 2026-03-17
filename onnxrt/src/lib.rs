@@ -1,4 +1,5 @@
 use anyhow::Result;
+use half::f16;
 use ndarray::{ArcArray, IxDyn};
 
 mod attribute;
@@ -21,6 +22,7 @@ pub type ArcArrayD<T> = ArcArray<T, IxDyn>;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Bool(ArcArrayD<bool>),
+    F16(ArcArrayD<f16>),
     F32(ArcArrayD<f32>),
     F64(ArcArrayD<f64>),
     I16(ArcArrayD<i16>),

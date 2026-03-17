@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use half::f16;
 use numpy::PyReadonlyArrayDyn;
 use numpy::ToPyArray;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -42,6 +43,7 @@ impl Session {
 
         for (k, _) in &self.outputs {
             let v = match outs.remove(k).unwrap() {
+                Value::F16(v) => to_np_float16(py, v),
                 Value::F32(v) => v.view().to_pyarray(py).to_object(py),
                 Value::F64(v) => v.view().to_pyarray(py).to_object(py),
 
@@ -115,4 +117,15 @@ impl<'source> FromPyObject<'source> for Value {
             )));
         })
     }
+}
+
+fn to_np_float16<'py>(py: Python<'py>, arr: ndarray::ArcArray<f16, ndarray::IxDyn>) -> PyObject {
+    let raw: Vec<u16> = arr.iter().map(|x| x.to_bits()).collect();
+    let py_arr = raw.to_pyarray(py);
+
+    let np = py.import("numpy").unwrap();
+    py_arr
+        .call_method1("view", (np.getattr("float16").unwrap(),))
+        .unwrap()
+        .into()
 }

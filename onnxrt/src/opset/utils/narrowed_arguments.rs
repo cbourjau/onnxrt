@@ -1,7 +1,7 @@
+use anyhow::{Result, anyhow, bail};
 /// Some helper types for validating inputs.
 use flume::Receiver;
-
-use anyhow::{Result, anyhow, bail};
+use half::f16;
 
 use crate::{ArcArrayD, DataType, TaggedReceiver, TaggedTensorReceiver};
 
@@ -197,6 +197,7 @@ macro_rules! impl_PartialNarrow_for_Receiver {
 }
 
 impl_PartialNarrow_for_Receiver!(Bool, bool);
+impl_PartialNarrow_for_Receiver!(F16, f16);
 impl_PartialNarrow_for_Receiver!(F32, f32);
 impl_PartialNarrow_for_Receiver!(F64, f64);
 impl_PartialNarrow_for_Receiver!(I16, i16);
@@ -253,6 +254,7 @@ impl PartialNarrow<TaggedReceiver> for Numeric {
             I16,
             I32,
             I64,
+            F16,
             F32,
             F64
         ))
@@ -293,6 +295,7 @@ impl PartialNarrow<TaggedReceiver> for FloatingPoint {
             TaggedTensorReceiver,
             Self,
             "Expected floating point input",
+            F16,
             F32,
             F64
         ))
@@ -343,6 +346,7 @@ impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousFixed<N> {
             I16,
             I32,
             I64,
+            F16,
             F32,
             F64,
             Bool,
@@ -372,6 +376,7 @@ impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousNumericFixed<N
             I16,
             I32,
             I64,
+            F16,
             F32,
             F64
         ))
@@ -498,7 +503,9 @@ impl PartialNarrowLast<TaggedReceiver> for Homogeneous {
                 )*}
             };
         }
-        match_all_variants!(U8, U16, U32, U64, I8, I16, I32, I64, F32, F64, Bool, String)
+        match_all_variants!(
+            U8, U16, U32, U64, I8, I16, I32, I64, F16, F32, F64, Bool, String
+        )
     }
 }
 
@@ -522,6 +529,7 @@ impl PartialNarrowLast<TaggedReceiver> for HomogeneousNumeric {
             I16,
             I32,
             I64,
+            F16,
             F32,
             F64
         ))
@@ -556,6 +564,7 @@ mod tests {
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
 pub enum Numeric {
+    F16(Receiver<ArcArrayD<f16>>),
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
 
@@ -587,6 +596,7 @@ pub enum Integer {
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
 pub enum FloatingPoint {
+    F16(Receiver<ArcArrayD<f16>>),
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
 }
@@ -601,6 +611,7 @@ pub enum OnnxIndex {
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
 pub enum Homogeneous {
+    F16(Vec<Receiver<ArcArrayD<f16>>>),
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
 
@@ -621,6 +632,7 @@ pub enum Homogeneous {
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
 pub enum HomogeneousNumeric {
+    F16(Vec<Receiver<ArcArrayD<f16>>>),
     F32(Vec<Receiver<ArcArrayD<f32>>>),
     F64(Vec<Receiver<ArcArrayD<f64>>>),
 
@@ -638,6 +650,7 @@ pub enum HomogeneousNumeric {
 /// Homogeneous variadic inputs
 #[derive(Debug)]
 pub enum HomogeneousFixed<const N: usize> {
+    F16([Receiver<ArcArrayD<f16>>; N]),
     F32([Receiver<ArcArrayD<f32>>; N]),
     F64([Receiver<ArcArrayD<f64>>; N]),
 
@@ -658,6 +671,7 @@ pub enum HomogeneousFixed<const N: usize> {
 /// Homogeneous, numeric variadic inputs
 #[derive(Debug)]
 pub enum HomogeneousNumericFixed<const N: usize> {
+    F16([Receiver<ArcArrayD<f16>>; N]),
     F32([Receiver<ArcArrayD<f32>>; N]),
     F64([Receiver<ArcArrayD<f64>>; N]),
 
@@ -684,6 +698,7 @@ impl Homogeneous {
             I16(_) => DataType::I16,
             I32(_) => DataType::I32,
             I64(_) => DataType::I64,
+            F16(_) => DataType::F16,
             F32(_) => DataType::F32,
             F64(_) => DataType::F64,
             Bool(_) => DataType::Bool,
@@ -704,6 +719,7 @@ impl<const N: usize> HomogeneousFixed<N> {
             I16(_) => DataType::I16,
             I32(_) => DataType::I32,
             I64(_) => DataType::I64,
+            F16(_) => DataType::F16,
             F32(_) => DataType::F32,
             F64(_) => DataType::F64,
             Bool(_) => DataType::Bool,

@@ -6,6 +6,7 @@ use protobuf::Enum;
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum DataType {
     Bool,
+    F16,
     F32,
     F64,
     I8,
@@ -49,6 +50,7 @@ impl DataType {
             // Defined in tensor_proto::DataType (cf onnx.proto)
             BOOL => DataType::Bool,
             DOUBLE => DataType::F64,
+            FLOAT16 => DataType::F16,
             FLOAT => DataType::F32,
             INT8 => DataType::I8,
             INT16 => DataType::I16,
@@ -122,6 +124,7 @@ impl ValueType {
                 DataType::U32 => "tensor(uint32)",
                 DataType::U64 => "tensor(uint64)",
 
+                DataType::F16 => "tensor(half)",
                 DataType::F32 => "tensor(float)",
                 DataType::F64 => "tensor(double)",
 

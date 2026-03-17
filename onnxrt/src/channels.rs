@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use half::f16;
 
 use crate::{
     ArcArrayD, DataType, Value,
@@ -19,6 +20,7 @@ pub enum TaggedBroadcaster {
 
 #[derive(Debug)]
 pub enum TaggedTensorBroadcaster {
+    F16(Broadcaster<ArcArrayD<f16>>),
     F32(Broadcaster<ArcArrayD<f32>>),
     F64(Broadcaster<ArcArrayD<f64>>),
     I8(Broadcaster<ArcArrayD<i8>>),
@@ -43,6 +45,7 @@ pub enum TaggedReceiver {
 // NOTE: The `Broadcaster` sends one value for each existing `Receiver`. I.e., these must not hang around idling.
 #[derive(Debug, Clone)]
 pub enum TaggedTensorReceiver {
+    F16(Receiver<ArcArrayD<f16>>),
     F32(Receiver<ArcArrayD<f32>>),
     F64(Receiver<ArcArrayD<f64>>),
     I8(Receiver<ArcArrayD<i8>>),
@@ -100,6 +103,10 @@ pub fn value_channel(value_type: &ValueType) -> (TaggedBroadcaster, TaggedReceiv
                 let (b, rec) = unbounded::<ArcArrayD<i64>>();
                 (b.into(), rec)
             }
+            DataType::F16 => {
+                let (b, rec) = unbounded::<ArcArrayD<f16>>();
+                (b.into(), rec)
+            }
             DataType::F32 => {
                 let (b, rec) = unbounded::<ArcArrayD<f32>>();
                 (b.into(), rec)
@@ -133,8 +140,9 @@ impl<T: Clone> Broadcaster<T> {
 
 impl TaggedBroadcaster {
     pub fn send(&self, value: Value) -> Result<()> {
-        Ok(match self {
+        match self {
             TaggedBroadcaster::Tensor(t) => match (t, value) {
+                (TaggedTensorBroadcaster::F16(brcstr), Value::F16(a)) => brcstr.send(a)?,
                 (TaggedTensorBroadcaster::F32(brcstr), Value::F32(a)) => brcstr.send(a)?,
                 (TaggedTensorBroadcaster::F64(brcstr), Value::F64(a)) => brcstr.send(a)?,
                 (TaggedTensorBroadcaster::I8(brcstr), Value::I8(a)) => brcstr.send(a)?,
@@ -149,7 +157,8 @@ impl TaggedBroadcaster {
                 (TaggedTensorBroadcaster::String(brcstr), Value::String(a)) => brcstr.send(a)?,
                 _ => anyhow::bail!("expected {:?}, got TODO", self.value_type()),
             },
-        })
+        };
+        Ok(())
     }
 
     pub fn value_type(&self) -> ValueType {
@@ -181,6 +190,7 @@ impl TaggedReceiver {
 impl TaggedTensorReceiver {
     pub fn recv(&self) -> Result<Value> {
         Ok(match self {
+            Self::F16(rec) => Value::F16(rec.recv()?),
             Self::F32(rec) => Value::F32(rec.recv()?),
             Self::F64(rec) => Value::F64(rec.recv()?),
             Self::I8(rec) => Value::I8(rec.recv()?),
@@ -210,6 +220,7 @@ macro_rules! impl_from_receiver_array_for_tagged_receiver {
         }
     };
 }
+impl_from_receiver_array_for_tagged_receiver!(f16, F16);
 impl_from_receiver_array_for_tagged_receiver!(f32, F32);
 impl_from_receiver_array_for_tagged_receiver!(f64, F64);
 impl_from_receiver_array_for_tagged_receiver!(i8, I8);
@@ -233,6 +244,7 @@ macro_rules! impl_from_broadcaster_array_for_tagged_broadcaster {
     };
 }
 
+impl_from_broadcaster_array_for_tagged_broadcaster!(f16, F16);
 impl_from_broadcaster_array_for_tagged_broadcaster!(f32, F32);
 impl_from_broadcaster_array_for_tagged_broadcaster!(f64, F64);
 impl_from_broadcaster_array_for_tagged_broadcaster!(i8, I8);
