@@ -1,99 +1,95 @@
-use num::Integer;
-use num_traits::{AsPrimitive, Float};
+// use crate::opset::utils::*;
+use anyhow::Result;
+use flume::Receiver;
+use num::{Float, Integer};
 
-use crate::opset::utils::*;
+use crate::channels::{Broadcaster, TaggedReceiver, unbounded};
+use crate::opset::utils::Narrow;
+use crate::session::OpContext;
+use crate::{ArcArrayD, Executable};
 
-#[derive(Debug)]
-struct State {
-    fmod: bool,
+struct BinaryWrapper<T, S> {
+    a: Receiver<ArcArrayD<T>>,
+    b: Receiver<ArcArrayD<T>>,
+    c: Broadcaster<ArcArrayD<T>>,
+    state: S,
 }
 
-fn fmod<T>(x: T, y: T) -> T
+trait BinaryKernel<T> {
+    fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> ArcArrayD<T>;
+}
+
+impl<T, S> Executable for BinaryWrapper<T, S>
+where
+    S: BinaryKernel<T>,
+{
+    /// Consume inputs and produce outputs
+    fn execute(&self) -> Result<()> {
+        let a = self.a.recv().unwrap();
+        let b = self.b.recv().unwrap();
+        let res = self.state.compute(a, b);
+        self.c.send(res).unwrap();
+        Ok(())
+    }
+}
+
+// Assume that we want to specialize for some data types
+struct AddInt;
+struct AddFloat;
+
+impl<T> BinaryKernel<T> for AddInt
+where
+    T: Integer + Clone,
+{
+    fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> ArcArrayD<T> {
+        a + &b
+    }
+}
+impl<T> BinaryKernel<T> for AddFloat
 where
     T: Float,
 {
-    let n = (x / y).trunc();
-    let res = x - n * y;
-
-    // Returned sign only depends on sign of x
-    if x > T::zero() {
-        res.abs()
-    } else {
-        res.abs().neg()
+    fn compute(&self, a: ArcArrayD<T>, b: ArcArrayD<T>) -> ArcArrayD<T> {
+        a + &b
     }
 }
 
-fn python_mod_float<T>(x: T, y: T) -> T
-where
-    T: Float,
-{
-    let n = (x / y).floor();
-    let res = x - n * y;
-
-    // Returned sign only depends on sign of y; flip if necessary.
-    if (y > T::zero()) & (res < T::zero()) {
-        T::zero() - res
-    } else {
-        res
-    }
+/// Exhaustively match all variants of `$enum` which must be an enum found in `crate::opset::utils`.
+///
+/// ## Example
+///
+/// ```
+/// pub fn setup_add(ctx: OpContext) -> Result<(Box<dyn Executable + Send>, Vec<TaggedReceiver>)> {
+///     Ok(match_binary!(
+///         (HomogeneousNumericFixed, ctx) => {
+///             [I8, I16, I32, I64, U8, U16, U32, U64] => AddInt,
+///             [F32, F64] => AddFloat
+///         }
+///     ))
+/// }
+/// ```
+macro_rules! match_binary {
+    (($enum:ident, $ctx:expr) => {$([$($variant:ident),*] => $state:expr),* $(,)?}) => {{
+        let data = $ctx.subscribe_to_inputs().narrow()?;
+        match data {
+            $(
+                $(
+                    crate::opset::utils::$enum::$variant([a, b]) => {
+                        let (c, c_rec) = unbounded();
+                        let state = $state;
+                        (Box::new(BinaryWrapper { a, b, c, state }), vec![c_rec])
+                    }
+                ),*
+            ),*
+        }}
+    };
 }
 
-fn python_mod_int<T>(x: T, y: T) -> T
-where
-    T: Integer,
-{
-    x.mod_floor(&y)
-}
-
-impl State {
-    fn mod_<T>(&self, a: ArrayViewD<T>, b: ArrayViewD<T>) -> Result<ArcArrayD<T>>
-    where
-        T: Float,
-    {
-        Ok(if self.fmod {
-            zip_map_with_co_broadcast(a, b, |&a, &b| fmod(a, b))
-        } else {
-            zip_map_with_co_broadcast(a, b, |&a, &b| python_mod_float(a, b))
-        }?
-        .into())
-    }
-
-    fn integer_mod<T>(&self, a: ArrayViewD<T>, b: ArrayViewD<T>) -> Result<ArcArrayD<T>>
-    where
-        T: Integer + AsPrimitive<f64>,
-        f64: AsPrimitive<T>,
-    {
-        Ok(if !self.fmod {
-            zip_map_with_co_broadcast(a, b, |&a, &b| python_mod_int(a, b))?.into()
-        } else {
-            let a = a.mapv(|el| el.as_());
-            let b = b.mapv(|el| el.as_());
-            let res = self.mod_(a.view(), b.view())?;
-            let out: ArcArrayD<_> = res.mapv(|el| el.as_()).into();
-            out
-        })
-    }
-}
-
-pub fn setup_mod(ctx: OpContext) -> Result<ExecutionStep> {
-    let fmod = ctx.attrs.get_with_default("fmod", 0)? == 1;
-    let state = State { fmod };
-
-    let inputs: HomogeneousNumericFixed<2> = ctx.subscribe_to_inputs().narrow()?;
-
-    use HomogeneousNumericFixed::*;
-    match inputs {
-        F32([a, b]) => setup((a, b), move |(a, b)| state.mod_(a.view(), b.view())),
-        F64([a, b]) => setup((a, b), move |(a, b)| state.mod_(a.view(), b.view())),
-
-        I8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-        I16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-        I32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-        I64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-
-        U8([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-        U16([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-        U32([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-        U64([a, b]) => setup((a, b), move |(a, b)| state.integer_mod(a.view(), b.view())),
-    }
+pub fn setup_add(ctx: OpContext) -> Result<(Box<dyn Executable + Send>, Vec<TaggedReceiver>)> {
+    Ok(match_binary!(
+        (HomogeneousNumericFixed, ctx) => {
+            [I8, I16, I32, I64, U8, U16, U32, U64] => AddInt,
+            [F32, F64] => AddFloat
+        }
+    ))
 }

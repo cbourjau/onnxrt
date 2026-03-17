@@ -1,3 +1,4 @@
+use anyhow::Result;
 use ndarray::{ArcArray, IxDyn};
 
 mod attribute;
@@ -8,7 +9,7 @@ mod python_api;
 mod session;
 
 pub(crate) use attribute::Attributes;
-pub use channels::{Sendable, TaggedReceiver, TaggedTensorReceiver, ValueSender, value_channel};
+pub use channels::{TaggedReceiver, TaggedTensorReceiver, value_channel};
 pub use data_types::DataType;
 
 pub use opset::get_opset;
@@ -31,4 +32,13 @@ pub enum Value {
     U32(ArcArrayD<u32>),
     U64(ArcArrayD<u64>),
     U8(ArcArrayD<u8>),
+}
+
+/// Trait that executes a single node and sends its outputs further.
+pub trait Executable {
+    fn execute(&self) -> Result<()>;
+}
+
+pub trait Setup {
+    fn setup(&self) -> Result<(Box<dyn Executable + Send>, Vec<TaggedReceiver>)>;
 }

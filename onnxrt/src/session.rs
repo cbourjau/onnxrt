@@ -7,14 +7,14 @@ use pyo3::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use crate::channels::Dispatcher;
+use crate::channels::{TaggedBroadcaster, TaggedReceiver, value_channel};
 use crate::data_types::{TensorType, ValueType};
-use crate::{Attributes, DataType, TaggedReceiver, Value, ValueSender, value_channel};
+use crate::{Attributes, DataType, Executable, Value};
 
 #[pyclass(subclass)]
 pub struct Session {
     /// Computational steps as callable functions
-    steps: Vec<ExecFnSignature>,
+    steps: Vec<Box<dyn Executable + Send>>,
     /// Explicit inputs of the top-level graph.
     explicit_input_names: Vec<String>,
     /// Mandatory inputs for this session
@@ -25,15 +25,7 @@ pub struct Session {
 
 /// Collection of input `ValueSender`s and their optional default values.
 #[derive(Debug)]
-pub struct Inputs(pub HashMap<String, (ValueSender, Option<Value>)>);
-
-/// Signature of functions executed at runtime.
-pub type ExecFnSignature = Box<dyn Fn() -> Result<()> + Send>;
-
-pub struct ExecutionStep {
-    pub fun: ExecFnSignature,
-    pub outputs: Vec<Dispatcher>,
-}
+pub struct Inputs(pub HashMap<String, (TaggedBroadcaster, Option<Value>)>);
 
 pub struct OpContext<'a> {
     /// Union of all implicit inputs of a node. Only used if a node
@@ -46,9 +38,10 @@ pub struct OpContext<'a> {
 }
 
 /// Signature of "wire" functions executed in the setup phase.
-pub type SetupFnSignature = Box<dyn Fn(OpContext) -> Result<ExecutionStep> + Sync>;
+pub type SetupFnSignature =
+    Box<dyn Fn(OpContext) -> Result<(Box<dyn Executable + Send>, Vec<TaggedReceiver>)>>;
 
-type Scope = HashMap<String, Dispatcher>;
+type Scope = HashMap<String, TaggedReceiver>;
 
 impl<'a> OpContext<'a> {
     fn new(
@@ -119,12 +112,12 @@ impl<'a> OpContext<'a> {
             .get(name)
             .unwrap_or_else(|| {
                 panic!(
-                    "Requested input '{}' not in scope. Variables in scope: {:?}",
+                    "requested input '{}' not in scope. Variables in scope: `{:?}`",
                     name,
                     self.scope.keys()
                 )
             })
-            .subscribe()
+            .clone()
     }
 
     pub fn n_outputs(&self) -> usize {
@@ -224,7 +217,7 @@ impl Session {
         }
 
         for step in &self.steps {
-            step()?;
+            step.execute().unwrap();
         }
 
         self.outputs
@@ -245,7 +238,7 @@ impl Session {
         }
 
         for step in &self.steps {
-            step()?;
+            step.execute()?;
         }
 
         self.outputs
@@ -275,7 +268,7 @@ impl Session {
             .iter()
             .filter(|(_, (_, default))| default.is_none())
             .map(|(name, (input, _default))| {
-                let dtype = input.value_type().unwrap();
+                let dtype = input.value_type();
                 (name.as_str(), dtype)
             })
             .collect()
@@ -322,7 +315,10 @@ fn setup_steps(
     nodes: &[NodeProto],
     output_names: &[String],
     setup_dict: &HashMap<&'static str, SetupFnSignature>,
-) -> Result<(Vec<ExecFnSignature>, Vec<(String, TaggedReceiver)>)> {
+) -> Result<(
+    Vec<Box<dyn Executable + Send>>,
+    Vec<(String, TaggedReceiver)>,
+)> {
     let mut steps = vec![];
 
     for node in nodes {
@@ -331,12 +327,12 @@ fn setup_steps(
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
 
-        let ExecutionStep { fun: op, outputs } = setup_fn(ctx).context(format!(
+        let (kernel, outputs) = setup_fn(ctx).context(format!(
             "An error occurred during the setup of a '{}' node.",
             node.op_type
         ))?;
 
-        steps.push(op);
+        steps.push(kernel);
 
         if node.output.len() != outputs.len() {
             bail!(
@@ -356,12 +352,7 @@ fn setup_steps(
     // output channels
     let outputs = output_names
         .iter()
-        .map(|name| {
-            (
-                name.to_string(),
-                scope.get(name.as_str()).unwrap().subscribe(),
-            )
-        })
+        .map(|name| (name.to_string(), scope.get(name.as_str()).unwrap().clone()))
         .collect();
     Ok((steps, outputs))
 }

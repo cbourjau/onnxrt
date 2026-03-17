@@ -1,5 +1,5 @@
-// Some helper types for validating inputs.
-use std::sync::mpsc::Receiver;
+/// Some helper types for validating inputs.
+use flume::Receiver;
 
 use anyhow::{Result, anyhow, bail};
 
