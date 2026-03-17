@@ -14,7 +14,7 @@ use crate::{Attributes, DataType, Executable, Value};
 #[pyclass(subclass)]
 pub struct Session {
     /// Computational steps as callable functions
-    steps: Vec<Box<dyn Executable + Send>>,
+    steps: Vec<Box<dyn Executable + Send + Sync>>,
     /// Explicit inputs of the top-level graph.
     explicit_input_names: Vec<String>,
     /// Mandatory inputs for this session
@@ -39,7 +39,7 @@ pub struct OpContext<'a> {
 
 /// Signature of "wire" functions executed in the setup phase.
 pub type SetupFnSignature =
-    Box<dyn Fn(OpContext) -> Result<(Box<dyn Executable + Send>, Vec<TaggedReceiver>)>>;
+    Box<dyn Fn(OpContext) -> Result<(Box<dyn Executable + Send + Sync>, Vec<TaggedReceiver>)>>;
 
 type Scope = HashMap<String, TaggedReceiver>;
 
@@ -316,7 +316,7 @@ fn setup_steps(
     output_names: &[String],
     setup_dict: &HashMap<&'static str, SetupFnSignature>,
 ) -> Result<(
-    Vec<Box<dyn Executable + Send>>,
+    Vec<Box<dyn Executable + Send + Sync>>,
     Vec<(String, TaggedReceiver)>,
 )> {
     let mut steps = vec![];

@@ -87,7 +87,7 @@ macro_rules! match_binary {
 /// The first parameter is the function name. The second one is a function that is called in `compute`.
 macro_rules! make_binary_numeric {
     ($name:ident, $fun:expr) => {
-        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable + Send>, Vec<crate::TaggedReceiver>)> {
+        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable + Send + Sync>, Vec<crate::TaggedReceiver>)> {
             struct State;
 
             impl<T> crate::opset::utils::BinaryKernel<T> for State
@@ -114,7 +114,7 @@ macro_rules! make_binary_boolean {
         pub fn $name(
             ctx: crate::session::OpContext,
         ) -> anyhow::Result<(
-            Box<dyn crate::Executable + Send>,
+            Box<dyn crate::Executable + Send + Sync>,
             Vec<crate::TaggedReceiver>,
         )> {
             use crate::opset::utils::*;

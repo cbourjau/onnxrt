@@ -1,3 +1,4 @@
+#![allow(unused, deprecated)]
 use anyhow::Result;
 use half::f16;
 use ndarray::{ArcArray, IxDyn};

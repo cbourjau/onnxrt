@@ -5,19 +5,20 @@
 use std::collections::HashMap;
 
 use half::f16;
-use numpy::PyReadonlyArrayDyn;
-use numpy::ToPyArray;
+use numpy::{IntoPyArray, PyArrayMethods, PyReadonlyArrayDyn, PyUntypedArrayMethods};
+use numpy::{PyUntypedArray, ToPyArray};
 use pyo3::exceptions::{PyTypeError, PyValueError};
-use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use pyo3::types::PyString;
+use pyo3::{IntoPyObjectExt, prelude::*};
 
 use crate::opset::get_opset;
 use crate::{Session, Value};
 
 #[pymodule]
-pub fn onnxrt(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Session>()?;
-    Ok(())
+mod onnxrt {
+    #[pymodule_export]
+    use super::Session;
 }
 
 #[pymethods]
@@ -32,9 +33,8 @@ impl Session {
         Self::from_bytes(&model_bytes, &get_opset())
             .map_err(|e| PyValueError::new_err(format!("{:?}", e)))
     }
-
     #[pyo3(name = "run")]
-    pub fn py_run<'py>(&self, inputs: &'py PyDict) -> PyResult<&'py PyDict> {
+    pub fn py_run<'py>(&'py self, inputs: &Bound<'py, PyDict>) -> PyResult<Bound<'py, PyDict>> {
         let py = inputs.py();
         let inputs: HashMap<String, Value> = inputs.extract().unwrap();
 
@@ -42,28 +42,8 @@ impl Session {
         let out_dict = PyDict::new(py);
 
         for (k, _) in &self.outputs {
-            let v = match outs.remove(k).unwrap() {
-                Value::F16(v) => to_np_float16(py, v),
-                Value::F32(v) => v.view().to_pyarray(py).to_object(py),
-                Value::F64(v) => v.view().to_pyarray(py).to_object(py),
-
-                Value::I8(v) => v.view().to_pyarray(py).to_object(py),
-                Value::I16(v) => v.view().to_pyarray(py).to_object(py),
-                Value::I32(v) => v.view().to_pyarray(py).to_object(py),
-                Value::I64(v) => v.view().to_pyarray(py).to_object(py),
-
-                Value::U8(v) => v.view().to_pyarray(py).to_object(py),
-                Value::U16(v) => v.view().to_pyarray(py).to_object(py),
-                Value::U32(v) => v.view().to_pyarray(py).to_object(py),
-                Value::U64(v) => v.view().to_pyarray(py).to_object(py),
-
-                Value::String(v) => v
-                    .mapv(|el| el.to_object(py))
-                    .view()
-                    .to_pyarray(py)
-                    .to_object(py),
-                Value::Bool(v) => v.view().to_pyarray(py).to_object(py),
-            };
+            let value = outs.remove(k).unwrap();
+            let v = value.into_pyobject(py)?;
             out_dict.set_item(k, v)?;
         }
 
@@ -90,10 +70,10 @@ impl Session {
         self.outputs.iter().map(|(k, _)| k.to_string()).collect()
     }
 }
-
 // This is a bit wasteful since we are making copies of all the inputs...
-impl<'source> FromPyObject<'source> for Value {
-    fn extract(ob: &'source PyAny) -> PyResult<Self> {
+impl<'py> FromPyObject<'_, 'py> for Value {
+    type Error = PyErr;
+    fn extract(ob: pyo3::Borrowed<'_, 'py, pyo3::PyAny>) -> Result<Self, Self::Error> {
         // Get the GIL marker.
         // TODO: convert scalars and strings
         Ok(if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<f32>>() {
@@ -104,10 +84,11 @@ impl<'source> FromPyObject<'source> for Value {
             Value::I32(arr.as_array().to_owned().into())
         } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<i64>>() {
             Value::I64(arr.as_array().to_owned().into())
-        } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<PyObject>>() {
-            let py = ob.py();
-            let arr = arr.as_array().mapv(|el| el.extract(py).unwrap());
-            Value::String(arr.into())
+        // } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<String>>() {
+        // let py = ob.py();
+        // let arr = arr.as_array().mapv(|el| el.extract(py).unwrap());
+        // Value::String(arr.into())
+        // todo!()
         } else if let Ok(arr) = ob.extract::<PyReadonlyArrayDyn<bool>>() {
             Value::Bool(arr.as_array().to_owned().into())
         } else {
@@ -119,13 +100,47 @@ impl<'source> FromPyObject<'source> for Value {
     }
 }
 
-fn to_np_float16<'py>(py: Python<'py>, arr: ndarray::ArcArray<f16, ndarray::IxDyn>) -> PyObject {
-    let raw: Vec<u16> = arr.iter().map(|x| x.to_bits()).collect();
+impl<'py> IntoPyObject<'py> for Value {
+    type Target = PyAny; // the Python type
+    type Output = Bound<'py, Self::Target>; // in most cases this will be `Bound`
+    type Error = std::convert::Infallible;
+
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        let res = match self {
+            Value::Bool(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::U8(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::U16(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::U32(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::U64(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::I8(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::I16(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::I32(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::I64(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::F16(v) => to_np_float16(py, v)?.into_any(),
+            Value::F32(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::F64(v) => v.to_owned().into_pyarray(py).into_any(),
+            Value::String(v) => v
+                .mapv(|item| item.into_py_any(py).unwrap())
+                .into_pyarray(py)
+                .into_any(),
+        };
+        Ok(res)
+    }
+}
+
+fn to_np_float16<'py>(
+    py: Python<'py>,
+    arr: ndarray::ArcArray<f16, ndarray::IxDyn>,
+) -> Result<Bound<'py, PyAny>, std::convert::Infallible> {
+    let raw = arr.mapv(|x| x.to_bits());
     let py_arr = raw.to_pyarray(py);
 
     let np = py.import("numpy").unwrap();
-    py_arr
+    let res = py_arr
         .call_method1("view", (np.getattr("float16").unwrap(),))
-        .unwrap()
-        .into()
+        .unwrap();
+
+    dbg!(&res);
+
+    Ok(res)
 }

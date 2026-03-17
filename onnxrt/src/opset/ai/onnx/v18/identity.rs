@@ -3,7 +3,7 @@ use crate::opset::utils::*;
 pub fn setup_identity(
     ctx: crate::session::OpContext,
 ) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send>,
+    Box<dyn crate::Executable + Send + Sync>,
     Vec<crate::TaggedReceiver>,
 )> {
     struct State;

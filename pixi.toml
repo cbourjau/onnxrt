@@ -16,6 +16,7 @@ maturin = ">=1.12.6,<2"
 rust = ">=1.94.0"
 python = ">=3.14.3"
 rust-src = ">=1.94.0,<2"
+cargo-edit = ">=0.13.9,<0.14"
 
 
 [feature.lint.dependencies]
@@ -52,7 +53,7 @@ cmd = "pip install --no-deps target/wheels/onnxrt-*.whl --force && pip install -
 depends-on = "build-wheel"
 
 [feature.onnx-tests.tasks.onnx-tests]
-cmd = "pytest onnx-tests/tests/test_elementwise.py -k 'not float16'"
+cmd = "pytest onnx-tests/tests/test_elementwise.py"
 env = { "RUN_CANDIDATE" = "onnxrt._run_onnxrt" }
 
 
