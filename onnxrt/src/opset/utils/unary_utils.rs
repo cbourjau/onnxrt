@@ -16,7 +16,8 @@ pub trait UnaryKernel<T> {
 
 impl<T, S> Executable for UnaryWrapper<T, S>
 where
-    S: UnaryKernel<T>,
+    S: UnaryKernel<T> + Send + Sync,
+    T: Send + Sync,
 {
     /// Consume inputs and produce outputs
     fn execute(&self) -> Result<()> {
@@ -53,7 +54,7 @@ macro_rules! match_unary {
 /// The first parameter is the function name. The second one is a function that is called in `compute`.
 macro_rules! make_unary_numeric {
     ($name:ident, $fun:expr) => {
-        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable + Send>, Vec<crate::TaggedReceiver>)> {
+        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
             struct State;
 
             impl<T> crate::opset::utils::UnaryKernel<T> for State
@@ -79,10 +80,7 @@ macro_rules! make_unary_boolean {
     ($name:ident, $fun:expr) => {
         pub fn $name(
             ctx: crate::session::OpContext,
-        ) -> anyhow::Result<(
-            Box<dyn crate::Executable + Send>,
-            Vec<crate::TaggedReceiver>,
-        )> {
+        ) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
             use crate::opset::utils::*;
 
             struct State;

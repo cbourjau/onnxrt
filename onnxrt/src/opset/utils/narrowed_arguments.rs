@@ -108,7 +108,7 @@ where
         let tmp = tmp.ok_or_else(|| anyhow!("Required input was missing"))?;
 
         if tmp.len() != T::N_ITEMS {
-            bail!("Insufficient number of inputs")
+            bail!("insufficient number of inputs A")
         }
         T::parse(&mut tmp.into_iter())
     }
@@ -150,7 +150,7 @@ impl PartialNarrow<TaggedReceiver> for TaggedTensorReceiver {
     {
         let item = it
             .next()
-            .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+            .ok_or_else(|| anyhow!("insufficient number of inputs B"))?;
         match item {
             TaggedReceiver::Tensor(t) => Ok(t),
             TaggedReceiver::Sequence(_) => bail!("Expected 'tensor' found 'sequence'"),
@@ -166,7 +166,7 @@ impl PartialNarrow<TaggedReceiver> for TaggedReceiver {
     {
         let item = it
             .next()
-            .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+            .ok_or_else(|| anyhow!("insufficient number of inputs C"))?;
         Ok(item)
     }
 }
@@ -330,7 +330,7 @@ impl<const N: usize> PartialNarrow<TaggedReceiver> for HomogeneousFixed<N> {
         for _ in 0..N {
             items.push(
                 it.next()
-                    .ok_or_else(|| anyhow!("Insufficient number of inputs"))?,
+                    .ok_or_else(|| anyhow!("insufficient number of inputs D"))?,
             );
         }
         let item = <Homogeneous as PartialNarrowLast<_>>::parse(items.into_iter())?;
@@ -503,7 +503,7 @@ impl PartialNarrowLast<TaggedReceiver> for Homogeneous {
     {
         let first = it
             .next()
-            .ok_or_else(|| anyhow!("Insufficient number of inputs"))?;
+            .ok_or_else(|| anyhow!("insufficient number of inputs E"))?;
 
         macro_rules! match_all_variants {
             ($($variant:tt),* ) => {

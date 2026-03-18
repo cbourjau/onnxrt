@@ -8,10 +8,7 @@ pub fn setup_binary_zipped<T1, T2, T3>(
     a: Receiver<ArcArrayD<T1>>,
     b: Receiver<ArcArrayD<T2>>,
     fun: impl Fn(&T1, &T2) -> T3 + Send + Sync + 'static + Copy,
-) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)>
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
     T1: Sync + Send + Copy + 'static,
     T2: Sync + Send + Copy + 'static,
@@ -29,10 +26,7 @@ pub fn setup_tertiary_zipped<T1, T2, T3, T4>(
     b: Receiver<ArcArrayD<T2>>,
     c: Receiver<ArcArrayD<T3>>,
     fun: impl Fn(&T1, &T2, &T3) -> T4 + Send + Sync + 'static + Copy,
-) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)>
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
     T1: Sync + Send + Copy + 'static,
     T2: Sync + Send + Copy + 'static,
@@ -46,14 +40,12 @@ where
 }
 
 /// Setup function that maps two inputs to a single output with bidirectional broadcasting.
+///
+/// The provided vector must have at least one element.
 pub fn setup_variadic_zipped_reduce<T1>(
-    first: Receiver<ArcArrayD<T1>>,
     recs: Vec<Receiver<ArcArrayD<T1>>>,
     fun: impl Fn(&T1, &T1) -> T1 + Send + Sync + 'static + Copy,
-) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)>
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
     T1: Sync + Send + Copy + 'static,
     TaggedReceiver: From<Receiver<ArcArrayD<T1>>>,
@@ -61,10 +53,10 @@ where
     let (res_broad, res_rec) = unbounded();
     let compute = move || {
         // TODO: Receive all values at once, broadcast `a` to it, and reuse its buffer
-        let mut a = first.recv()?.into_owned();
-        for rec in recs.iter() {
+        let mut a = recs[0].recv()?.into_owned();
+        for rec in recs[1..].iter() {
             let b = rec.recv()?;
-            a = zip_map_with_co_broadcast(a.view(), b.view(), |a, b| *a)?;
+            a = zip_map_with_co_broadcast(a.view(), b.view(), move |a, b| fun(a, b))?;
         }
         res_broad.send(a.into_shared())?;
         Ok(())
@@ -75,10 +67,7 @@ where
 fn setup_binary<T1, T2, T4>(
     inp: (Receiver<ArcArrayD<T1>>, Receiver<ArcArrayD<T2>>),
     fun: impl Fn(ArrayViewD<T1>, ArrayViewD<T2>) -> Result<ArrayD<T4>> + Send + Sync + 'static + Copy,
-) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)>
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
     T1: Sync + Send + Copy + 'static,
     T2: Sync + Send + Copy + 'static,
@@ -104,10 +93,7 @@ fn setup_tertiary<T1, T2, T3, T4>(
     + Sync
     + 'static
     + Copy,
-) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)>
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
     T1: Sync + Send + Copy + 'static,
     T2: Sync + Send + Copy + 'static,
@@ -127,7 +113,7 @@ where
 
 impl<F> Executable for F
 where
-    F: Fn() -> Result<()>,
+    F: Fn() -> Result<()> + Send + Sync,
 {
     fn execute(&self) -> Result<()> {
         self()

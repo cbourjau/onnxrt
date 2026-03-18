@@ -2,10 +2,7 @@ use crate::opset::utils::*;
 
 pub fn setup_identity(
     ctx: crate::session::OpContext,
-) -> anyhow::Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)> {
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
     struct State;
 
     impl<T> crate::opset::utils::UnaryKernel<T> for State

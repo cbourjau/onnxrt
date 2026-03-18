@@ -18,7 +18,8 @@ pub trait BinaryKernel<T> {
 
 impl<T, S> Executable for BinaryWrapper<T, S>
 where
-    S: BinaryKernel<T>,
+    S: BinaryKernel<T> + Send + Sync,
+    T: Send + Sync,
 {
     /// Consume inputs and produce outputs
     fn execute(&self) -> Result<()> {
@@ -55,7 +56,7 @@ where
 ///         a + &b
 ///     }
 /// }
-/// pub fn setup_add(ctx: OpContext) -> Result<(Box<dyn Executable + Send + Sync>, Vec<TaggedReceiver>)> {
+/// pub fn setup_add(ctx: OpContext) -> Result<(Box<dyn Executable>, Vec<TaggedReceiver>)> {
 ///     Ok(match_binary!(
 ///         (HomogeneousNumericFixed, ctx) => {
 ///             [I8, I16, I32, I64, U8, U16, U32, U64] => AddInt,
@@ -87,7 +88,7 @@ macro_rules! match_binary {
 /// The first parameter is the function name. The second one is a function that is called in `compute`.
 macro_rules! make_binary_numeric {
     ($name:ident, $fun:expr) => {
-        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable + Send + Sync>, Vec<crate::TaggedReceiver>)> {
+        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
             struct State;
 
             impl<T> crate::opset::utils::BinaryKernel<T> for State
@@ -113,7 +114,7 @@ macro_rules! make_binary_numeric {
 /// The first parameter is the function name. The second one is a function that is called in `compute`.
 macro_rules! make_binary_integer {
     ($name:ident, $fun:expr) => {
-        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable + Send + Sync>, Vec<crate::TaggedReceiver>)> {
+        pub fn $name(ctx: crate::session::OpContext) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
             struct State;
 
             impl<T> crate::opset::utils::BinaryKernel<T> for State
@@ -139,10 +140,7 @@ macro_rules! make_binary_boolean {
     ($name:ident, $fun:expr) => {
         pub fn $name(
             ctx: crate::session::OpContext,
-        ) -> anyhow::Result<(
-            Box<dyn crate::Executable + Send + Sync>,
-            Vec<crate::TaggedReceiver>,
-        )> {
+        ) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
             use crate::opset::utils::*;
 
             struct State;

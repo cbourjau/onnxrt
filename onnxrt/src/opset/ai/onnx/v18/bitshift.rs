@@ -36,9 +36,7 @@ where
     }
 }
 
-pub fn setup_bishift(
-    ctx: OpContext,
-) -> Result<(Box<dyn Executable + Send + Sync>, Vec<TaggedReceiver>)> {
+pub fn setup_bishift(ctx: OpContext) -> Result<(Box<dyn Executable>, Vec<TaggedReceiver>)> {
     use HomogeneousFixed::*;
     let state = BitShift::from_attrs(&ctx.attrs)?;
     let inputs = ctx.subscribe_to_inputs().narrow()?;

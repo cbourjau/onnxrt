@@ -38,7 +38,7 @@ pub enum Value {
 }
 
 /// Trait that executes a single node and sends its outputs further.
-pub trait Executable {
+pub trait Executable: Send + Sync {
     fn execute(&self) -> Result<()>;
 }
 

@@ -10,10 +10,7 @@ use super::min_max::{max_nan, min_nan};
 
 pub fn setup_clip(
     ctx: OpContext,
-) -> Result<(
-    Box<dyn crate::Executable + Send + Sync>,
-    Vec<crate::TaggedReceiver>,
-)> {
+) -> Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
     let mut inputs = ctx.input_channels_with_optional();
     // Optional inputs may be omitted; we normalize by filling
     if inputs.len() > 3 {
