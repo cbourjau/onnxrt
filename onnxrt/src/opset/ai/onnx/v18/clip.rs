@@ -1,101 +1,101 @@
-use std::sync::mpsc::Receiver;
+use anyhow::{anyhow, bail};
+use flume::Receiver;
+use half::f16;
+use num::Float;
+use num_traits::FloatConst;
 
-use crate::Sendable;
-use crate::opset::utils::*;
+use crate::{Executable, TaggedReceiver, channels::unbounded, opset::utils::*, session::OpContext};
 
-pub fn setup_clip(ctx: OpContext) -> Result<ExecutionStep> {
-    let (input, min, max): (Option<_>, _, _) = ctx.input_channels_with_optional().narrow()?;
-    let input = input.ok_or_else(|| anyhow!("Mandatory input 'input' is missing"))?;
+use super::min_max::{max_nan, min_nan};
 
-    macro_rules! match_vars {
-        ($($var:tt),*) => {{
-            use Numeric::*;
-            match (input, min, max) {
-                $(
-                    ($var(input), Some($var(min)), Some($var(max))) => {
-                        match_arm(input, Some(min), Some(max))
-                    }
-                    ($var(input), None, Some($var(max))) => match_arm(input, None, Some(max)),
-                    ($var(input), Some($var(min)), None) => match_arm(input, Some(min), None),
-                    ($var(input), None, None) => match_arm(input, None, None),
-                )*
-                    inputs => bail!("Clip: Unexpected input {:?}", inputs),
-            }
-        }};
+pub fn setup_clip(
+    ctx: OpContext,
+) -> Result<(
+    Box<dyn crate::Executable + Send + Sync>,
+    Vec<crate::TaggedReceiver>,
+)> {
+    let mut inputs = ctx.input_channels_with_optional();
+    // Optional inputs may be omitted; we normalize by filling
+    if inputs.len() > 3 {
+        bail!("expected 3 or less inputs, got `{}`", inputs.len())
     }
-    match_vars!(F32, F64, I8, I16, I32, I64, U8, U16, U32, U64)
-}
+    inputs.resize(3, None);
+    let inputs: [_; 3] = inputs
+        .try_into()
+        .map_err(|e| anyhow!("unexpected number of inputs: {:?}", e))?;
 
-fn match_arm<T>(
-    input: Receiver<ArcArrayD<T>>,
-    min: Option<Receiver<ArcArrayD<T>>>,
-    max: Option<Receiver<ArcArrayD<T>>>,
-) -> Result<ExecutionStep>
-where
-    ArcArrayD<T>: Sendable,
-    T: Sync + Send + 'static + Copy + PartialOrd + IsNan,
-{
-    setup((input, min, max), move |(input, min, max)| {
-        clip(input, min, max)
-    })
-}
-
-fn clip<T>(
-    input: ArcArrayD<T>,
-    min: Option<ArcArrayD<T>>,
-    max: Option<ArcArrayD<T>>,
-) -> Result<ArcArrayD<T>>
-where
-    T: Copy + PartialOrd + IsNan,
-{
-    let output = if let Some(min) = min {
-        let min = min.to_owned().into_shape([])?.into_scalar();
-        input
-            .mapv(|el| if (el < min) | min.is_nan() { min } else { el })
-            .into()
-    } else {
-        input
-    };
-    let output = if let Some(max) = max {
-        let max = max.to_owned().into_shape([])?.into_scalar();
-        output
-            .mapv(|el| if (el > max) | max.is_nan() { max } else { el })
-            .into()
-    } else {
-        output
-    };
-    Ok(output)
-}
-
-trait IsNan {
-    fn is_nan(&self) -> bool;
-}
-
-macro_rules! impl_isnan_int {
-    ($ty:ty) => {
-        impl IsNan for $ty {
-            fn is_nan(&self) -> bool {
-                false
+    use TaggedReceiver::*;
+    match inputs {
+        [Some(a), Some(b), Some(c)] => {
+            use HomogeneousNumericFixed::*;
+            let inputs = vec![a, b, c].narrow()?;
+            match inputs {
+                U8([a, b, c]) => setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min))),
+                U16([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min)))
+                }
+                U32([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min)))
+                }
+                U64([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min)))
+                }
+                I8([a, b, c]) => setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min))),
+                I16([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min)))
+                }
+                I32([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min)))
+                }
+                I64([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| *max.min(x.max(min)))
+                }
+                F16([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| max_nan(min_nan(*x, *max), *min))
+                }
+                F32([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| max_nan(min_nan(*x, *max), *min))
+                }
+                F64([a, b, c]) => {
+                    setup_tertiary_zipped(a, b, c, |x, min, max| max_nan(min_nan(*x, *max), *min))
+                }
             }
         }
-    };
-}
-impl_isnan_int!(i8);
-impl_isnan_int!(i16);
-impl_isnan_int!(i32);
-impl_isnan_int!(i64);
-impl_isnan_int!(u8);
-impl_isnan_int!(u16);
-impl_isnan_int!(u32);
-impl_isnan_int!(u64);
-macro_rules! impl_isnan_float {
-    ($ty:ty) => {
-        impl IsNan for $ty {
-            fn is_nan(&self) -> bool {
-                Self::is_nan(*self)
+        [Some(a), None, Some(c)] => {
+            use HomogeneousNumericFixed::*;
+            let inputs = vec![a, c].narrow()?;
+            match inputs {
+                U8([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                U16([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                U32([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                U64([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                I8([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                I16([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                I32([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                I64([a, c]) => setup_binary_zipped(a, c, |x, max| *max.min(x)),
+                F16([a, c]) => setup_binary_zipped(a, c, |x, max| min_nan(*x, *max)),
+                F32([a, c]) => setup_binary_zipped(a, c, |x, max| min_nan(*x, *max)),
+                F64([a, c]) => setup_binary_zipped(a, c, |x, max| min_nan(*x, *max)),
             }
         }
-    };
+        [Some(a), Some(b), None] => {
+            use HomogeneousNumericFixed::*;
+            let inputs = vec![a, b].narrow()?;
+            match inputs {
+                U8([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                U16([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                U32([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                U64([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                I8([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                I16([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                I32([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                I64([a, b]) => setup_binary_zipped(a, b, |x, min| *x.max(min)),
+                F16([a, b]) => setup_binary_zipped(a, b, |x, min| max_nan(*x, *min)),
+                F32([a, b]) => setup_binary_zipped(a, b, |x, min| max_nan(*x, *min)),
+                F64([a, b]) => setup_binary_zipped(a, b, |x, min| max_nan(*x, *min)),
+            }
+        }
+        [Some(a), None, None] => Ok((Box::new(|| Ok(())) as _, vec![a])),
+        _ => bail!("Clip: input 'input' is not optional"),
+    }
 }
-impl_isnan_float!(f32);
-impl_isnan_float!(f64);

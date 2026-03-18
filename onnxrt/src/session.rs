@@ -327,10 +327,13 @@ fn setup_steps(
             .get(&node.op_type.as_str())
             .ok_or_else(|| anyhow!("Unimplemented operator: {}", node.op_type))?;
 
-        let (kernel, outputs) = setup_fn(ctx).context(format!(
-            "An error occurred during the setup of a '{}' node.",
-            node.op_type
-        ))?;
+        let (kernel, outputs) = setup_fn(ctx).map_err(|e| {
+            anyhow!(
+                "An error occurred during the setup of a '{}' node: {}",
+                node.op_type,
+                e
+            )
+        })?;
 
         steps.push(kernel);
 

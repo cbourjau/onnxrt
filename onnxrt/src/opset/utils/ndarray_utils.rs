@@ -94,6 +94,30 @@ where
         .map_collect(op))
 }
 
+pub fn zip_map_with_co_broadcast3<A, B, C, Out, Op>(
+    a: ArrayViewD<A>,
+    b: ArrayViewD<B>,
+    c: ArrayViewD<C>,
+    op: Op,
+) -> Result<ArrayD<Out>>
+where
+    A: Clone,
+    B: Clone,
+    C: Clone,
+    Op: Fn(&A, &B, &C) -> Out + Send + Sync + 'static + Copy,
+{
+    let common_shape_a_b = co_broadcast(&a.shape().into_dimension(), &b.shape().into_dimension())?;
+    let common_shape = co_broadcast(
+        &common_shape_a_b.into_dimension(),
+        &c.shape().into_dimension(),
+    )?;
+    // Unwrap is fine below since we just computed the common shape above.
+    Ok(Zip::from(a.broadcast(common_shape).unwrap())
+        .and_broadcast(b)
+        .and_broadcast(c)
+        .map_collect(op))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

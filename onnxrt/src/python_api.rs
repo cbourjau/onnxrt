@@ -140,7 +140,5 @@ fn to_np_float16<'py>(
         .call_method1("view", (np.getattr("float16").unwrap(),))
         .unwrap();
 
-    dbg!(&res);
-
     Ok(res)
 }

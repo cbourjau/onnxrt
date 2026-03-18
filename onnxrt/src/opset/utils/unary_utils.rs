@@ -1,8 +1,8 @@
 use anyhow::Result;
 use flume::Receiver;
 
-use crate::channels::Broadcaster;
-use crate::{ArcArrayD, Executable};
+use crate::channels::{Broadcaster, unbounded};
+use crate::{ArcArrayD, Executable, TaggedReceiver, TaggedTensorReceiver};
 
 pub struct UnaryWrapper<T, S> {
     pub a: Receiver<ArcArrayD<T>>,

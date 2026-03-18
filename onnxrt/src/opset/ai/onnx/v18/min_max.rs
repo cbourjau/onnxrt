@@ -1,75 +1,123 @@
+use anyhow::bail;
 use num::Float;
 use ordered_float::OrderedFloat;
 
-use crate::opset::utils::*;
+use crate::{opset::utils::*, session::OpContext};
 
-fn min_float<T>(a: T, b: T) -> T
+/// NaN-aware version of min
+pub fn min_nan<T>(a: T, b: T) -> T
 where
     T: Float,
 {
-    Float::min(OrderedFloat(a), OrderedFloat(b)).0
+    if a.is_nan() | b.is_nan() {
+        T::nan()
+    } else {
+        a.min(b)
+    }
 }
 
-fn max_float<T>(a: T, b: T) -> T
+/// NaN-aware version of max
+pub fn max_nan<T>(a: T, b: T) -> T
 where
     T: Float,
 {
-    Float::max(OrderedFloat(a), OrderedFloat(b)).0
-}
-
-fn reduce<T, F>(inputs: Vec<ArcArrayD<T>>, fun: F) -> Result<ArrayD<T>>
-where
-    T: Clone,
-    F: Fn(&T, &T) -> T + Copy + Send + Sync + 'static,
-{
-    let mut inputs = inputs.into_iter();
-    let mut acc = inputs
-        .next()
-        .ok_or_else(|| anyhow!("'Min' operator expects at least one input"))?
-        .to_owned();
-
-    for el in inputs {
-        acc = zip_map_with_co_broadcast(acc.view(), el.view(), fun)?;
-    }
-    Ok(acc)
-}
-
-pub fn setup_min(ctx: OpContext) -> Result<ExecutionStep> {
-    let inputs = ctx.subscribe_to_inputs().narrow()?;
-
-    use HomogeneousNumeric::*;
-    match inputs {
-        F32(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| min_float(a, b))),
-        F64(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| min_float(a, b))),
-
-        I8(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-        I16(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-        I32(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-        I64(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-
-        U8(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-        U16(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-        U32(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
-        U64(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::min(a, b))),
+    if a.is_nan() | b.is_nan() {
+        T::nan()
+    } else {
+        a.max(b)
     }
 }
 
-pub fn setup_max(ctx: OpContext) -> Result<ExecutionStep> {
+pub fn setup_max(
+    ctx: OpContext,
+) -> Result<(
+    Box<dyn crate::Executable + Send + Sync>,
+    Vec<crate::TaggedReceiver>,
+)> {
     let inputs = ctx.subscribe_to_inputs().narrow()?;
 
-    use HomogeneousNumeric::*;
+    use HomogeneousNumericFixed::*;
     match inputs {
-        F32(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| max_float(a, b))),
-        F64(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| max_float(a, b))),
+        (I8([a]), HomogeneousNumeric::I8(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (I16([a]), HomogeneousNumeric::I16(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (I32([a]), HomogeneousNumeric::I32(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (I64([a]), HomogeneousNumeric::I64(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (U8([a]), HomogeneousNumeric::U8(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (U16([a]), HomogeneousNumeric::U16(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (U32([a]), HomogeneousNumeric::U32(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (U64([a]), HomogeneousNumeric::U64(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.max(b))
+        }
+        (F16([a]), HomogeneousNumeric::F16(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| max_nan(*a, *b))
+        }
+        (F32([a]), HomogeneousNumeric::F32(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| max_nan(*a, *b))
+        }
+        (F64([a]), HomogeneousNumeric::F64(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| max_nan(*a, *b))
+        }
+        _ => bail!("Min: unexpected input data types"),
+    }
+}
 
-        I8(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
-        I16(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
-        I32(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
-        I64(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
+pub fn setup_min(
+    ctx: OpContext,
+) -> Result<(
+    Box<dyn crate::Executable + Send + Sync>,
+    Vec<crate::TaggedReceiver>,
+)> {
+    let inputs = ctx.subscribe_to_inputs().narrow()?;
 
-        U8(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
-        U16(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
-        U32(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
-        U64(inputs) => setup(inputs, |inp| reduce(inp, |&a, &b| Ord::max(a, b))),
+    use HomogeneousNumericFixed::*;
+    match inputs {
+        (I8([a]), HomogeneousNumeric::I8(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (I16([a]), HomogeneousNumeric::I16(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (I32([a]), HomogeneousNumeric::I32(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (I64([a]), HomogeneousNumeric::I64(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (U8([a]), HomogeneousNumeric::U8(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (U16([a]), HomogeneousNumeric::U16(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (U32([a]), HomogeneousNumeric::U32(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (U64([a]), HomogeneousNumeric::U64(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| *a.min(b))
+        }
+        (F16([a]), HomogeneousNumeric::F16(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| min_nan(*a, *b))
+        }
+        (F32([a]), HomogeneousNumeric::F32(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| min_nan(*a, *b))
+        }
+        (F64([a]), HomogeneousNumeric::F64(rest)) => {
+            setup_variadic_zipped_reduce(a, rest, |a, b| min_nan(*a, *b))
+        }
+        _ => bail!("Min: unexpected input data types"),
     }
 }
