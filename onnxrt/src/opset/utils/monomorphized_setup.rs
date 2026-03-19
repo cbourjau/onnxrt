@@ -3,6 +3,25 @@ use flume::Receiver;
 
 use crate::{Executable, TaggedReceiver, channels::unbounded, opset::utils::*, session::OpContext};
 
+pub fn setup_unary<T1, T4>(
+    inp: Receiver<ArcArrayD<T1>>,
+    fun: impl Fn(ArcArrayD<T1>) -> Result<ArrayD<T4>> + Send + Sync + 'static + Copy,
+) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
+where
+    T1: Sync + Send + Copy + 'static,
+    T4: Sync + Send + Copy + 'static,
+    TaggedReceiver: From<Receiver<ArcArrayD<T4>>>,
+{
+    let (res_broad, res_rec) = unbounded();
+    let compute = move || {
+        let a = inp.recv()?;
+        let res = fun(a)?;
+        res_broad.send(res.into_shared())?;
+        Ok(())
+    };
+    Ok((Box::new(compute) as _, vec![res_rec]))
+}
+
 /// Setup function that maps two inputs to a single output with bidirectional broadcasting.
 pub fn setup_binary_zipped<T1, T2, T3>(
     a: Receiver<ArcArrayD<T1>>,
@@ -10,9 +29,9 @@ pub fn setup_binary_zipped<T1, T2, T3>(
     fun: impl Fn(&T1, &T2) -> T3 + Send + Sync + 'static + Copy,
 ) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
-    T1: Sync + Send + Copy + 'static,
-    T2: Sync + Send + Copy + 'static,
-    T3: Sync + Send + Copy + 'static,
+    T1: Sync + Send + Clone + 'static,
+    T2: Sync + Send + Clone + 'static,
+    T3: Sync + Send + Clone + 'static,
     TaggedReceiver: From<Receiver<ArcArrayD<T3>>>,
 {
     setup_binary((a, b), move |a, b| {
@@ -69,9 +88,9 @@ fn setup_binary<T1, T2, T4>(
     fun: impl Fn(ArrayViewD<T1>, ArrayViewD<T2>) -> Result<ArrayD<T4>> + Send + Sync + 'static + Copy,
 ) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
-    T1: Sync + Send + Copy + 'static,
-    T2: Sync + Send + Copy + 'static,
-    T4: Sync + Send + Copy + 'static,
+    T1: Sync + Send + Clone + 'static,
+    T2: Sync + Send + Clone + 'static,
+    T4: Sync + Send + Clone + 'static,
     TaggedReceiver: From<Receiver<ArcArrayD<T4>>>,
 {
     let (res_broad, res_rec) = unbounded();

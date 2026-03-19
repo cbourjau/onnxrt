@@ -1,57 +1,64 @@
+use anyhow::bail;
 use num::{Float, One, Zero};
 use num_traits::AsPrimitive;
 
-use crate::opset::utils::*;
+use crate::{opset::utils::*, session::OpContext};
 
-fn elu<T>(mut x: ArrayD<T>, alpha: f32) -> ArrayD<T>
+pub fn setup_celu(
+    ctx: OpContext,
+) -> Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
+    let alpha = ctx.attrs.get_with_default("alpha", 1.0)?;
+    let inputs = ctx.subscribe_to_inputs().narrow()?;
+
+    use HomogeneousNumericFixed::*;
+    // Standard only specifies Float
+    match inputs {
+        (F32([a])) => setup_unary(a, move |a| Ok(a.mapv(|el| celu(el, alpha)))),
+        // (F16([a])) => setup_unary(a, move |a| Ok(a.mapv(|el| celu(el, alpha)))),
+        // (F64([a])) => setup_unary(a, move |a| Ok(a.mapv(|el| celu(el, alpha)))),
+        _ => bail!("Celu: expected floating point input got `{:?}`", inputs),
+    }
+}
+
+pub fn setup_elu(
+    ctx: OpContext,
+) -> Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
+    let alpha = ctx.attrs.get_with_default("alpha", 1.0)?;
+    let inputs = ctx.subscribe_to_inputs().narrow()?;
+
+    use HomogeneousNumericFixed::*;
+    // Standard only specifies Float
+    match inputs {
+        (F16([a])) => setup_unary(a, move |a| Ok(a.mapv(|el| elu(el, alpha)))),
+        (F32([a])) => setup_unary(a, move |a| Ok(a.mapv(|el| elu(el, alpha)))),
+        (F64([a])) => setup_unary(a, move |a| Ok(a.mapv(|el| elu(el, alpha)))),
+        _ => bail!("Elu: expected floating point input got `{:?}`", inputs),
+    }
+}
+
+fn elu<T>(mut x: T, alpha: f32) -> T
 where
     T: Float + One + 'static + PartialOrd,
     f32: AsPrimitive<T>,
 {
     let alpha = alpha.as_();
-    x.mapv_inplace(|el| {
-        if el < T::zero() {
-            alpha * (el.exp() - T::one())
-        } else {
-            el
-        }
-    });
-    x
+    if x < T::zero() {
+        alpha * (x.exp() - T::one())
+    } else {
+        x
+    }
 }
 
-fn celu<T>(mut x: ArrayD<T>, alpha: f32) -> ArrayD<T>
+fn celu<T>(mut x: T, alpha: f32) -> T
 where
     T: Float + One + 'static + PartialOrd + Zero,
     f32: AsPrimitive<T>,
 {
     // max(0,x) + min(0,alpha*(exp(x/alpha)-1))
     let alpha = alpha.as_();
-    x.mapv_inplace(|el| {
-        el.max(T::zero()) + (alpha * ((el / alpha).exp() - T::one())).min(T::zero())
-    });
-    x
-}
-
-pub fn setup_elu(ctx: OpContext) -> Result<ExecutionStep> {
-    let alpha = ctx.attrs.get_with_default("alpha", 1.0)?;
-    let x = ctx.subscribe_to_inputs().narrow()?;
-
-    setup_all!(
-        FloatingPoint,
-        x,
-        x,
-        setup(x, move |x| { Ok(elu(x.to_owned(), alpha)) })
-    )
-}
-
-pub fn setup_celu(ctx: OpContext) -> Result<ExecutionStep> {
-    let alpha = ctx.attrs.get_with_default("alpha", 1.0)?;
-    let x = ctx.subscribe_to_inputs().narrow()?;
-
-    setup_all!(
-        FloatingPoint,
-        x,
-        x,
-        setup(x, move |x| { Ok(celu(x.to_owned(), alpha)) })
-    )
+    if x.is_nan() {
+        x
+    } else {
+        x.max(T::zero()) + (alpha * ((x / alpha).exp() - T::one())).min(T::zero())
+    }
 }

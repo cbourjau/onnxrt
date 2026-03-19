@@ -439,6 +439,7 @@ dependencies = [
  "flume",
  "half",
  "itertools",
+ "libm",
  "ndarray",
  "num",
  "num-traits",
