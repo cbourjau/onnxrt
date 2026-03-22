@@ -1,52 +1,64 @@
-use crate::opset::utils::*;
+use crate::{opset::utils::*, session::OpContext};
 
-#[derive(Debug)]
-struct Shape {
-    start: i64,
-    end: Option<i64>,
+fn size<T>(a: &ArcArrayD<T>) -> Result<ArrayD<i64>> {
+    let arr = ndarray::Array0::from_elem((), a.len() as i64);
+    Ok(arr.into_dyn())
 }
 
-impl Shape {
-    fn from_attrs(attrs: &Attributes) -> Result<Self> {
-        let start = attrs.get_with_default("start", 0)?;
-        let end = attrs.get_optional("end")?;
+pub fn setup_size(
+    ctx: OpContext,
+) -> Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
+    let a = ctx.subscribe_to_inputs().narrow()?;
 
-        Ok(Self { start, end })
-    }
+    use TaggedTensorReceiver::*;
+    match a {
+        Bool(a) => setup_unary(a, |a| size(&a)),
+        String(a) => setup_unary(a, |a| size(&a)),
 
-    fn compute<T>(&self, data: ArcArrayD<T>) -> Result<ArcArrayD<i64>> {
-        let ndim = data.ndim();
+        F16(a) => setup_unary(a, |a| size(&a)),
+        F32(a) => setup_unary(a, |a| size(&a)),
+        F64(a) => setup_unary(a, |a| size(&a)),
 
-        // Specs is specific about the clamping; hence a special
-        // function here.
-        let start = convert_negative_index_clamp(self.start, ndim);
+        I8(a) => setup_unary(a, |a| size(&a)),
+        I16(a) => setup_unary(a, |a| size(&a)),
+        I32(a) => setup_unary(a, |a| size(&a)),
+        I64(a) => setup_unary(a, |a| size(&a)),
 
-        let end = self
-            .end
-            .map(|end| convert_negative_index_clamp(end, ndim))
-            .unwrap_or(ndim);
-
-        let shape = &data
-            .shape()
-            .get(start..end)
-            .ok_or_else(|| anyhow!("Shape: 'start' or 'end' index is out of range"))?;
-
-        Ok(ArcArray::from_iter(shape.iter().map(|el| *el as i64)).into_dyn())
+        U8(a) => setup_unary(a, |a| size(&a)),
+        U16(a) => setup_unary(a, |a| size(&a)),
+        U32(a) => setup_unary(a, |a| size(&a)),
+        U64(a) => setup_unary(a, |a| size(&a)),
     }
 }
 
-pub fn setup_shape(ctx: OpContext) -> Result<ExecutionStep> {
-    let state = Shape::from_attrs(&ctx.attrs)?;
-    let data = ctx.subscribe_to_inputs().narrow()?;
-    setup_all!(
-        TaggedTensorReceiver,
-        data,
-        data,
-        setup(data, move |data| state.compute(data))
-    )
+fn shape<T>(a: &ArcArrayD<T>) -> Result<ArrayD<i64>> {
+    let shape = a.shape();
+    let arr = ndarray::Array::from_iter(shape.iter().map(|x| *x as i64)).into_dyn();
+    Ok(arr)
 }
 
-fn convert_negative_index_clamp(idx: i64, len: usize) -> usize {
-    let len = len as i64;
-    if idx < 0 { len + idx } else { idx }.max(0).min(len) as usize
+pub fn setup_shape(
+    ctx: OpContext,
+) -> Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)> {
+    let a = ctx.subscribe_to_inputs().narrow()?;
+
+    use TaggedTensorReceiver::*;
+    match a {
+        Bool(a) => setup_unary(a, |a| shape(&a)),
+        String(a) => setup_unary(a, |a| shape(&a)),
+
+        F16(a) => setup_unary(a, |a| shape(&a)),
+        F32(a) => setup_unary(a, |a| shape(&a)),
+        F64(a) => setup_unary(a, |a| shape(&a)),
+
+        I8(a) => setup_unary(a, |a| shape(&a)),
+        I16(a) => setup_unary(a, |a| shape(&a)),
+        I32(a) => setup_unary(a, |a| shape(&a)),
+        I64(a) => setup_unary(a, |a| shape(&a)),
+
+        U8(a) => setup_unary(a, |a| shape(&a)),
+        U16(a) => setup_unary(a, |a| shape(&a)),
+        U32(a) => setup_unary(a, |a| shape(&a)),
+        U64(a) => setup_unary(a, |a| shape(&a)),
+    }
 }

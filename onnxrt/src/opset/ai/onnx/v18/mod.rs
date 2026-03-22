@@ -45,7 +45,7 @@ mod modulo;
 // mod relu_with_attr;
 // mod reshape;
 // mod scatter;
-// mod shape;
+mod shape;
 // mod sign;
 // mod simple_element_wise;
 // mod size;
@@ -117,6 +117,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Tanh", Box::new(unary_element_wise::setup_tanh) as _);
     d.insert("Mish", Box::new(unary_element_wise::setup_mish) as _);
     d.insert("LeakyRelu", Box::new(unary_element_wise::setup_leaky_relu) as _);
+    // d.insert("Shape", Box::new(shape::setup_shape) as _);
+    d.insert("Size", Box::new(shape::setup_size) as _);
     // d.insert("Expand", Box::new(expand::setup_expand));
     // d.insert("EyeLike", Box::new(eye_like::setup_eyelike));
     // d.insert("Flatten", Box::new(flatten::setup_flatten));
