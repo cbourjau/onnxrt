@@ -53,7 +53,7 @@ cmd = "pip install --no-deps target/wheels/onnxrt-*.whl --force && pip install -
 depends-on = "build-wheel"
 
 [feature.onnx-tests.tasks.onnx-tests]
-cmd = "pytest onnx-tests/tests/test_elementwise.py"
+cmd = "pytest onnx-tests/tests/test_manipulation_functions.py"
 env = { "RUN_CANDIDATE" = "onnxrt._run_onnxrt" }
 
 

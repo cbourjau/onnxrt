@@ -11,7 +11,7 @@ mod identity;
 mod unary_element_wise;
 // mod batch_normalization;
 mod bitshift;
-// mod cast;
+mod cast;
 mod clip;
 // mod compress;
 // mod constant;
@@ -85,7 +85,8 @@ pub fn get_opset() -> HashMap<&'static str, SetupFnSignature> {
     d.insert("Ceil", Box::new(unary_element_wise::setup_ceil) as _);
     d.insert("Cos", Box::new(unary_element_wise::setup_cos) as _);
     d.insert("Cosh", Box::new(unary_element_wise::setup_cosh) as _);
-    // d.insert("Cast", Box::new(cast::setup_cast));
+    d.insert("Cast", Box::new(cast::setup_cast) as _);
+    d.insert("CastLike", Box::new(cast::setup_cast_like) as _);
     // d.insert("CastLike", Box::new(cast::setup_cast_like));
     d.insert("Clip", Box::new(clip::setup_clip) as _);
     // d.insert("Compress", Box::new(compress::setup_compress));

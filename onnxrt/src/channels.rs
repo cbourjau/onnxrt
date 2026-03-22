@@ -168,7 +168,11 @@ impl TaggedBroadcaster {
 
 impl TaggedReceiver {
     pub fn tensor_dtype(&self) -> Result<DataType> {
-        todo!()
+        match self {
+            Self::Tensor(t) => Ok(t.dtype()),
+            Self::Sequence(_) => todo!(),
+            Self::Map => todo!(),
+        }
     }
 
     pub fn recv(&self) -> Result<Value> {
@@ -207,7 +211,22 @@ impl TaggedTensorReceiver {
     }
 
     pub fn dtype(&self) -> DataType {
-        todo!()
+        use TaggedTensorReceiver::*;
+        match self {
+            F16(_) => DataType::F16,
+            F32(_) => DataType::F32,
+            F64(_) => DataType::F64,
+            U8(_) => DataType::U8,
+            U16(_) => DataType::U16,
+            U32(_) => DataType::U32,
+            U64(_) => DataType::U64,
+            I8(_) => DataType::I8,
+            I16(_) => DataType::I16,
+            I32(_) => DataType::I32,
+            I64(_) => DataType::I64,
+            String(_) => DataType::String,
+            Bool(_) => DataType::Bool,
+        }
     }
 }
 

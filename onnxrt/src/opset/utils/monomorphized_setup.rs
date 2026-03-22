@@ -9,7 +9,7 @@ pub fn setup_unary<T1, T4>(
 ) -> anyhow::Result<(Box<dyn crate::Executable>, Vec<crate::TaggedReceiver>)>
 where
     T1: Sync + Send + 'static,
-    T4: Sync + Send + Copy + 'static,
+    T4: Sync + Send + Clone + 'static,
     TaggedReceiver: From<Receiver<ArcArrayD<T4>>>,
 {
     let (res_broad, res_rec) = unbounded();

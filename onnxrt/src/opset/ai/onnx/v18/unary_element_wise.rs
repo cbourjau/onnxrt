@@ -3,10 +3,10 @@ use std::ops::{Add, Mul, Neg};
 use anyhow::bail;
 use half::f16;
 use libm;
-use num::{One, Zero};
+use num::{FromPrimitive, One, ToPrimitive, Zero};
 use num_traits::Float;
 
-use crate::{opset::utils::*, session::OpContext};
+use crate::{DataType, opset::utils::*, session::OpContext};
 
 pub fn setup_abs(
     ctx: OpContext,
